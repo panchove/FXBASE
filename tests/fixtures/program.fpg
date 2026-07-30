@@ -1,0 +1,63 @@
+// program.fpg — Programa FPXBASE completo con features modernas
+CLASS Stack<T>
+    DATA Items: ARRAY OF T
+    DATA Top: INTEGER
+
+    CONSTRUCTOR()
+        Top := 0
+    END
+
+    METHOD Push(Value: T)
+        AAdd(Items, Value)
+        Top := Top + 1
+    ENDMETHOD
+
+    METHOD Pop() AS T
+        LOCAL v: T
+        Top := Top - 1
+        v := Items[Top]
+        Items[Top] := NIL
+        RETURN v
+    ENDMETHOD
+
+    METHOD IsEmpty() AS BOOLEAN
+        RETURN Top = 0
+    ENDMETHOD
+ENDCLASS
+
+INTERFACE IPrintable
+    METHOD Print() AS STRING
+ENDINTERFACE
+
+CLASS Logger IMPLEMENTS IPrintable
+    DATA Tag: STRING
+
+    CONSTRUCTOR(t: STRING)
+        Tag := t
+    END
+
+    VIRTUAL METHOD Print() AS STRING
+        RETURN "[" + Tag + "]"
+    ENDMETHOD
+ENDCLASS
+
+FUNCTION Main(argc: INTEGER): INTEGER
+    LOCAL s: Stack<INTEGER>
+    LOCAL n: Logger
+
+    s := Stack<INTEGER>{}
+    s.Push(1)
+    s.Push(2)
+    s.Push(3)
+
+    n := Logger{"demo"}
+    IF NOT s.IsEmpty() THEN
+        ? n?.Print() + " top=" + LTRIM(STR(s.Top))
+    ENDIF
+
+    LOCAL opt: STRING
+    opt := n?.Title ?: "default"
+    ? "opt=" + opt
+
+    RETURN 0
+ENDFUNC

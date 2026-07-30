@@ -1,6 +1,10 @@
 # Gramática FPXBASE
 
+**Norma de Referencia:** ISO/IEC/IEEE 29148:2018 / ISO/IEC 14977
+
 **Versión:** 1.0  
+**Trazabilidad ID:** REQ-GRM-001  
+**Auditoría:** Control de Sintaxis Fase 0  
 **Notación:** EBNF extendida  
 `[...]` opcional, `{...}` cero o más, `(...)` agrupación, `|` alternancia, `'...'` literal
 
@@ -40,6 +44,11 @@ ReservedWord ::=
     'FOREACH' | 'IN' |
     'TRY' | 'CATCH' | 'FINALLY' | 'ENDTRY' |
     'CLASS' | 'ENDCLASS' | 'METHOD' | 'DATA' | 'INLINE' |
+    'INTERFACE' | 'ENDINTERFACE' |
+    'VIRTUAL' | 'OVERRIDE' | 'ABSTRACT' | 'FINAL' | 'SEALED' |
+    'IMPLEMENTS' | 'IMPLEMENTEDBY' |
+    'CONSTRUCTOR' | 'DESTRUCTOR' |
+    'PROPERTY' | 'GETTER' | 'SETTER' |
     'NEW' | 'SELF' | 'SUPER' | 'THIS' |
     'NIL' | 'TRUE' | 'FALSE' | '.T.' | '.F.' |
     'AND' | 'OR' | 'NOT' | '.AND.' | '.OR.' | '.NOT.' |
@@ -67,10 +76,21 @@ ReservedWord ::=
     'UNIQUE_PTR' | 'SHARED_PTR' | 'WEAK_PTR' |
     'CAST' |
     'NEWTYPE' | 'ENDNEWTYPE' |
-    'YIELD'
+    'YIELD' |
+    -- Concurrencia / Tasks (FPXBASE)
+    'TASK' | 'ASYNC' | 'AWAIT' | 'SPAWN' | 'PARALLEL' |
+    'CHANNEL' | 'SEND' | 'RECEIVE' | 'SELECT' |
+    'MUTEX' | 'SEMAPHORE' | 'ATOMIC' | 'THREAD_LOCAL' |
+    'LOCK' | 'UNLOCK' | 'TRYLOCK' |
+    -- Memoria / GC
+    'GC' | 'REFCOUNT' | 'GENERATIONAL' | 'MANUAL' |
+    -- Red / Serial / Crypto (built-ins via std.fph)
+    'TCP' | 'UDP' | 'HTTP' | 'DNS' | 'TLS' |
+    'SERIAL' | 'RS232' | 'RS485' |
+    'AES' | 'CHACHA20' | 'BCRYPT' | 'JWT' | 'BASE64'
 ```
 
-> Los comandos xBASE no distinguen mayúsculas/minúsculas.  
+> Los comandos xBASE no distinguen mayúsculas/minúsculas.  \
 > `END` puede abreviarse como `END` + prefijo: `ENDIF`, `ENDFOR`, `ENDDO`.
 
 ### 1.4 Literales
@@ -86,6 +106,10 @@ RealLiteral     ::= Digit {Digit} '.' Digit {Digit} [('E'|'e') ['+'|'-'] Digit {
 StringLiteral   ::= '"' {any_character_except_quote} '"'
                   | "'" {any_character_except_apostrophe} "'"
                   | '[' {any_character_except_bracket} ']'
+                  -- UTF-8 explicit (FPXBASE)
+                  | 'u' '"' {any_character_except_quote} '"'
+                  | 'u8' '"' {any_character_except_quote} '"'
+                  | 'U' '"' {any_character_except_quote} '"'
 
 DateLiteral     ::= CToD(StringLiteral) | {StrictDateLiteral}
 StrictDateLiteral ::= '0d' Digit Digit Digit Digit '-' Digit Digit '-' Digit Digit
@@ -139,6 +163,29 @@ GenericParam     ::= Identifier [':' DataType]
 VarDecl ::= Identifier [':' DataType]
 ```
 
+### 2.3 Operadores (FPXBASE)
+
+```ebnf
+-- Resolución de scope (OOP)
+ScopeResolution ::= '::'
+
+-- Acceso nil-safe (OOP moderno)
+NilSafeAccess    ::= '?.'
+NilCoalesce      ::= '?:'
+
+-- Test de nulidad
+NilCheck         ::= '?'
+
+-- Definición de operador en clase
+OperatorDecl     ::= 'OPERATOR' OperatorSymbol FormalParams Body 'ENDOPERATOR'
+OperatorSymbol   ::= '+' | '-' | '*' | '/' | '%' | '**' |
+                      '==' | '!=' | '<' | '<=' | '>' | '>=' |
+                      '<<' | '>>' | '&' | '|' | '^' | '~' |
+                      '[]' | '++' | '--'
+```
+
+Precedencia (de mayor a menor): unarios → `**` → `* / %` → `+ -` → `<< >>` → `< <= > >=` → `== !=` → `&` → `|` → `^` → `&& AND` → `|| OR`.
+
 ---
 
 ## 3. Estructura del Programa
@@ -187,24 +234,118 @@ VariadicParam   ::= '...' Identifier [':' DataType]
 Body ::= {Statement}
 ```
 
-### 3.2 Clases (OOP xBASE)
+### 3.2 Clases (OOP xBASE + FPXBASE)
 
 ```ebnf
 ClassDef ::=
-    'CLASS' Identifier [GenericParamList] ['FROM' Identifier {',' Identifier}]
+    'CLASS' Identifier [GenericParamList]
+        ['FROM' Identifier {',' Identifier}]
+        ['IMPLEMENTS' Identifier {',' Identifier}]
         [ClassClause]
         {ClassMember}
     'ENDCLASS'
 
-ClassClause ::= 'EXPORT' | 'HIDDEN' | 'FRIEND'
+ClassClause ::= 'EXPORT' | 'HIDDEN' | 'FRIEND' | 'ABSTRACT' | 'FINAL' | 'SEALED'
 
 ClassMember ::=
     'DATA' Identifier [':' DataType] [Initializer] [AccessSpec] |
-    'METHOD' Identifier ['(' [FormalParamList] ')'] [AccessSpec] |
-    'INLINE' 'METHOD' Identifier ['(' [FormalParamList] ')'] Body
+    'METHOD' [MethodQualifier] Identifier ['(' [FormalParamList] ')'] [AccessSpec] |
+    'INLINE' 'METHOD' [MethodQualifier] Identifier ['(' [FormalParamList] ')'] Body |
+    'CONSTRUCTOR' ['(' [FormalParamList] ')'] Body |
+    'DESTRUCTOR' Body |
+    'PROPERTY' Identifier [':' DataType] PropertyAccessors [Initializer] [AccessSpec] |
+    'OPERATOR' OperatorSymbol FormalParams Body 'ENDOPERATOR'
 
-AccessSpec ::= 'EXPORT' | 'HIDDEN' | 'PROTECTED'
+MethodQualifier ::=
+    'VIRTUAL' ['ABSTRACT' | 'FINAL' | 'OVERRIDE'] |
+    'OVERRIDE' |
+    'STATIC' |
+    'ABSTRACT'
+
+AccessSpec ::= 'EXPORT' | 'HIDDEN' | 'PROTECTED' | 'FRIEND'
 Initializer ::= ':=' Expression
+
+PropertyAccessors ::=
+    'GETTER' Identifier |
+    'GETTER' Identifier 'SETTER' Identifier |
+    'SETTER' Identifier
+```
+
+**Semántica de despacho (vtable)**:
+
+- `VIRTUAL` — declara método con despacho dinámico. Entrada en vtable del tipo.
+- `ABSTRACT` — método sin cuerpo en la clase actual; las descendientes **deben** implementarlo. La clase que contiene un `ABSTRACT` debe marcarse `ABSTRACT` o `FINAL` no.
+- `OVERRIDE` — reemplaza un método virtual de la clase base. Firma debe coincidir exactamente (nombre, parámetros, tipo de retorno). Error `FPX-0410` si no existe el virtual correspondiente.
+- `FINAL` (calificador de método) — sella el virtual: las descendientes no pueden sobrescribirlo.
+- `SEALED` (clase) — equivalente a `FINAL` aplicado a todos los miembros; no admite descendencia.
+- `STATIC` — método de clase, sin `SELF`, no participa en vtable.
+
+**Llamadas a métodos de clase base**:
+
+```ebnf
+SuperCall ::= 'SUPER' '::' Identifier ['(' [ArgumentList] ')']
+SelfRef   ::= 'SELF' | 'THIS'
+```
+
+**Acceso nil-safe** (FPXBASE moderno):
+
+```ebnf
+NilSafeMember ::= Expression '?.' Identifier ['(' [ArgumentList] ')']
+NilCoalesce   ::= Expression '?:' Expression
+```
+
+`obj?.field` retorna `NIL`/`0`/`""` si `obj` es `NIL` sin lanzar excepción.
+`obj ?: default` retorna `obj` si no es `NIL`, si no `default`.
+
+**Restricciones**:
+
+- Una clase puede implementar múltiples `INTERFACE`s vía `IMPLEMENTS` (herencia múltiple de interfaz, no de implementación).
+- Herencia de implementación es simple: `FROM BaseClass` (sin comas). Las comas son solo para `IMPLEMENTS`.
+- `OVERRIDE` no puede cambiar la visibilidad para reducirla (de `EXPORT` a `HIDDEN` es error `FPX-0411`).
+
+---
+
+### 3.2.1 Interfaces (FPXBASE)
+
+```ebnf
+InterfaceDef ::=
+    'INTERFACE' Identifier [GenericParamList]
+        ['FROM' Identifier {',' Identifier}]
+        {InterfaceMember}
+    'ENDINTERFACE'
+
+InterfaceMember ::=
+    'METHOD' Identifier ['(' [FormalParamList] ')'] ['AS' DataType] |
+    'PROPERTY' Identifier [':' DataType] ['AS' DataType] PropertyAccessors
+```
+
+- Una `INTERFACE` solo declara contratos (sin cuerpo, sin `DATA`).
+- Una clase los cumple con `IMPLEMENTS IInterface1, IInterface2`.
+- Las interfaces pueden heredar de otras interfaces con `FROM`.
+- Las propiedades de interfaz solo declaran el contrato del getter/setter (sin cuerpo).
+
+**Ejemplo**:
+
+```
+INTERFACE IComparable
+    METHOD Compare(other: OBJECT) AS INTEGER
+ENDINTERFACE
+
+INTERFACE ISerializable FROM IComparable
+    METHOD Serialize() AS STRING
+ENDINTERFACE
+
+CLASS MyClass IMPLEMENTS ISerializable
+    DATA Value: INTEGER
+
+    METHOD Compare(other: OBJECT) AS INTEGER
+        ...
+    ENDMETHOD
+
+    METHOD Serialize() AS STRING
+        ...
+    ENDMETHOD
+ENDCLASS
 ```
 
 ### 3.3 Structs (FPXBASE)
@@ -663,7 +804,91 @@ ActivateWindowCommand ::=
     | 'SHOW' 'WINDOW' Identifier
 ```
 
-### 4.9 Misceláneos
+### 4.10 Concurrencia y Tasks (FPXBASE)
+
+```ebnf
+ConcurrencyStatement ::=
+    TaskStatement |
+    AsyncStatement |
+    AwaitStatement |
+    ChannelStatement |
+    MutexStatement |
+    SemaphoreStatement |
+    AtomicStatement |
+    ThreadLocalDecl |
+    LockStatement |
+    GCStatement
+
+TaskStatement ::=
+    'TASK' 'CREATE' '(' Expression ')' [Identifier]  -- TaskCreate(func)
+    | 'TASK' 'WAIT' Expression                        -- TaskWait(task)
+    | 'TASK' 'YIELD'                                  -- TaskYield()
+    | 'SPAWN' Expression                              -- spawn func()
+
+AsyncStatement ::=
+    'ASYNC' FunctionDef                               -- async function
+
+AwaitStatement ::=
+    'AWAIT' Expression                                -- await future
+
+ChannelStatement ::=
+    'CHANNEL' Identifier [':' DataType]               -- decl
+    | 'SEND' Expression 'TO' Identifier               -- send val to chan
+    | 'RECEIVE' Identifier [Identifier ':=' ]         -- receive from chan
+    | 'SELECT' '{' SelectCase {SelectCase} '}'        -- select on channels
+
+SelectCase ::=
+    'CASE' 'RECEIVE' Identifier [Identifier ':=' ] '=>' {Statement}
+    | 'CASE' 'SEND' Expression 'TO' Identifier '=>' {Statement}
+    | 'CASE' 'DEFAULT' '=>' {Statement}
+
+MutexStatement ::=
+    'MUTEX' Identifier                                -- decl
+    | 'LOCK' Identifier                               -- lock mutex
+    | 'UNLOCK' Identifier                             -- unlock mutex
+    | 'TRYLOCK' Identifier [ 'THEN' {Statement} ]     -- try lock
+
+SemaphoreStatement ::=
+    'SEMAPHORE' Identifier [':' Expression]           -- decl with count
+    | 'WAIT' Identifier                               -- sem_wait
+    | 'SIGNAL' Identifier                             -- sem_post
+
+AtomicStatement ::=
+    'ATOMIC' '{' {Statement} '}'                      -- atomic block
+    | 'ATOMIC' Identifier ':=' Expression             -- atomic assign
+    | 'ATOMIC' 'INC' Identifier                       -- atomic inc
+    | 'ATOMIC' 'DEC' Identifier                       -- atomic dec
+    | 'ATOMIC' 'CAS' Identifier ',' Expression ',' Expression  -- compare-and-swap
+
+ThreadLocalDecl ::=
+    'THREAD_LOCAL' Identifier [':' DataType] [':=' Expression]
+
+LockStatement ::=
+    'LOCK' Identifier                                 -- lock (mutex/semaphore)
+    | 'UNLOCK' Identifier                             -- unlock
+    | 'TRYLOCK' Identifier [ 'THEN' {Statement} ]     -- try lock
+
+GCStatement ::=
+    '#pragma' 'gc' '(' ('refcount' | 'generational' | 'manual' ) ')'
+    | '#pragma' 'gc' 'off'
+
+ScopeClause ::=
+    'ALL' | 'REST' | 'NEXT' Expression | 'RECORD' Expression
+
+ForWhileClause ::=
+    'FOR' Expression | 'WHILE' Expression
+
+IdentifierList ::= Identifier {',' Identifier}
+ExpressionList ::= Expression {',' Expression}
+ActualParamList ::= ActualParam {',' ActualParam}
+ActualParam ::= Expression | Identifier ':=' Expression
+
+CommandLine ::= {any_character}
+```
+
+---
+
+### 4.11 Misceláneos
 
 ```ebnf
 MiscStatement ::=
@@ -681,19 +906,6 @@ MiscStatement ::=
     'STORE' Expression 'TO' IdentifierList |
     'DECLARE' Identifier '[' Expression ']' [':' DataType] |
     'YIELD' Expression
-
-ScopeClause ::=
-    'ALL' | 'REST' | 'NEXT' Expression | 'RECORD' Expression
-
-ForWhileClause ::=
-    'FOR' Expression | 'WHILE' Expression
-
-IdentifierList ::= Identifier {',' Identifier}
-ExpressionList ::= Expression {',' Expression}
-ActualParamList ::= ActualParam {',' ActualParam}
-ActualParam ::= Expression | Identifier ':=' Expression
-
-CommandLine ::= {any_character}
 ```
 
 ---
@@ -736,7 +948,24 @@ PrimaryExpr ::=
     MacroVariable |
     IIFExpression |
     'SELF' |
-    'SUPER'
+    'SUPER' |
+    -- FPXBASE: Concurrencia
+    'AWAIT' Expression |
+    'SPAWN' Expression |
+    'SEND' '(' Expression ',' Expression ')' |
+    'RECEIVE' '(' Expression ')' |
+    'SELECT' '{' {SelectCase} '}' |
+    'NEW' 'MUTEX' |
+    'NEW' 'SEMAPHORE' '(' Expression ')' |
+    'ATOMIC' '(' Expression ')' |
+    'LOCK' '(' Expression ')' |
+    'UNLOCK' '(' Expression ')' |
+    'TRYLOCK' '(' Expression ')'
+
+SelectCase ::=
+    'CASE' 'SEND' '(' Expression ',' Expression ')' ':' {Statement} |
+    'CASE' 'RECEIVE' '(' Expression ')' ':' {Statement} |
+    'CASE' 'DEFAULT' ':' {Statement}
 
 FunctionCall ::=
     Identifier '(' [ActualParamList] ')' |
@@ -892,7 +1121,20 @@ CompilerDirective ::=
     '--target' ('win32' | 'win64' | 'linux32' | 'linux64') |
     '--db' ('sqlite' | 'postgresql' | 'mssql') |
     '--connection' StringLiteral |
-    '--legacy'
+    '--legacy' |
+    '--strict' | '--no-strict' |
+    '--db-ansi' |
+    '--gc' ('refcount' | 'generational' | 'manual' | 'none') |
+    '--jobs' IntegerLiteral |
+    '--output-type' ('exe' | 'dll' | 'so' | 'lib' | 'a') |
+    '--optimize' ('0' | '1' | '2' | '3')
+
+PragmaDirective ::=
+    '#pragma' 'gc' '(' ('refcount' | 'generational' | 'manual' | 'none') ')'
+    | '#pragma' 'gc' 'off'
+    | '#pragma' 'strict' ('on' | 'off')
+    | '#pragma' 'db_ansi' ('on' | 'off')
+    | '#pragma' 'legacy' ('on' | 'off')
 
 EntryDirective ::=
     '#entry' Identifier
@@ -901,11 +1143,9 @@ EntryDirective ::=
 - Si no hay `#entry`, el entry point se resuelve como: `FUNCTION Main` / `PROCEDURE Main` → primer `PROCEDURE` del archivo raíz (solo `--legacy`)
 - `FUNCTION Main` puede ser `Main(...)` (variádico) o `Main(p1 : STRING, p2 : STRING, ...)`
 - `Main` retorna `INTEGER` (código de salida, 0 = éxito por defecto)
-
-Path ::= {any_character}
-Value ::= {any_character}
-
-```
+- `#pragma gc` controla el modo de gestión de memoria por archivo/bloque
+- `#pragma strict` controla tipado estricto por archivo/bloque
+- `--gc` flag CLI establece el default global
 
 ---
 

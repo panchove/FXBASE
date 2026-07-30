@@ -1,116 +1,108 @@
-# FPXBASE — Project Status & Conventions
+# FPXBASE — Agent Notes
 
-## Status
+xBASE-to-SQL compiler in Free Pascal. **Phase 0** complete (lexer, parser, AST, preprocessor). **Phase 1.1** in progress (IR generation). End-to-end compile → run is not wired: `fpx.ir`, `fpx.backend`, `fpx.rtl`, `fpx.ppo` are either empty stubs or, in the case of `fpx.ir`, the work-in-progress file.
 
-Greenfield project in **design/planning phase**. No code yet.
+## Source layout
 
-## Source of Truth
+Compiler source lives in **`src/fpx/`** only. The other `src/` subdirs (`ast/`, `lexer/`, `parser/`, `ir/`, `backend/`, `rtl/`, `std/`) and most of `src/tools/*` are empty placeholders — **do not add files there**.
 
-- `docs/PRD-FPXBASE.md` — product requirements, architecture, roadmap, migration strategy
-- `docs/GRAMMAR-FXBASE.md` — complete EBNF grammar for xBASE (Clipper/Harbour/FoxPro) + FPXBASE extensions
+Units in `src/fpx/`:
+- `fpx.tokens.pas` — `TTokenType`, `TKeyword` (~200 entries), `TToken`, `KeywordFromString`. Single source of truth for tokens. **Mode: objfpc.**
+- `fpx.lexer.pas` — `TFPXLexer`; `TLexer = TFPXLexer` alias. Exposes `Tokenize()` (bulk) and `NextToken` (streaming). **Mode: delphi.**
+- `fpx.parser.pas` — `TParser.Create(Lexer: TLexer; Reporter: TErrorReporter)`; `ParseProgram` (no args, reads from constructor lexer). **Mode: objfpc.**
+- `fpx.ast.pas` — AST node hierarchy; `TCompilationUnit.Dump`. **Mode: objfpc.**
+- `fpx.preprocessor.pas`, `fpx.errors.pas`, `fpx.cli.pas`. **Mode: delphi** (with `advancedRecords`+`typeHelpers`).
+- `fpx.ir.pas`, `fpx.backend.pas`, `fpx.rtl.pas`, `fpx.ppo.pas` — referenced by `fpx.cli`; `fpx.ir` is being filled in (Phase 1.1), the other three are empty stubs.
+- `fpx.lpr` — single canonical entry point at `src/fpx/fpx.lpr`. Uses only `fpx.cli`; everything else transitive.
 
-## What FPXBASE Is
+**Match the existing unit's mode when editing** — `{$mode delphi}` + `advancedRecords`/`typeHelpers` for most, `{$mode objfpc}` for `fpx.tokens` and `fpx.parser`.
 
-A modern xBASE compiler that **replaces .dbf/index files with SQL** (SQLite default, optional PostgreSQL/MSSQL). Generates native 32/64-bit EXE/DLL/SO/LIB/A for Windows and Linux.
+## Build
 
-## Planned Stack
+```bash
+make fpx               # bin/fpx from src/fpx/fpx.lpr
+make all               # also fpx-fmt, fpx-dbf (fpx-lsp/dap/pkg have no .lpr yet)
+make clean             # rm -rf build bin/fpx*
+```
 
-| Layer        | Technology                                                  |
-|--------------|-------------------------------------------------------------|
-| Parser/Lexer | Free Pascal (recursive descent on DFA lexer)                |
-| IR/Optimizer | Free Pascal (own IR tree/DAG)                               |
-| Backend      | Free Pascal (native x86/x86_64 asm → PE/COFF / ELF)         |
-| Data layer   | Free Pascal (SQLite, PostgreSQL, MSSQL via native wrappers) |
-| Tooling      | LSP, DAP                                                    |
+- Compiler: **Free Pascal 3.2.2**. `fpc.cfg.bak` is a reference; no active `fpc.cfg`.
+- `Makefile` hardcodes `/usr/lib/x86_64-linux-gnu/fpc/3.2.2/...` (rtl) and `/usr/share/fpcsrc/3.2.2/packages/rtl-generics/src` (for `Generics.Collections` used in lexer/IR). On other distros adjust `FPCFLAGS` or symlink.
+- A stray `fpc-source-3.2.2_3.2.2+dfsg-46_all.deb` sits in repo root (install artifact, not source).
+- After editing `src/fpx/fpx.lpr` or any `fpx.*.pas`, **always rebuild** — `.ppu/.o` in `src/fpx/` are checked-in byproducts; FPC will overwrite them, but stale units in `build/` can mask real errors.
 
-## CLI Tools (planned)
+## Test
 
-- `fpx` — compiler (build/run/test)
-- `fpx-lsp` — language server
-- `fpx-fmt` — formatter
-- `fpx-pkg` — package manager
-- `fpx-dbf` — DBF import/export (dBASE III/IV, FoxPro 2.x, memo, NTX/CDX)
-- `fpx-dap` — debug adapter protocol server
+Three suites, each a separate FPC build that emits `bin/test_*`. FPC stderr is **not** redirected — compile failures are visible.
 
-## Key Design Decisions
+```bash
+make test-unit            # bin/test_tokens + bin/test_lexer
+make test-integration     # bin/test_pipeline  (lexer+parser)
+make test-implementation  # bin/test_impl      (real fixtures)
+make test                 # all three above (aborts on first failed suite)
+make test-all             # verbose pass/fail summary
+make test-coverage        # tests/metrics/coverage.sh (heuristic)
+make test-quality         # tests/metrics/quality.sh (LOC / density / branch count)
+```
 
-- No .dbf or NTX/CDX/IDX support at runtime — all persistence is SQL
-- DB commands translate at compile time: `USE`→`SELECT`/`CREATE TABLE`, `INDEX`→`CREATE INDEX`, `SET RELATION`→`JOIN`, `REPLACE`→`UPDATE`, `APPEND`→`INSERT`, `PACK/ZAP`→`DELETE`/`TRUNCATE`
-- Tipado opcional y gradual (como TypeScript); variables sin tipo son dinámicas
-- `--legacy` flag accepts 100% Clipper/Harbour syntax but emits warnings
-- Cross-compilation via `--target win32|win64|linux32|linux64`
-- `#strict on/off` controls type strictness per file
-- Memory: refcount by default, optional generational GC or manual
-- `STRUCT`: value type (copy semantic, stack, no inheritance), supports `ALIGN`/`PADDING` for C interop
-- Smart pointers: `UNIQUE_PTR<T>`, `SHARED_PTR<T>`, `WEAK_PTR<T>` with `^` deref, `.Reset()`, `.Get()`, `MAKE_UNIQUE`/`MAKE_SHARED`
-- Strings: UTF-8 by default; `--db-ansi` for legacy byte-wise mode
-- Concurrency: mutex, semaphore, thread-local, atomic ops, channels
-- Cipher: AES-256-GCM / ChaCha20-Poly1305; TLS sockets; JWT, bcrypt
+Test binaries call `Halt(1)` if `GStats.Failed > 0`, so a non-zero exit from any `bin/test_*` means failure. Test framework is **custom** (`tests/fpx.test.framework.pas`, no FPCUnit). Use `AssertEquals`/`AssertTrue`/`AssertEqualsI`/`AssertSameStr` and `RegisterTest`. Failures raise `ETestFailure`; the framework catches them so all tests run regardless of any single failure.
 
-## File Extensions
+Fixtures in `tests/fixtures/`: `hello.fpg`, `program.fpg`, `nested.fpg`, `legacy.prg`, `dbf_legacy.prg`. Empty placeholder dirs that may confuse you: `tests/ast/`, `tests/lexer/`, `tests/parser/`, plus `test/hello.prg` and `test.prg`/`test2.prg` at repo root (hand-written lexer/parser inputs, not executable).
 
-| Ext          | Purpose                            |
-|--------------|------------------------------------|
-| `.prg`       | xBASE source                       |
-| `.fpx`       | FPXBASE source (modern extensions) |
-| `.fph`       | Header (like Clipper `.ch`)        |
-| `.ppo`       | Preprocessor output                |
-| `.obj`       | Object file                        |
-| `.lib`/`.a`  | Static library                     |
-| `.dll`/`.so` | Dynamic library                    |
-| `.exe`       | Native binary                      |
+**Current state:** 52 tests pass across 4 binaries (tokens=13, lexer=21, pipeline=6, implementation=12).
 
-## Built-in Commands (from `std.fph`)
+## Conventions
 
-`?`, `??`, `@...SAY/GET`, `ACCEPT`, `WAIT`, `TEXT`, `KEYBOARD`, `RUN`, `QUIT`, `CANCEL`, and all FPXBASE extensions (network, tasks, ini, os, crypto, etc.) are wrapped as `#command` in `std.fph`, auto-included.
+- xBASE keywords: case-insensitive. `END` suffix variants (`ENDIF`, `ENDDO`, `ENDCASE`, `ENDSWITCH`, `ENDCLASS`, …) are required for parser disambiguation.
+- Lexer aliases `SELF` → `kwThis` (canonical spelling in `KeywordNames` is `THIS`).
+- xBASE `.AND.`/`.OR.`/`.NOT.`/`.XOR.` emit `ttDotAnd`/`ttDotOr`/`ttDotNot`/`ttXor` (single tokens, not three).
+- Square-bracket string literals `[hello]` via `ScanString` with terminator remap.
+- Preprocessor: `#command`/`#translate` / `#xcommand`/`#xtranslate`. `std.fph` auto-included; user headers via `#include "file.fph"`.
+- DB commands (`USE`, `INDEX`, `SET RELATION`, `REPLACE`, `APPEND`, `PACK`, `ZAP`) translate at compile time to SQL — no runtime DBF.
+- File extensions: `.prg` (legacy xBASE), `.fpg` (FPXBASE), `.fph` (header), `.ppo` (preprocessor output).
+- Source strings are UTF-8 unless `--db-ansi`.
+- **Comments are off by convention** — do not add code comments unless the user asks. The codebase is intentionally comment-light.
+- Follow the AST/IR/parser style: objfpc classes with `Create(...)`, `Destroy; override;`, virtual `Dump(Indent: Integer = 0): string;`. Anonymous methods for test bodies use `@Name` syntax.
 
-## Language Notes
+## Known integration gaps (in-progress)
 
-- Case-insensitive keywords
-- `END` can be suffixed: `ENDIF`, `ENDFOR`, `ENDDO`, `ENDCASE`, `ENDSWITCH`, etc.
-- Preprocessor: `#command`/`#translate` / `#xcommand`/`#xtranslate` patterns
-- FPXBASE extensions: embedded SQL (`EXECUTE SQL`), OOP, optional type annotations (`Identifier : DataType`)
-- Standard header: `std.fph` (auto-included), user headers: `#include "file.fph"`
+- `fpx.backend`, `fpx.rtl`, `fpx.ppo` are empty stubs referenced by `fpx.cli`. The CLI compiles because the stubs define the type/function signatures the CLI expects; actual codegen (compile → run) is not wired.
+- `fpx.ir.pas` is being built up incrementally (Phase 1.1). The current `TFPXIRGenerator.Generate` is a stub that returns an empty `TIRModule`. AST-driven IR lowering is the active work.
+- Sample programs at repo root (`test.prg`, `test2.prg`, `test/hello.prg`) are hand-written test inputs for the lexer/parser, not yet executable.
 
-## Roadmap
+## Key references
 
-See `docs/ROADMAP.md` for detailed phases, milestones, deliverables, and durations.
+- `docs/PRD-FPXBASE.md` — product spec, language features, error codes (FPX-nnnn / FPW-nnnn).
+- `docs/GRAMMAR-FXBASE.md` — EBNF grammar (xBASE + FPXBASE extensions).
+- `docs/ROADMAP.md` — phases 0–6 milestones.
+- `docs/PARALLEL-COMPILER-ARCHITECTURE.md` — phase 0.5 design.
 
-| Phase | Milestone                                       |
-|-------|-------------------------------------------------|
-| 0     | Parser + Lexer + AST (basic subset)             |
-| 1     | IR gen + native backend (x86/x86_64, Win/Linux) |
-| 2     | SQLite runtime driver                           |
-| 3     | PostgreSQL + MSSQL drivers                      |
-| 4     | LSP, formatter, full CLI, DAP debugger          |
-| 5     | `fpx-dbf`, legacy mode, docs, package manager   |
+## Session log
 
-## PRD Sections
+### 2026-07-30 — Token type unification
+Two incompatible token systems merged into `fpx.tokens.pas`. `fpx.lexer.pas` rewritten to use it; exposes both `Tokenize()` (bulk) and `NextToken` (streaming).
 
-The PRD (`docs/PRD-FPXBASE.md`) covers all features in detail:
+### 2026-07-30 — Test infrastructure + lexer fixes
+**Test scripts (`run_unit.sh`, `run_integration.sh`, `run_implementation.sh`, `run_all_tests.sh`):** added `-Fu/usr/share/fpcsrc/3.2.2/packages/rtl-generics/src` (main `Makefile` already had it; test scripts didn't, so `fpx.lexer` couldn't resolve `Generics.Collections`). Removed `2>/dev/null` from all `fpc` invocations so compile errors are now visible.
 
-- 5.1 Language, types, integers (8-128 bit signed/unsigned), arrays, hash, vector, stack, queue, set, range, MEMVAR, PICTURE, GET controls, STRUCT, smart pointers, generics, NEWTYPE, closures, yield, variadics, kwargs
-- 5.2 What is NOT inherited from xBASE
-- 5.3 DB drivers (SQLite default, PG/MSSQL optional)
-- 5.4 DBF import/export
-- 5.5 Platform targets
-- 5.6 RTL (runtime library)
-- 5.7 Network functions (TCP/UDP/HTTP/DNS)
-- 5.8 Data formats (DBF, CSV, JSON, XML, XLSX, PDF, HTML, SDF, SQL)
-- 5.9 Serial ports (RS-232/422/485)
-- 5.10 Task system (TaskCreate, scheduler, thread pool, ParallelFor)
-- 5.11 OS calls (processes, env, filesystem, ini/env files, registry)
-- 5.12 Memory management (refcount, GC, manual)
-- 5.13 Threads & concurrency (mutex, semaphore, channels, atomics)
-- 5.14 Reports (compatible REPORT FORM + new engine)
-- 5.15 Unicode & i18n (UTF-8, locales, gettext)
-- 5.16 Extend system (C library calls via EXTERN)
-- 5.17 Debugging (DAP + interactive, breakpoints, watches)
-- 5.18 Profiling & optimization (-O0 to -O3, profile flags)
-- 5.19 Unit testing (TestSuite, assertions)
-- 5.20 Security (AES, ChaCha20, TLS, JWT, bcrypt, base64)
-- 5.21 Event system (pub-sub)
-- 5.22 Compiler error codes (FPX-nnnn)
-- 5.23 Compiler warnings (FPW-nnnn, modernize suggestions)
-- 5.24 Packaging (MSI, AppImage, zip, deploy)
-- 5.25 Licensing (MIT)
+**`tests/fpx.test.framework.pas`:** `RunAllTests` now calls `Halt(1)` if `GStats.Failed > 0`. Previously test binaries exited 0 regardless of failed assertions, so `make test` reported "All test suites passed" even with failures.
+
+**`src/fpx/fpx.lexer.pas` — 7 bugs fixed:**
+1. `AddTokenFull` calls for digit/string dispatch discarded literal values (`IntValue=0`, `StrValue=''`). Now propagate `tok.*Value`.
+2. Trailing `AddToken(ttEof, '')` removed — `NextToken` already returns `ttEof` past the end; the extra EOF inflated `Length(FTokens)` by 1.
+3. `ScanOperator` now detects `.AND.`/`.OR.`/`.NOT.`/`.XOR.` and emits `ttDotAnd`/`ttDotOr`/`ttDotNot`/`ttXor` with corresponding `kw*`. Previously these collapsed to three tokens (`.` + identifier + `.`).
+4. `.T.`/`.F.` now emit `ttLogical` with `IntValue` 1/0.
+5. `NIL` keyword now emits `ttNil` (was `ttKeyword + kwNil`).
+6. `[hello]` square-bracket string literals supported — `[` dispatched to `ScanString`; `ScanString` remaps `[` → `]` so the terminator works.
+7. `&&` no longer swallowed as line comment — the operator path emits `ttAnd`.
+
+**`src/fpx/fpx.tokens.pas`:** `TokenTypeName` no longer wraps `ttDoubleColon`/`ttQuestionColon`/`ttQuestionDot`/`ttPlusAssign`/`ttEq` in single quotes (matches raw symbol convention).
+
+**`src/fpx/fpx.lexer.pas`:** added `SELF → kwThis` to `FKeywordMap` (canonical spelling remains `THIS`).
+
+**`src/fpx/fpx.lpr` + `Makefile`:** reconciled the duplicate `fpx.lpr` files. `src/tools/fpx/fpx.lpr` (and its directory) removed; `src/fpx/fpx.lpr` is the single entry point with full `uses` clause, calls `RunFPXCLI`. `Makefile` `fpx` target now points to `src/fpx/fpx.lpr`. Removed bogus `{$R *.res}` (no `.res` exists).
+
+**`tests/integration/test_pipeline.pas`, `tests/implementation/test_implementation.pas`:** updated `TParser.Create` calls from no-arg to `TParser.Create(lex, reporter)` and `ParseProgram` calls from `ParseProgram(tokens, name)` to `ParseProgram` (no args, reads from constructor lexer). Matches unified parser API.
+
+**`tests/unit/test_lexer.pas`, `tests/implementation/test_implementation.pas`:** fixed two pre-existing test bugs revealed by full rebuild — `TestImpl_Program_GenericBracket` searched for `ttLt` + `kwEndClass` (never adjacent in `program.fpg`); corrected to `ttLt` + `ttIdentifier` (matches `Stack<T>`, `Stack<INTEGER>`).
+
+**Final state at end of session:** `make fpx` + `make test` → 52/52 tests passing across 4 binaries (corrected from 54 — original count was off by two). `make test` exits 0 on success and aborts on any failure.

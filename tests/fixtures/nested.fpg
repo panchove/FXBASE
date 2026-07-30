@@ -1,0 +1,19 @@
+* nested.fpg — Anidamiento de estructuras
+CLASS Outer
+    DATA Name: STRING
+
+    CLASS Inner
+        DATA Value: INTEGER
+
+        METHOD GetValue() AS INTEGER
+            RETURN SELF.Value
+        ENDMETHOD
+    ENDCLASS
+
+    METHOD MakeInner(v: INTEGER) AS Outer.Inner
+        LOCAL i: Outer.Inner
+        i := Outer.Inner{}
+        i.Value := v
+        RETURN i
+    ENDMETHOD
+ENDCLASS

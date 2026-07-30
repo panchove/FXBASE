@@ -1,8 +1,12 @@
 # PRD - FPXBASE
 
+**Norma de Referencia:** ISO/IEC/IEEE 29148:2018 (Systems and software engineering — Life cycle processes — Requirements engineering) / ISO/IEC 12207:2017
+
 **Fecha:** 2026-07-29  
 **Estado:** Borrador  
 **Versión:** 1.0  
+**Trazabilidad ID:** REQ-PRD-001  
+**Auditoría:** Control de Cambios Fase 0  
 
 ---
 
@@ -400,7 +404,7 @@ FUNCTION Main AS INTEGER
 | Extensión      | Tipo         | Descripción                                               |
 |----------------|--------------|-----------------------------------------------------------|
 | `.prg`         | Fuente       | Código fuente principal xBASE                             |
-| `.fpx`         | Fuente       | Código fuente FPXBASE (permite extensiones modernas)      |
+| `.fpg`         | Fuente       | Código fuente FPXBASE (permite extensiones modernas)      |
 | `.fph`         | Header       | Archivos de cabecera FPXBASE (compatibles con `#include`) |
 | `.ppo`         | Preprocesado | Salida del preprocesador (generado con `-p`)              |
 | `.obj`         | Objeto       | Archivo objeto (compilación intermedia)                   |
@@ -1073,7 +1077,7 @@ ENV:
 
   ```text
   fpx test tests/          # ejecuta todos los tests en el directorio
-  fpx test tests/mi_test.fpx --verbose
+  fpx test tests/mi_test.fpg --verbose
   ```
 
 ### 5.18 Seguridad y Criptografía
@@ -1230,6 +1234,16 @@ Los errores del compilador siguen el formato `FPX-nnnn`, agrupados por categorí
 | `FPX-0607` | Runtime       | Error de cifrado (clave inválida / algoritmo no soportado) |
 | `FPX-0608` | Runtime       | Error de tipo (ValType inesperado)                         |
 | `FPX-0609` | Runtime       | Error de tarea (task cancelada / timeout)                  |
+| `FPX-0410` | Semántica     | `OVERRIDE` sin método `VIRTUAL` correspondiente en clase base |
+| `FPX-0411` | Semántica     | `OVERRIDE` reduce visibilidad del método base              |
+| `FPX-0412` | Semántica     | Firma de override no coincide con método base (covarianza no soportada) |
+| `FPX-0413` | Semántica     | Instancia de clase `ABSTRACT` no permitida                 |
+| `FPX-0414` | Semántica     | Método `ABSTRACT` no implementado en clase concreta        |
+| `FPX-0415` | Semántica     | Clase `FINAL`/`SEALED` no admite herencia                  |
+| `FPX-0416` | Semántica     | Método `FINAL` no admite override                          |
+| `FPX-0417` | Semántica     | `IMPLEMENTS` sin cumplir contrato de interfaz              |
+| `FPX-0418` | Semántica     | `INTERFACE` con `DATA` o cuerpo de método (no permitido)   |
+| `FPX-0419` | Semántica     | Acceso a miembro vía `SUPER::` sin clase base válida       |
 
 ### 5.23 Warnings del Compilador
 
@@ -1356,74 +1370,46 @@ Control de warnings:
 
 ## 7. Estructura del Repositorio
 
-```text
-FPXBASE/
-├── AGENTS.md               # Instrucciones para asistentes IA
-├── docs/
-│   ├── PRD-FPXBASE.md      # Este documento
-│   └── GRAMMAR-FXBASE.md   # Gramática EBNF completa del lenguaje
-├── src/
-│   ├── fpx/                # Compilador principal
-│   │   ├── lexer/          # Analizador léxico
-│   │   ├── parser/         # Analizador sintáctico (AST)
-│   │   ├── semantic/       # Análisis semántico y tipado
-│   │   ├── ir/             # Generación de IR
-│   │   ├── codegen/        # Generación de código nativo
-│   │   ├── sql_rewrite/    # Traducción DB xBASE → SQL
-│   │   └── driver/         # Drivers de base de datos (SQLite, PG, MSSQL)
-│   ├── fpx-lsp/            # Language Server Protocol
-│   ├── fpx-fmt/            # Formateador de código
-│   ├── fpx-pkg/            # Gestor de paquetes
-│   └── fpx-dbf/            # Herramienta de import/export DBF
-├── tests/                   # Tests del compilador
-│   ├── unit/
-│   ├── integration/
-│   └── fixtures/           # Código xBASE de prueba
-├── lib/                    # Runtime / RTL en Free Pascal
-├── examples/               # Ejemplos de programas FPXBASE
-└── Makefile                # Build system
+```mermaid
+flowchart TD
+    ROOT[FPXBASE/] --> AGENTS[AGENTS.md]
+    ROOT --> DOCS[docs/]
+    DOCS --> PRD[PRD-FPXBASE.md]
+    DOCS --> GRAMMAR[GRAMMAR-FXBASE.md]
+    ROOT --> SRC[src/]
+    SRC --> FPX[fpx/]
+    FPX --> LEXER[lexer/]
+    FPX --> PARSER[parser/]
+    FPX --> SEMANTIC[semantic/]
+    FPX --> IR[ir/]
+    FPX --> CODEGEN[codegen/]
+    FPX --> SQL[sql_rewrite/]
+    FPX --> DRIVER[driver/]
+    SRC --> LSP[fpx-lsp/]
+    SRC --> FMT[fpx-fmt/]
+    SRC --> PKG[fpx-pkg/]
+    SRC --> DBF[fpx-dbf/]
+    ROOT --> TESTS[tests/]
+    TESTS --> UNIT[unit/]
+    TESTS --> INT[integration/]
+    TESTS --> FIX[fixtures/]
+    ROOT --> LIB[lib/]
+    ROOT --> EXAMPLES[examples/]
+    ROOT --> MAKE[Makefile]
 ```
 
 ## 8. Arquitectura del Compilador (Alto Nivel)
 
-```text
-Código fuente (.prg / .fpx)
-        │
-        ▼
-    ┌───────────┐
-    │  LEXER    │ (Rust / C#)
-    └─────┬─────┘
-          │ tokens
-          ▼
-    ┌────────────┐
-    │  PARSER    │ (AST tipado)
-    └─────┬──────┘
-          │ AST
-          ▼
-    ┌──────────────┐
-    │  SEMANTIC    │ (resolución de símbolos, chequéo de tipos)
-    │  ANALYZER    │
-    └─────┬────────┘
-          │ AST anotado
-          ▼
-    ┌──────────────┐
-    │    IR GEN    │ (generación de representación intermedia)
-    └─────┬────────┘
-          │ IR
-          ▼
-    ┌──────────────┐
-    │  SQL REWRITE │ (convierte acceso a tablas/índices en SQL)
-    └─────┬────────┘
-          │
-          ▼
-    ┌──────────────────┐  ┌──────────────────────┐
-    │  LLVM BACKEND    │  │  RUNTIME SQL LAYER  │
-    │ x86 / x86_64     │  │ (SQLite / PG / MSSQL)│
-    │ win32 / linux64  │  │                      │
-    └──────┬───────────┘  └──────────────────────┘
-           │
-           ▼
-    Binario nativo (EXE / DLL / SO / LIB / A, 32 o 64 bits, Windows o Linux)
+```mermaid
+flowchart TD
+    A["Código fuente (.prg / .fpg)"] --> B["LEXER (Rust / C#)"]
+    B -- "tokens" --> C["PARSER (AST tipado)"]
+    C -- "AST" --> D["SEMANTIC ANALYZER (resolución de símbolos, chequéo de tipos)"]
+    D -- "AST anotado" --> E["IR GEN (generación de representación intermedia)"]
+    E -- "IR" --> F["SQL REWRITE (convierte acceso a tablas/índices en SQL)"]
+    F --> G["LLVM BACKEND (x86 / x86_64, win32 / linux64)"]
+    F --> H["RUNTIME SQL LAYER (SQLite / PG / MSSQL)"]
+    G --> I["Binario nativo (EXE / DLL / SO / LIB / A)"]
 ```
 
 ---

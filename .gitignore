@@ -27,3 +27,15 @@
 # OS
 .DS_Store
 Thumbs.db
+
+# Build outputs
+/bin/
+/build/
+
+# Install artifacts
+/*.deb
+
+# Hand-written lexer/parser test inputs (not executable)
+/test.prg
+/test2.prg
+/test/

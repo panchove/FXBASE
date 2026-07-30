@@ -1,6 +1,10 @@
 # FPXBASE Roadmap
+**Norma de Referencia:** ISO/IEC/IEEE 29148:2018 / ISO/IEC 12207:2017
 
-**Actualizado:** 2026-07-29
+**Actualizado:** 2026-07-30
+**Versión:** 1.0  
+**Trazabilidad ID:** REQ-RDM-001  
+**Auditoría:** Control de Versiones y Hitos  
 
 ---
 
@@ -13,9 +17,23 @@
 | 0.3     | AST construction         | Árbol sintáctico tipado con `DataType`, `FormalParam`, `GenericParam`, etc.                                     |
 | 0.4     | Preprocessor             | `#command`/`#translate`/`#xcommand`/`#xtranslate`, `#define`/`#undef`, `#ifdef`/`#ifndef`, `#include`, `#error` |
 | 0.5     | Grammar features         | Genéricos, `STRUCT`, `NEWTYPE`, smart pointers, `CAST`, `YIELD`, variádicos, kwargs, closures multi-statement   |
-| 0.6     | Error reporting          | FPX-nnnn error codes, FPW-nnnn warning codes, `#line` directives                                                |
+| 0.6     | Error reporting          | Códigos FPX-nnnn, FPW-nnnn, directivas `#line`                                                                  |
 
-**Verificación:** Test suite con 100+ snippets xBASE + 50+ FPXBASE extensions.
+**Verificación:** Test suite con 100+ snippets xBASE + 50+ extensiones FPXBASE.
+
+---
+
+## Fase 0.5 — Arquitectura de Compilación Paralela y Caché Incremental — 1.5 meses
+
+| Subfase | Hito                                  | Entregable                                                                                                                               |
+|---------|---------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
+| 0.5.1   | Pool de workers + job queue           | `TThreadPool` configurable (`--jobs N`), detección automática de núcleos                                                                 |
+| 0.5.2   | Preprocesamiento paralelo por archivo | Cada `.prg`/`.fpg` se preprocesa en hilo independiente; generación de `.ppo`                                                             |
+| 0.5.3   | Caché incremental (copy-on-write)     | `.ppo`, `.ast`, `.ir`, `.o` cacheados por hash de contenido + mtime; invalidación por dependencias `#include`                            |
+| 0.5.4   | Tabla de símbolos global en 2 pasadas | Pase 0 secuencial: recolectar símbolos exportados (funciones, clases, PUBLIC). Pase 1 paralelo: resolver contra tabla global (read-only) |
+| 0.5.5   | LTO diferido y codegen paralelo       | Backend nativo genera `.o` por unidad; link final en hilo principal                                                                      |
+
+**Verificación:** Compilación limpia (100 archivos, 10k LOC) < 2s en 8 cores; incremental (1 archivo) < 150ms.
 
 ---
 
@@ -31,7 +49,7 @@
 | 1.6     | ELF output             | Linux: EXE, SO, A                                   |
 | 1.7     | Entry point resolution | `#entry`, `Main`, legacy `PROCEDURE` order          |
 | 1.8     | CLI args               | `ArgC()`, `ArgV(n)`, `Command()`, `Main(...params)` |
-| 1.9     | Optimization levels    | `-O0` to `-O3`, profile-guided hints                |
+| 1.9     | Optimization levels    | `-O0` a `-O3`, profile-guided hints                 |
 
 **Verificación:** Compilar y ejecutar Hola Mundo, Fibonacci, CRUD básico en Win/Linux 32/64.
 
@@ -61,7 +79,7 @@
 | 3.2     | MSSQL native wrapper      | Conexión, queries, prepared statements, transactions          |
 | 3.3     | Connection config         | `--db:postgresql` / `--db:mssql`, connection strings, pooling |
 | 3.4     | Type mapping              | xBASE ↔ SQL types para cada driver                            |
-| 3.5     | Multi-DB `USE`            | `DB:identifier` syntax para cambiar entre bases activas       |
+| 3.5     | Multi-DB `USE`            | Sintaxis `DB:identifier` para cambiar entre bases activas     |
 
 **Verificación:** Misma suite de Fase 2 corriendo contra PG y MSSQL.
 
@@ -88,7 +106,7 @@
 |---------|---------------------------------|-----------------------------------------------------------------|
 | 5.1     | `fpx-dbf` tool                  | Import DBF (dBASE III/IV, FoxPro 2.x) + memo + NTX/CDX → SQL    |
 | 5.2     | Export SQL → DBF                | Round-trip sin pérdida de tipos                                 |
-| 5.3     | `--legacy` mode                 | Aceptar 100% Clipper/Harbour syntax con warnings FPW            |
+| 5.3     | `--legacy` mode                 | Aceptar 100% sintaxis Clipper/Harbour con warnings FPW          |
 | 5.4     | Legacy PARAMETERS/PCount/PValue | Soporte para entry point legacy                                 |
 | 5.5     | Documentation                   | PRD final, grammar reference, migration guide                   |
 | 5.6     | Packaging                       | MSI (Windows), AppImage/DEB (Linux), zip bundles                |
@@ -99,7 +117,20 @@
 
 ---
 
-## Post-Fase 5 (Futuro)
+## Fase 6 — Testing Integrado y Profiling — 1.5 meses
+
+| Subfase | Hito                      | Entregable                                                                 |
+|---------|---------------------------|----------------------------------------------------------------------------|
+| 6.1     | `TestSuite` / `TestCase`  | Framework de testing integrado (assertions, setup/teardown, fixtures)      |
+| 6.2     | `fpx test` CLI            | Descubrimiento automático, filtrado, reporter JUnit/TAP, coverage básico   |
+| 6.3     | Profiling integrado       | `--profile` genera `.prof`; `fpx-prof` viewer (flamegraph, call counts)    |
+| 6.4     | Benchmarks de rendimiento | Suite de microbenchmarks (parser, codegen, DB roundtrip) con CI regression |
+
+**Verificación:** `fpx test` pasa suite completa; profiling muestra hotspots esperados.
+
+---
+
+## Post-Fase 6 (Futuro)
 
 | Feature            | Descripción                               |
 |--------------------|-------------------------------------------|
@@ -107,4 +138,4 @@
 | JIT mode           | Compilación JIT para desarrollo iterativo |
 | WebAssembly target | `--target wasm32`                         |
 | Android/iOS        | Targets móviles                           |
-| GUI framework      | Bindings nativos o integración con Qt/GTK |
+| GUI framework      | Bindings nativos o integración Qt/GTK     |
