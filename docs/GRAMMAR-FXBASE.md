@@ -1,0 +1,943 @@
+# Gramática FPXBASE
+
+**Versión:** 1.0  
+**Notación:** EBNF extendida  
+`[...]` opcional, `{...}` cero o más, `(...)` agrupación, `|` alternancia, `'...'` literal
+
+---
+
+## 1. Convenciones Léxicas
+
+### 1.1 Comentarios
+
+```ebnf
+Comment      ::= LineComment | BlockComment
+LineComment  ::= ('//' | '&&' | '*') {any_character} NewLine
+BlockComment ::= '/*' {any_character} '*/'
+```
+
+### 1.2 Identificadores
+
+```ebnf
+Identifier       ::= (Letter | '_') {Letter | Digit | '_'}
+Letter           ::= 'A'..'Z' | 'a'..'z'
+Digit            ::= '0'..'9'
+```
+
+### 1.3 Palabras Reservadas
+
+```ebnf
+ReservedWord ::=
+    'IF' | 'ELSE' | 'ELSEIF' | 'ENDIF' | 'END' |
+    'DO' | 'WHILE' | 'FOR' | 'TO' | 'STEP' | 'NEXT' |
+    'LOOP' | 'EXIT' |
+    'SWITCH' | 'CASE' | 'OTHERWISE' | 'ENDSWITCH' |
+    'BEGIN' | 'SEQUENCE' | 'RECOVER' | 'BREAK' |
+    'FUNCTION' | 'PROCEDURE' | 'RETURN' |
+    'LOCAL' | 'PRIVATE' | 'PUBLIC' | 'STATIC' | 'PARAMETERS' |
+    'FIELD' | 'MEMVAR' |
+    'WITH' | 'OBJECT' | 'ENDWITH' |
+    'FOREACH' | 'IN' |
+    'TRY' | 'CATCH' | 'FINALLY' | 'ENDTRY' |
+    'CLASS' | 'ENDCLASS' | 'METHOD' | 'DATA' | 'INLINE' |
+    'NEW' | 'SELF' | 'SUPER' | 'THIS' |
+    'NIL' | 'TRUE' | 'FALSE' | '.T.' | '.F.' |
+    'AND' | 'OR' | 'NOT' | '.AND.' | '.OR.' | '.NOT.' |
+    'USE' | 'SELECT' | 'SET' | 'INDEX' | 'ORDER' | 'TAG' |
+    'SEEK' | 'SKIP' | 'GO' | 'GOTO' | 'LOCATE' | 'CONTINUE' |
+    'APPEND' | 'BLANK' | 'FROM' |
+    'REPLACE' | 'DELETE' | 'RECALL' | 'PACK' | 'ZAP' |
+    'SORT' | 'AVERAGE' | 'SUM' | 'COUNT' | 'TOTAL' |
+    'COPY' | 'STRUCTURE' | 'TO' |
+    'REPORT' | 'FORM' | 'LABEL' |
+    'SAY' | 'GET' | 'READ' | 'INPUT' | 'ACCEPT' | 'WAIT' |
+    'TEXT' | 'ENDTEXT' |
+    'ANNOUNCE' | 'REQUEST' | 'EXTERNAL' |
+    'INIT' | 'EXIT' | 'PROCEDURE' |
+    'OPEN' | 'CLOSE' | 'DATABASE' |
+    'CREATE' | 'TABLE' | 'INDEX' | 'UNIQUE' |
+    'INSERT' | 'INTO' | 'VALUES' | 'UPDATE' |
+    'DECLARE' | 'DEFINE' | 'WINDOW' | 'MENU' | 'PROMPT' |
+    'ACTIVATE' | 'DEACTIVATE' | 'HIDE' | 'SHOW' |
+    'KEYBOARD' | 'TYPE' | 'EJECT' | 'FLUSH' | 'COMMIT' |
+    'RUN' | 'CALL' | 'QUIT' | 'CANCEL' |
+    'AS' | 'IS' | 'OF' | 'REF' | 'OUT' |
+    'DB' | 'SQL' | 'CONNECTION' | 'EXECUTE' | 'PREPARE' |
+    'STRUCT' | 'ENDSTRUCT' |
+    'UNIQUE_PTR' | 'SHARED_PTR' | 'WEAK_PTR' |
+    'CAST' |
+    'NEWTYPE' | 'ENDNEWTYPE' |
+    'YIELD'
+```
+
+> Los comandos xBASE no distinguen mayúsculas/minúsculas.  
+> `END` puede abreviarse como `END` + prefijo: `ENDIF`, `ENDFOR`, `ENDDO`.
+
+### 1.4 Literales
+
+```ebnf
+Literal       ::= NumericLiteral | StringLiteral | DateLiteral |
+                  LogicalLiteral | NIL
+
+NumericLiteral  ::= IntegerLiteral | RealLiteral
+IntegerLiteral  ::= Digit {Digit}
+RealLiteral     ::= Digit {Digit} '.' Digit {Digit} [('E'|'e') ['+'|'-'] Digit {Digit}]
+
+StringLiteral   ::= '"' {any_character_except_quote} '"'
+                  | "'" {any_character_except_apostrophe} "'"
+                  | '[' {any_character_except_bracket} ']'
+
+DateLiteral     ::= CToD(StringLiteral) | {StrictDateLiteral}
+StrictDateLiteral ::= '0d' Digit Digit Digit Digit '-' Digit Digit '-' Digit Digit
+
+LogicalLiteral  ::= '.T.' | '.F.' | 'TRUE' | 'FALSE'
+NIL             ::= 'NIL'
+```
+
+---
+
+## 2. Sistema de Tipos
+
+### 2.1 Tipos Primitivos
+
+```ebnf
+DataType ::=
+    'STRING'   | 'CHARACTER' | 'CHAR' |
+    'NUMERIC'  | 'INTEGER' | 'INT' | 'FLOAT' | 'DOUBLE' |
+    'DATE'     | 'DATETIME' |
+    'LOGICAL'  | 'BOOLEAN' | 'BOOL' |
+    'NIL'      |
+    'MEMO'     |
+    'BLOB'     |
+    'ARRAY'    | ArrayOfType |
+    'HASH'     | 'MAP' |
+    'OBJECT'   | 'CLASS' |
+    'STRUCT'   |
+    'CODEBLOCK'| 'BLOCK' |
+    'POINTER'  | SmartPointerType |
+    'SYMBOL'   |
+    'CURSOR'   | 'RECORDSET' |
+    'ITERATOR' |
+    GenericInstantiation
+
+SmartPointerType ::=
+    'UNIQUE_PTR' '<' DataType '>' |
+    'SHARED_PTR' '<' DataType '>' |
+    'WEAK_PTR'   '<' DataType '>'
+
+ArrayOfType ::= 'ARRAY' 'OF' DataType
+
+GenericInstantiation ::= Identifier '<' DataType {',' DataType} '>'
+
+GenericParamList ::= '<' GenericParam {',' GenericParam} '>'
+GenericParam     ::= Identifier [':' DataType]
+```
+
+### 2.2 Declaración con Tipo (FPXBASE)
+
+```ebnf
+VarDecl ::= Identifier [':' DataType]
+```
+
+---
+
+## 3. Estructura del Programa
+
+El punto de entrada del programa sigue esta precedencia:
+
+1. Directiva `#entry Identifier` (override explícito)
+2. `FUNCTION Main` o `PROCEDURE Main` (convención moderna)
+3. Primer `PROCEDURE` del archivo raíz (solo modo `--legacy`)
+
+`Main` recibe los argumentos de línea de comandos como parámetros formales y retorna `INTEGER` (código de salida):
+
+```ebnf
+CompilationUnit ::= {TopLevelCommand}
+
+TopLevelCommand ::=
+    CommandStatement |
+    FunctionDef |
+    ProcedureDef |
+    ClassDef |
+    StructDef |
+    NewTypeDef |
+    Command ';'
+```
+
+### 3.1 Funciones y Procedimientos
+
+```ebnf
+FunctionDef ::= ['STATIC'] 'FUNCTION' Identifier [GenericParamList] '(' [FormalParamList] ')'
+                    ['AS' DataType]
+                    ['EXPORT' | 'HIDDEN']
+                    Body
+                ['RETURN' Expression]
+                'ENDFUNC' | 'ENDFUNCTION'
+
+ProcedureDef ::= ['STATIC'] 'PROCEDURE' Identifier [GenericParamList] '(' [FormalParamList] ')'
+                    Body
+                ['RETURN']
+                'ENDPROC' | 'ENDPROCEDURE'
+
+FormalParamList ::= FormalParam {',' FormalParam} [',' VariadicParam]
+                  | VariadicParam
+FormalParam     ::= ['REF'] Identifier [':' DataType] [':=' Expression]
+VariadicParam   ::= '...' Identifier [':' DataType]
+
+Body ::= {Statement}
+```
+
+### 3.2 Clases (OOP xBASE)
+
+```ebnf
+ClassDef ::=
+    'CLASS' Identifier [GenericParamList] ['FROM' Identifier {',' Identifier}]
+        [ClassClause]
+        {ClassMember}
+    'ENDCLASS'
+
+ClassClause ::= 'EXPORT' | 'HIDDEN' | 'FRIEND'
+
+ClassMember ::=
+    'DATA' Identifier [':' DataType] [Initializer] [AccessSpec] |
+    'METHOD' Identifier ['(' [FormalParamList] ')'] [AccessSpec] |
+    'INLINE' 'METHOD' Identifier ['(' [FormalParamList] ')'] Body
+
+AccessSpec ::= 'EXPORT' | 'HIDDEN' | 'PROTECTED'
+Initializer ::= ':=' Expression
+```
+
+### 3.3 Structs (FPXBASE)
+
+```ebnf
+StructDef ::=
+    'STRUCT' Identifier [GenericParamList] [AlignSpec]
+        {StructMember}
+    'ENDSTRUCT'
+
+AlignSpec ::= 'ALIGN' '(' NumericLiteral ')'
+
+StructMember ::=
+    Identifier ':' DataType [ArrayDim] [Initializer] |
+    'PADDING' '(' Expression ')'
+
+ArrayDim ::= '[' Expression ']'
+```
+
+Los `STRUCT` son tipos valor: se copian en asignación, se asignan en stack por defecto,
+no tienen herencia ni refcount/GC. Pueden tener métodos (`METHOD`/`INLINE METHOD`)
+como las clases, pero sin herencia ni polimorfismo.
+
+Acceso a miembros: `Expression '.' Identifier`
+
+Inicialización: `StructType '(' [ExpressionList] ')'`
+
+### 3.4 Tipos Personalizados (FPXBASE)
+
+`NEWTYPE` crea un tipo distinto (wrapping) sobre un tipo base — no intercambiable con este en asignaciones. Ideal para identificadores fuertes (`UserId`, `OrderId`, etc.).
+
+```ebnf
+NewTypeDef ::=
+    'NEWTYPE' Identifier [GenericParamList] '=' DataType
+    'ENDNEWTYPE'
+```
+
+Conversión explícita vía `CAST<BaseType>(newtypeVal)` y viceversa con `CAST<NewType>(baseVal)`.
+
+---
+
+## 4. Sentencias
+
+### 4.1 Declaraciones de Variables
+
+```ebnf
+VariableDeclaration ::=
+    ('LOCAL' | 'PRIVATE' | 'PUBLIC' | 'STATIC') VarDeclList
+
+VarDeclList ::= VarDeclItem {',' VarDeclItem}
+VarDeclItem ::= Identifier [':' DataType] [':=' Expression | ArrayLiteral | HashLiteral]
+
+MemvarDecl ::= 'MEMVAR' Identifier {',' Identifier}
+FieldDecl  ::= 'FIELD' Identifier {',' Identifier}
+```
+
+### 4.2 Asignación
+
+```ebnf
+AssignmentStatement ::=
+    Variable '=' Expression |
+    Variable ':=' Expression |
+    Variable '+=' Expression |
+    Variable '-=' Expression |
+    Variable '*=' Expression |
+    Variable '/=' Expression |
+    Variable '%=' Expression |
+    Variable '^=' Expression
+
+Variable ::= Identifier [AliasAccess]
+```
+
+### 4.3 Control de Flujo (incluye extensiones modernas FPXBASE)
+
+```ebnf
+IfStatement ::=
+    'IF' Expression
+        {Statement}
+    {'ELSEIF' Expression
+        {Statement}}
+    ['ELSE'
+        {Statement}]
+    'ENDIF'
+
+DoWhileStatement ::=
+    'DO' 'WHILE' Expression
+        {Statement}
+        ['LOOP']
+        ['EXIT']
+    'ENDDO'
+
+WhileStatement ::=
+    'WHILE' Expression
+        {Statement}
+        ['LOOP']
+        ['EXIT']
+    'END'
+    | 'WHILE' Expression
+        {Statement}
+        ['LOOP']
+        ['EXIT']
+      'ELSE'                    -- se ejecuta si nunca hubo EXIT
+        {Statement}
+      'END'
+
+DoUntilStatement ::=            -- FPXBASE: post-condition loop
+    'DO' {Statement} 'UNTIL' Expression
+
+InfiniteLoopStatement ::=       -- FPXBASE: bucle infinito
+    'LOOP'
+        {Statement}
+        ['BREAK']
+    'ENDLOOP'
+
+ForStatement ::=
+    'FOR' Identifier ':=' Expression 'TO' Expression ['STEP' Expression]
+        {Statement}
+        ['LOOP']
+        ['EXIT']
+    'NEXT'
+    | 'FOR' Identifier ':=' Expression 'DOWNTO' Expression ['STEP' Expression]
+        {Statement}
+        ['LOOP']
+        ['EXIT']
+      'NEXT'
+
+ForEachStatement ::=
+    'FOREACH' Identifier 'IN' Expression
+        {Statement}
+        ['LOOP']
+        ['EXIT']
+    'NEXT'
+    | 'FOREACH' Identifier 'IN' Expression
+        {Statement}
+        ['LOOP']
+        ['EXIT']
+      'ELSE'                    -- se ejecuta si la colección está vacía
+        {Statement}
+      'NEXT'
+    | 'FOREACH' Identifier ',' Identifier 'IN' Expression  -- key, value para hash
+        {Statement}
+        ['LOOP']
+        ['EXIT']
+      'NEXT'
+
+SwitchStatement ::=
+    'SWITCH' Expression
+        {'CASE' Expression
+            {Statement}
+            ['EXIT']}
+        ['OTHERWISE'
+            {Statement}]
+    'ENDSWITCH'
+
+DoCaseStatement ::=
+    'DO' 'CASE'
+        {'CASE' Expression
+            {Statement}}
+        ['OTHERWISE'
+            {Statement}]
+    'ENDCASE'
+
+BeginSequenceStatement ::=
+    'BEGIN' 'SEQUENCE'
+        {Statement}
+        ['BREAK' [Expression]]
+    ['RECOVER' ['USING' Identifier]]
+        {Statement}
+    'END' ['SEQUENCE']
+
+WithObjectStatement ::=
+    'WITH' 'OBJECT' Expression
+        {Statement}
+    'ENDWITH'
+```
+
+### 4.4 Manejo de Excepciones
+
+```ebnf
+TryStatement ::=
+    'TRY'
+        {Statement}
+    {'CATCH' [Identifier]
+        {Statement}}
+    ['FINALLY'
+        {Statement}]
+    'ENDTRY'
+```
+
+### 4.5 Database Commands (FPXBASE)
+
+```ebnf
+DatabaseStatement ::=
+    UseStatement |
+    SelectStatement |
+    CloseStatement |
+    AppendStatement |
+    ReplaceStatement |
+    DeleteRecallStatement |
+    PackZapStatement |
+    SeekFindStatement |
+    SkipGoStatement |
+    LocateContinueStatement |
+    IndexStatement |
+    SetOrderStatement |
+    SetFilterStatement |
+    SetRelationStatement |
+    CommitFlushStatement |
+    SortStatement |
+    AverageSumCountStatement |
+    TotalStatement |
+    CopyStatement |
+    ReportLabelStatement |
+    CreateStatement |
+    RenameFileStatement |
+    EraseFileStatement
+
+UseStatement ::=
+    'USE' StringLiteral
+        ['ALIAS' Identifier]
+        ['NEW']
+        ['READONLY']
+        ['EXCLUSIVE']
+        ['SHARED']
+        ['VIA' StringLiteral]
+        ['DB' ':' Identifier]
+
+SelectStatement ::=
+    'SELECT' (Identifier | NumericLiteral)
+    | 'SELECT' 'TOP' Expression ['PERCENT']
+      IdentifierList
+      'FROM' Identifier
+      ['WHERE' Expression]
+      ['ORDER' 'BY' Identifier ['ASC'|'DESC'] {',' Identifier ['ASC'|'DESC']}]
+      ['GROUP' 'BY' Identifier {',' Identifier}]
+      ['HAVING' Expression]
+
+CloseStatement ::=
+    'CLOSE' ('DATABASES' | 'ALL' | Identifier)
+
+AppendStatement ::=
+    'APPEND' 'BLANK'
+    | 'APPEND' 'FROM' StringLiteral
+        ['FIELDS' IdentifierList]
+        ['DB' ':' Identifier]
+        ['SDF' | 'DELIMITED' ['WITH' (Identifier | StringLiteral)]]
+
+ReplaceStatement ::=
+    'REPLACE' Identifier 'WITH' Expression
+        {',' Identifier 'WITH' Expression}
+        [ScopeClause]
+        [ForWhileClause]
+
+DeleteRecallStatement ::=
+    ('DELETE' | 'RECALL') [ScopeClause] [ForWhileClause]
+
+PackZapStatement ::=
+    'PACK' | 'ZAP'
+
+SeekFindStatement ::=
+    'SEEK' Expression
+    | 'FIND' StringLiteral
+
+SkipGoStatement ::=
+    'SKIP' [Expression]
+    | ('GO' | 'GOTO') ('TOP' | 'BOTTOM' | Expression)
+
+LocateContinueStatement ::=
+    'LOCATE' [ScopeClause] ForWhileClause
+    | 'CONTINUE'
+
+IndexStatement ::=
+    'INDEX' 'ON' Expression
+        'TAG' Identifier
+        ['UNIQUE']
+        ['DESCENDING']
+        ['FOR' Expression]
+        ['DB' ':' Identifier]
+
+    | 'INDEX' 'ON' Expression
+        'TO' Identifier
+        ['UNIQUE']
+        ['FOR' Expression]
+
+SetOrderStatement ::=
+    'SET' 'ORDER' 'TO' [NumericLiteral | Identifier]
+
+SetFilterStatement ::=
+    'SET' 'FILTER' 'TO' Expression
+    | 'SET' 'FILTER' 'TO'
+
+SetRelationStatement ::=
+    'SET' 'RELATION' 'TO' [Expression] 'INTO' Identifier
+    | 'SET' 'RELATION' 'TO'
+
+CommitFlushStatement ::=
+    'COMMIT' | 'FLUSH'
+
+SortStatement ::=
+    'SORT' 'TO' Identifier
+        'ON' Identifier ['/' ('A'|'D'|'C')]
+        {',' Identifier ['/' ('A'|'D'|'C')]}
+        [ScopeClause]
+        [ForWhileClause]
+
+AverageSumCountStatement ::=
+    ('AVERAGE' | 'SUM' | 'COUNT')
+        [ExpressionList]
+        'TO' IdentifierList
+        [ScopeClause]
+        [ForWhileClause]
+
+TotalStatement ::=
+    'TOTAL' 'ON' IdentifierList
+        'TO' Identifier
+        ['FIELDS' IdentifierList]
+        [ScopeClause]
+        [ForWhileClause]
+
+CopyStatement ::=
+    'COPY' 'TO' Identifier
+        ['FIELDS' IdentifierList]
+        [ScopeClause]
+        [ForWhileClause]
+        ['DB' ':' Identifier]
+
+    | 'COPY' 'STRUCTURE' 'TO' Identifier
+        ['FIELDS' IdentifierList]
+
+    | 'COPY' 'STRUCTURE' 'EXTENDED' 'TO' Identifier
+
+ReportLabelStatement ::=
+    ('REPORT' | 'LABEL') 'FORM' Identifier
+        [ScopeClause]
+        [ForWhileClause]
+        ['TO' 'PRINT']
+        ['TO' 'FILE' Identifier]
+
+CreateStatement ::=
+    'CREATE' Identifier
+    | 'CREATE' Identifier 'FROM' Identifier
+
+```
+
+### 4.6 SET Commands
+
+```ebnf
+SetStatement ::=
+    'SET' SetSubject ['TO' SetValue]
+
+SetSubject ::=
+    'ALTERNATE' | 'BELL' | 'CENTURY' | 'COLOR' | 'CONFIRM' |
+    'CONSOLE' | 'CURSOR' | 'DATE' | 'DECIMALS' | 'DEFAULT' |
+    'DELETED' | 'DELIMITERS' | 'DESCENDING' | 'DEVICE' |
+    'EPOCH' | 'ESCAPE' | 'EVENTMASK' | 'EXACT' | 'EXCLUSIVE' |
+    'FILTER' | 'FIXED' | 'FORMAT' | 'FUNCTION' |
+    'INDEX' | 'INTENSITY' | 'KEY' | 'MARGIN' |
+    'MEMOBLOCK' | 'MESSAGE' | 'OPTIMIZE' | 'ORDER' |
+    'PATH' | 'PRINTER' | 'PROCEDURE' | 'RELATION' |
+    'SCOPE' | 'SCOPEBOTTOM' | 'SCOPETOP' | 'SCOREBOARD' |
+    'SOFTSEEK' | 'TYPEAHEAD' | 'UNIQUE' | 'VIDEOMODE' | 'WRAP' |
+    'DB' | 'CONNECTION'
+```
+
+### 4.7 I/O Commands
+
+```ebnf
+InputOutputStatement ::=
+    SayCommand |
+    GetCommand |
+    ReadCommand |
+    InputCommand |
+    AcceptCommand |
+    WaitCommand |
+    TextCommand |
+    ClearCommand |
+    EjectCommand
+
+SayCommand ::=
+    '@' Expression ',' Expression
+        'SAY' Expression
+        ['PICTURE' StringLiteral]
+        ['COLOR' StringLiteral]
+
+GetCommand ::=
+    '@' Expression ',' Expression
+        'GET' Variable
+        ['PICTURE' StringLiteral]
+        ['COLOR' StringLiteral]
+        ['RANGE' Expression ',' Expression]
+        ['VALID' Expression]
+        ['WHEN' Expression]
+    | '@' Expression ',' Expression 'GET' 'CHECKBOX' Variable
+        ['MESSAGE' StringLiteral]
+    | '@' Expression ',' Expression 'GET' 'LISTBOX' Variable
+        'ITEMS' ArrayLiteral
+        ['SIZE' Expression ',' Expression]
+    | '@' Expression ',' Expression 'GET' 'PUSHBUTTON' Variable
+        'PROMPT' StringLiteral
+        ['SIZE' Expression ',' Expression]
+        ['MESSAGE' StringLiteral]
+    | '@' Expression ',' Expression 'GET' 'RADIOGROUP' Variable
+        'ITEMS' ArrayLiteral
+        ['SIZE' Expression ',' Expression]
+    | '@' Expression ',' Expression 'GET' 'TBROWSE' Variable
+        'SIZE' Expression ',' Expression
+        ['DATABASE' Identifier]
+
+ReadCommand ::= 'READ' ['SAVE']
+
+InputCommand ::=
+    'INPUT' [StringLiteral] 'TO' Identifier
+
+AcceptCommand ::=
+    'ACCEPT' [StringLiteral] 'TO' Identifier
+
+WaitCommand ::=
+    'WAIT' [StringLiteral] ['TO' Identifier]
+
+TextCommand ::= 'TEXT' ['TO' Identifier] ['TO' 'PRINT'] Body 'ENDTEXT'
+
+ClearCommand ::=
+    'CLEAR' ('SCREEN' | 'GETS' | 'MEMORY' | 'TYPEAHEAD' | 'ALL')
+    | '@' Expression ',' Expression 'CLEAR' ['TO' Expression ',' Expression]
+
+EjectCommand ::= 'EJECT'
+```
+
+### 4.8 Menú y Ventana
+
+```ebnf
+MenuWindowStatement ::=
+    MenuCommand |
+    PromptCommand |
+    ActivateMenuCommand |
+    DefineWindowCommand |
+    ActivateWindowCommand
+
+MenuCommand ::=
+    '@' Expression ',' Expression 'PROMPT' Expression
+    ['MESSAGE' Expression]
+
+    | 'MENU' 'TO' Identifier
+
+DefineWindowCommand ::=
+    'DEFINE' 'WINDOW' Identifier
+    'FROM' Expression ',' Expression
+    'TO' Expression ',' Expression
+    ['TITLE' StringLiteral]
+    ['DOUBLE' | 'PANEL' | 'NONE']
+
+ActivateWindowCommand ::=
+    'ACTIVATE' 'WINDOW' Identifier
+    | 'DEACTIVATE' 'WINDOW' Identifier
+    | 'HIDE' 'WINDOW' Identifier
+    | 'SHOW' 'WINDOW' Identifier
+```
+
+### 4.9 Misceláneos
+
+```ebnf
+MiscStatement ::=
+    'KEYBOARD' StringLiteral |
+    'TYPE' StringLiteral ['TO' 'PRINT'] |
+    'RUN' | '!' CommandLine |
+    'CALL' Identifier ['(' [ExpressionList] ')'] |
+    'QUIT' |
+    'CANCEL' |
+    'ANNOUNCE' Identifier |
+    'REQUEST' IdentifierList |
+    'EXTERNAL' IdentifierList |
+    'INIT' 'PROCEDURE' Identifier |
+    'EXIT' 'PROCEDURE' Identifier |
+    'STORE' Expression 'TO' IdentifierList |
+    'DECLARE' Identifier '[' Expression ']' [':' DataType] |
+    'YIELD' Expression
+
+ScopeClause ::=
+    'ALL' | 'REST' | 'NEXT' Expression | 'RECORD' Expression
+
+ForWhileClause ::=
+    'FOR' Expression | 'WHILE' Expression
+
+IdentifierList ::= Identifier {',' Identifier}
+ExpressionList ::= Expression {',' Expression}
+ActualParamList ::= ActualParam {',' ActualParam}
+ActualParam ::= Expression | Identifier ':=' Expression
+
+CommandLine ::= {any_character}
+```
+
+---
+
+## 5. Expresiones
+
+### 5.1 Jerarquía de Operadores
+
+```ebnf
+Expression        ::= LogicalOrExpr
+
+LogicalOrExpr     ::= LogicalAndExpr { ('.OR.' | '||') LogicalAndExpr }
+LogicalAndExpr    ::= NotExpr { ('.AND.' | '&&') NotExpr }
+NotExpr           ::= ['.NOT.' | '!'] ComparisonExpr
+
+ComparisonExpr    ::= ConcatExpr
+                      [ ('=' | '==' | '!=' | '<>' | '#' | '<' | '<=' | '>' | '>=' | '$')
+                        ConcatExpr ]
+
+ConcatExpr        ::= AddExpr { ('+' | '-') AddExpr }
+AddExpr           ::= MulExpr { ('+' | '-') MulExpr }
+MulExpr           ::= UnaryExpr { ('*' | '/' | '%') UnaryExpr }
+UnaryExpr         ::= ('+' | '-') PowerExpr | PowerExpr
+PowerExpr         ::= PrimaryExpr { ('**' | '^') PrimaryExpr }
+PrimaryExpr ::=
+    Literal |
+    Variable |
+    '(' Expression ')' |
+    FunctionCall |
+    CastExpr |
+    CodeBlock |
+    ArrayLiteral |
+    HashLiteral |
+    StructLiteral |
+    ObjectMethodCall |
+    StructMemberAccess |
+    DerefExpr |
+    AliasAccess |
+    MacroExpression |
+    MacroVariable |
+    IIFExpression |
+    'SELF' |
+    'SUPER'
+
+FunctionCall ::=
+    Identifier '(' [ActualParamList] ')' |
+    'MAKE_UNIQUE' '<' DataType '>' '(' [ActualParamList] ')' |
+    'MAKE_SHARED' '<' DataType '>' '(' [ActualParamList] ')'
+
+CastExpr ::=
+    'CAST' '<' DataType '>' '(' Expression ')' |
+    Expression 'AS' DataType
+
+ObjectMethodCall ::=
+    Expression ':' Identifier ['(' [ActualParamList] ')']
+
+StructLiteral ::=
+    Identifier '(' [ActualParamList] ')'
+
+StructMemberAccess ::=
+    Expression '.' Identifier
+
+DerefExpr ::= Expression '^'
+
+AliasAccess ::=
+    ('->' | '.') Identifier |
+    '(' Expression ')' '->' Identifier
+
+CodeBlock ::=
+    '{' ['|' FormalParamList '|'] {Statement} '}'
+
+ArrayLiteral ::=
+    '{' [ExpressionList] '}'
+
+HashLiteral ::=
+    '{' HashPair {',' HashPair} '}'
+
+HashPair ::= Expression '=>' Expression
+
+MacroExpression ::= '&' '(' Expression ')'
+MacroVariable   ::= '&' Identifier
+
+IIFExpression ::=
+    'IIF' '(' Expression ',' Expression ',' Expression ')'
+```
+
+---
+
+## 6. Preprocesador
+
+```ebnf
+PreprocessorDirective ::=
+    IncludeDirective |
+    DefineDirective |
+    UndefDirective |
+    IfDefDirective |
+    IfNDefDirective |
+    ErrorDirective |
+    StdOutDirective |
+    CommandTranslateDirective |
+    XCommandTranslateDirective
+
+IncludeDirective ::=
+    '#include' StringLiteral
+    | '#include' '<' Identifier '>'
+
+DefineDirective ::=
+    '#define' Identifier [ReplaceList]
+
+ReplaceList ::= '[' FormalParamList ']' Text
+
+UndefDirective ::= '#undef' Identifier
+
+IfDefDirective ::= '#ifdef' Identifier TextBlock ['#else' TextBlock] '#endif'
+IfNDefDirective ::= '#ifndef' Identifier TextBlock ['#else' TextBlock] '#endif'
+
+ErrorDirective ::= '#error' StringLiteral
+
+StdOutDirective ::= '#stdout' StringLiteral
+
+CommandTranslateDirective ::=
+    '#command' Pattern '=>' Translation
+    | '#translate' Pattern '=>' Translation
+
+XCommandTranslateDirective ::=
+    '#xcommand' Pattern '=>' Translation
+    | '#xtranslate' Pattern '=>' Translation
+
+Pattern ::= '[' PatternArg ']' {PatternArg}
+PatternArg ::= '<' Identifier ['(' ... ')' ] '>' | Identifier | StringLiteral
+Translation ::= {any_character}
+
+TextBlock ::= {any_character}
+```
+
+---
+
+## 7. Sentencias SQL Embebido (FPXBASE)
+
+```ebnf
+SQLStatement ::=
+    SQLExecuteStatement |
+    SQLPrepareStatement |
+    SQLCursorStatement |
+    SQLOpenStatement |
+    SQLCloseStatement
+
+SQLExecuteStatement ::=
+    'EXECUTE' 'SQL' StringLiteral
+    ['INTO' IdentifierList]
+    ['USING' ExpressionList]
+
+SQLPrepareStatement ::=
+    'PREPARE' Identifier 'FROM' StringLiteral
+
+SQLCursorStatement ::=
+    'DECLARE' Identifier 'CURSOR' 'FOR' StringLiteral
+
+SQLOpenStatement ::=
+    'OPEN' Identifier
+    ['USING' ExpressionList]
+    ['INTO' IdentifierList]
+
+SQLCloseStatement ::=
+    'CLOSE' Identifier
+
+```
+
+---
+
+## 8. Expresiones DB (FPXBASE)
+
+```ebnf
+DBExpression ::=
+    'DB' ':' Identifier        -- cambio de base de datos activa
+    | 'DB' '->' Identifier     -- acceso a cursor de otra DB
+
+ConnectionString ::=
+    'CONNECTION' StringLiteral
+
+DBOptions ::=
+    'SQLITE' |
+    'POSTGRESQL' |
+    'MSSQL' |
+    'MYSQL'
+```
+
+---
+
+## 9. Gramática de Directivas de Compilación
+
+```ebnf
+CompilerDirective ::=
+    '-n' | '-a' | '-m' | '-o' Path |
+    '-p' | '-i' Path | '-D' Identifier ['=' Value] |
+    '--target' ('win32' | 'win64' | 'linux32' | 'linux64') |
+    '--db' ('sqlite' | 'postgresql' | 'mssql') |
+    '--connection' StringLiteral |
+    '--legacy'
+
+EntryDirective ::=
+    '#entry' Identifier
+```
+
+- Si no hay `#entry`, el entry point se resuelve como: `FUNCTION Main` / `PROCEDURE Main` → primer `PROCEDURE` del archivo raíz (solo `--legacy`)
+- `FUNCTION Main` puede ser `Main(...)` (variádico) o `Main(p1 : STRING, p2 : STRING, ...)`
+- `Main` retorna `INTEGER` (código de salida, 0 = éxito por defecto)
+
+Path ::= {any_character}
+Value ::= {any_character}
+
+```
+
+---
+
+## 10. Apéndice: Comandos Obsoletos (Modo Legacy)
+
+Los siguientes comandos se aceptan solo en modo `--legacy` y emiten un warning:
+
+```ebnf
+LegacyCommand ::=
+    'SET' 'PROCEDURE' 'TO' Identifier |
+    'SET' 'FORMAT' 'TO' Identifier |
+    'SET' 'COLOR' 'TO' StringLiteral |
+    'SET' 'UNIQUE' ('ON' | 'OFF') |
+    'RESTORE' 'SCREEN' |
+    'SAVE' 'SCREEN' 'TO' Identifier |
+    'RESTORE' 'FROM' Identifier |
+    'SAVE' 'TO' Identifier |
+    'CLEAR' 'ALL' |
+    'DECLARE' IdentifierList |
+    'INPUT' StringLiteral 'TO' Identifier |
+    'ACCEPT' StringLiteral 'TO' Identifier |
+    'TEXT' 'TO' Identifier |
+    'FIND' StringLiteral |
+    'CALL' Identifier |
+    'DIR' [StringLiteral] |
+    'DISPLAY' 'STRUCTURE' |
+    'DISPLAY' 'MEMORY' |
+    'LIST' 'STRUCTURE' |
+    'LIST' 'MEMORY' |
+    'SET' 'PROCEDURE'
+```
+
+---
+
+> **Nota:** Esta gramática cubre el subconjunto completo del lenguaje xBASE (Clipper 5.x, Harbour, FoxPro) necesario para la compatibilidad con FPXBASE. Las extensiones modernas (tipado, SQL embebido, OOP) son específicas de FPXBASE. Todos los comandos xBASE tradicionales que operaban sobre .dbf e índices nativos se traducen a SQL en tiempo de compilación según la especificación del PRD.

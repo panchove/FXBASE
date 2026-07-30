@@ -1,0 +1,29 @@
+# Free Pascal
+*.o
+*.ppu
+*.dcu
+*.a
+*.lib
+*.so
+*.dll
+*.exe
+*.obj
+*.res
+*.or
+*.bak
+*.ppdbg
+
+# FPXBASE intermediates
+*.ppo
+*.fpxmap
+
+# IDE
+*.idea/
+*.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
