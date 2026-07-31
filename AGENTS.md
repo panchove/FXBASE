@@ -66,15 +66,17 @@ Fixtures in `tests/fixtures/`: `hello.fpg`, `program.fpg`, `nested.fpg`, `legacy
 ## Known integration gaps (in-progress)
 
 - `fpx.backend`, `fpx.rtl`, `fpx.ppo` are empty stubs referenced by `fpx.cli`. The CLI compiles because the stubs define the type/function signatures the CLI expects; actual codegen (compile → run) is not wired.
-- `fpx.ir.pas` is being built up incrementally (Phase 1.1). The current `TFPXIRGenerator.Generate` is a stub that returns an empty `TIRModule`. AST-driven IR lowering is the active work.
+- `fpx.ir.pas` is being built up incrementally (Phase 1.1). `TFPXIRGenerator.Generate(AST)` lowers AST → `TIRModule` for: empty functions, locals, assignments, IF/ELSE/ENDIF (then/else/merge blocks), WHILE (cond/body/exit), FOR (init/cond/body/step/exit), binary ops, RETURN. Not yet: classes, generics, codeblocks, lambdas, macros `&`, `@...SAY/GET`.
 - Sample programs at repo root (`test.prg`, `test2.prg`, `test/hello.prg`) are hand-written test inputs for the lexer/parser, not yet executable.
+- Docs marked `[Roadmap]` (`PRD §5.A/5.B/5.C`, `GRAMMAR §11`, `PARALLEL-COMPILER-ARCHITECTURE §🧬/🧪/🚄`) describe features that are **specified but not implemented** — tokens exist in the lexer but the parser/IR/RTL don't enforce semantics. Treat those sections as aspirational, not authoritative.
 
 ## Key references
 
-- `docs/PRD-FPXBASE.md` — product spec, language features, error codes (FPX-nnnn / FPW-nnnn).
-- `docs/GRAMMAR-FXBASE.md` — EBNF grammar (xBASE + FPXBASE extensions).
+- `docs/PRD-FPXBASE.md` — product spec, language features, error codes (FPX-nnnn / FPW-nnnn). Includes §5.A/5.B/5.C Roadmap sections (compatibilidad xBase estratificada, tipado gradual, smart pointers — todos pendientes de implementación).
+- `docs/GRAMMAR-FXBASE.md` — EBNF grammar (xBASE + FPXBASE extensions). §9 directive grammar is partially implemented (CLI flags recognized; `#pragma strict`/`#pragma gc`/`#entry` documented but no effect). §11 Roadmap backs STRUCT/CLASS distinction and smart pointers.
 - `docs/ROADMAP.md` — phases 0–6 milestones.
-- `docs/PARALLEL-COMPILER-ARCHITECTURE.md` — phase 0.5 design.
+- `docs/PARALLEL-COMPILER-ARCHITECTURE.md` — phase 0.5 design. Sections "🧬 RTL memory manager", "🧪 preprocessor cache key with global state", "🚄 RDD SQL prefetching" are Roadmap (stubs in `fpx.rtl.pas`/`fpx.ppo.pas`).
+- `docs/COMPATIBILITY-STRATEGY.md` — tiered 80/20 strategy for xBASE legacy adoption (T1 syntax, T2 DB→SQL, T3 macros). Source of truth for migration tiers and `#pragma strict`.
 
 ## Session log
 
@@ -106,3 +108,17 @@ Two incompatible token systems merged into `fpx.tokens.pas`. `fpx.lexer.pas` rew
 **`tests/unit/test_lexer.pas`, `tests/implementation/test_implementation.pas`:** fixed two pre-existing test bugs revealed by full rebuild — `TestImpl_Program_GenericBracket` searched for `ttLt` + `kwEndClass` (never adjacent in `program.fpg`); corrected to `ttLt` + `ttIdentifier` (matches `Stack<T>`, `Stack<INTEGER>`).
 
 **Final state at end of session:** `make fpx` + `make test` → 52/52 tests passing across 4 binaries (corrected from 54 — original count was off by two). `make test` exits 0 on success and aborts on any failure.
+
+### 2026-07-30 — Docs alignment + compatibility strategy
+
+User asked to verify doc/code alignment and add the tiered 80/20 compatibility strategy for xBASE legacy adoption. Investigation revealed `PRD`, `GRAMMAR`, `PARALLEL-COMPILER-ARCHITECTURE` (and `ROADMAP`) all had uncommitted edits describing features that are not implemented (`#pragma strict`, smart pointers `UNIQUE_PTR/SHARED_PTR/WEAK_PTR`, RTL multi-model memory manager, preprocessor cache key with global state, RDD SQL prefetching). Reverted the four docs to the last committed state, then re-added the requested sections with explicit `[Roadmap]` banners and implementation status tables.
+
+**New doc:** `docs/COMPATIBILITY-STRATEGY.md` — tiered 80/20 strategy (T1 syntax ~95%, T2 DB legacy ~80%/binary 0%, T3 macros ~30%) with rationale, `fpx-dbf` import/export, linter patterns, prefetching reference. Source of truth for migration tiers and `#pragma strict`.
+
+**`docs/PRD-FPXBASE.md`:** added §5.A Roadmap (Compatibilidad xBase Estratificada), §5.B Roadmap (Tipado Gradual & Directivas de Estrictez), §5.C Roadmap (Tipos Valor vs Referencia + Smart Pointers). Each section: status table by tier, rationale, examples, cross-references.
+
+**`docs/GRAMMAR-FXBASE.md`:** §9 expanded with `StrictDirective` + `LegacyStrictDirective` EBNF and an implementation status table for each directive. Added new §11 (Roadmap) with full EBNF for `#pragma strict`, type annotations `:`, STRUCT vs CLASS, smart pointers `UNIQUE_PTR<T>`/`SHARED_PTR<T>`/`WEAK_PTR<T>`, syntax examples, and a status table (which tokens are in `fpx.tokens.pas`, which directives have no effect, what is pending for Fase 2.5).
+
+**`docs/PARALLEL-COMPILER-ARCHITECTURE.md`:** added §🧬 (RTL memory manager multi-modelo: RefCount+cycle, Generational/Region, RAII), §🧪 (cache key compuesto con estado global del preprocesador, formato conceptual), §🚄 (RDD SQL prefetching & batching, default N=100, `DISABLE PREFETCH` pragma, interacción con `#pragma strict` e iteradores).
+
+**All four docs now use a consistent `[Roadmap]` banner:** status table at the top of each new section, "implemented vs pending" callouts, cross-references between PRD/GRAMMAR/ARCHITECTURE/COMPATIBILITY-STRATEGY. No code changes — docs only.

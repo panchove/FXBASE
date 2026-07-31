@@ -389,6 +389,140 @@ Flag del compilador: `--jobs N` para permitir al usuario ajustar manualmente.
 
 ---
 
+## 🧬 Roadmap — Gestión de Memoria en el Runtime (RTL)
+
+> **Estado:** Roadmap — pendiente de implementación. `src/fpx/fpx.rtl.pas` es actualmente un **stub vacío**: define las firmas que `fpx.cli.pas` espera, pero ninguna función tiene cuerpo. La estrategia multi-modelo que se documenta aquí es la dirección arquitectónica que se implementará en Fase 3.
+
+FPXBASE adoptará una **estrategia multimodelo** para el Memory Manager del RTL, eligiendo el modelo apropiado según el tipo declarado y el contexto de uso:
+
+| Modelo                         | Tipo declarado                          | Características                                                                 |
+|--------------------------------|-----------------------------------------|----------------------------------------------------------------------------------|
+| **RefCounting + cycle detect** | `CLASS Foo` (default)                   | Conteo de referencias con detección de ciclos (marcaje + barrido en background). Determinista para apps single-threaded. |
+| **Generational GC / Region**   | `TASK`, `CHANNEL`, contenedores async   | GC generacional o region-based allocator para minimizar pausas en código concurrente. |
+| **Manual / RAII**              | `STRUCT Foo`, `CLASS Foo WITH NO GC`, FFI C/FPC | Sin GC. Lifetime léxico para STRUCT; explícito (`DISPOSE`/`FREE`) para CLASS manual. |
+
+**Decisión por tipo:**
+
+```xbase
+CLASS Customer                  // RefCount + cycle detect (default)
+ENDCLASS
+
+CLASS NativeBuffer WITH NO GC   // Manual; el programador llama DISPOSE
+ENDCLASS
+
+STRUCT Point                    // RAII; lifetime léxico
+ENDSTRUCT
+
+LOCAL w : SHARED_PTR<Customer>  // RefCount intrínseco en el smart pointer
+LOCAL up : UNIQUE_PTR<NativeBuffer>  // RAII + MOVE()
+```
+
+**Razón de la coexistencia:** RefCount es óptimo para clases con ciclos raros y lifetime predecible (caso dominante en apps de negocio). Generational GC es mejor para contenedores con alta churn en código concurrente. Manual/RAII es necesario para FFI (librerías C/Free Pascal) y para tipos valor. Forzar un solo modelo penaliza el caso promedio.
+
+**Soporte para **C-style pointers**:** `^DataType` se mantiene para FFI; debe combinarse con `UNIQUE_PTR<T>` / `SHARED_PTR<T>` cuando la propiedad sea transferible, o con anotaciones `OWNED` / `BORROWED` para punteros C.
+
+---
+
+## 🧪 Roadmap — Desafío del Preprocesador Paralelo: Caché con Estado Global
+
+> **Estado:** Roadmap — pendiente de implementación. Hoy el preprocesador (`src/fpx/fpx.preprocessor.pas`) es un stub funcional mínimo; `fpx.ppo.pas` (caché) es un stub vacío. La estrategia de clave compuesta que se documenta aquí se implementará cuando se active el procesamiento paralelo (Fase 0.5+ del `ROADMAP.md`).
+
+**Desafío:** En xBASE, los comandos de preprocesador (`#command`, `#translate`, `#define`) tienen efecto **global** y dependen del **orden de inclusión** de archivos. Si un `.fph` define un `#command` que afecta a archivos posteriores, el contenido expandido de un archivo depende **no solo** del archivo en sí y de sus `#include`, sino también del estado del preprocesador en el momento en que se incluye.
+
+Esto rompe la asunción clásica de caché: *"si el archivo fuente no cambió, su `.ppo` es válido"*.
+
+**Solución propuesta — clave de caché compuesta con estado global:**
+
+La clave de hash para invalidar `.ppo` debe ser un **hash combinado** de:
+
+1. **Hash del contenido del archivo fuente** (`.prg`/`.fpg`).
+2. **Hashes de todos los `#include` transitivos** (`.fph`), ordenados.
+3. **Hash del estado global acumulado del preprocesador** en el punto de inclusión:
+   - Tabla de `#define` activos (nombre → valor).
+   - Tabla de `#command` / `#translate` / `#xcommand` / `#xtranslate` registrados.
+   - Estado de bloques `#ifdef`/`#ifndef`/`#else`/`#endif` anidados.
+   - Rutas de inclusión (`#include "..."` vs `#include <...>`).
+
+**Formato conceptual:**
+
+```
+ppo_hash = SHA256(
+   source_content
+ + '\0'
+ + sorted(include_hashes)
+ + '\0'
+ + hash(global_defines)
+ + '\0'
+ + hash(global_commands)
+ + '\0'
+ + hash(ifdef_stack_state)
+)
+```
+
+**Racional:** la clave compuesta garantiza **invalidación correcta** sin requerir cabeceras estrictamente autosuficientes. Cambio en cualquier `#define`, `#command`, o archivo `.fph` incluido invalida todos los `.ppo` posteriores en el orden de inclusión.
+
+**Limitación práctica:** si dos archivos comparten estado global (definido por el mismo `.fph` raíz) pero procesan `#command`s distintos localmente, ambos pagarán el costo de re-emisión cuando cambie ese `.fph`. Esto es aceptable: la invalidación conservadora es más segura que la sobre-invalidación optimista, y los `.fph` cambian con menos frecuencia que los `.fpg` que los incluyen.
+
+---
+
+## 🚄 Roadmap — Optimización RDD SQL: Prefetching y Batching
+
+> **Estado:** Roadmap — pendiente de implementación. La capa RDD virtual (`USE`/`SKIP`/`SEEK` traducidos a SQL) vive en `fpx.rtl.pas`, que es stub. La estrategia de prefetching que se documenta aquí minimiza el clásico **problema N+1** en bucles legacy traducidos a SQL.
+
+**El problema N+1:**
+
+```xbase
+USE customers
+DO WHILE .NOT. EOF()
+   ? FIELD->name
+   SKIP                          // una query por fila si se hace literal
+ENDDO
+```
+
+Sin batching, esto genera N queries `SELECT` sobre el motor SQL. Sobre SQLite local es aceptable; sobre PostgreSQL/MSSQL remoto cada query es una RTT de red.
+
+**Solución: cursor prefetch por lotes.**
+
+La RTL mantiene un **buffer de cursor** que:
+
+1. Al ejecutar `USE tabla` (equivalente a `OPEN CURSOR + SELECT * FROM tabla …`), emite `SELECT * FROM tabla …` y carga **`fetchmany(N)`** filas en un buffer local (default `N = 100`, configurable con `--rtl-prefetch=256` o `SetPrefetchSize(n)`).
+2. Las operaciones `SKIP n` se sirven del buffer; cuando se agota, se emite un nuevo `fetchmany(N)`.
+3. `GO TOP` invalida el buffer y recarga desde el principio.
+4. `GO BOTTOM` emite `SELECT … ORDER BY pk DESC LIMIT 1` y reinicia el cursor.
+5. `SEEK expr` ejecuta `WHERE col = ?` y rellena el buffer desde el resultado.
+6. `EOF()` / `BOF()` consultan el estado del buffer + el flag "buffer agotado + cursor SQL agotado".
+
+```
+USE customers
+  →  SELECT * FROM customers ORDER BY id
+     ↓
+   fetchmany(100)        →  buffer[0..99]
+     ↓
+SKIP 1                   →  buffer[1]
+SKIP 1                   →  buffer[2]
+...
+SKIP 1  (98 veces)       →  buffer[99]
+SKIP 1                   →  buffer agotado → fetchmany(100) → buffer[100..199]
+GO TOP                   →  buffer invalidado, reset a fetchmany(100)
+SEEK "ALICE"             →  WHERE name = 'ALICE' + refill
+```
+
+**Configuración:**
+
+| Mecanismo                  | Default | Alcance                                  |
+|----------------------------|---------|------------------------------------------|
+| `--rtl-prefetch=N`        | 100     | Global, por archivo                      |
+| `SetPrefetchSize(n)`       | —       | Runtime, por cursor                      |
+| `DISABLE PREFETCH` pragma | —       | Archivo/bloque, fuerza `fetchone`        |
+
+**Por qué no siempre 100:** para tablas pequeñas (< 100 filas) tiene el mismo costo que `fetchall`. Para tablas grandes en red WAN, 100 puede ser insuficiente; subir a 1024+ reduce RTTs. La heurística de default 100 es el sweet-spot empírico para SQLite local + Postgres remoto.
+
+**Interacción con `#pragma strict`:** bajo `#strict OFF` se permite `DISABLE PREFETCH` para compatibilidad; bajo `#strict ON` se eliminan las macros de disable para garantizar comportamiento predecible.
+
+**Interacción con GENERIC CLASS / ITERATOR:** el sistema de iteradores (`ITERATOR … AS CURSOR`, documentado en `docs/GRAMMAR-FXBASE.md` §7) opera sobre el mismo buffer, pero con una semántica `YIELD` que no fuerza materialización — son ortogonales.
+
+---
+
 ## 📈 Métricas de Rendimiento Esperadas
 
 | Escenario                                    | Tiempo (sin paralelo) | Tiempo (con paralelo, 8 cores) | Speedup  |

@@ -1352,6 +1352,122 @@ Control de warnings:
 
 ---
 
+## 5.A Roadmap — Compatibilidad xBase Estratificada (Estrategia 80/20)
+
+> **Estado:** Roadmap — pendiente de implementación. Detalle operativo y herramientas de migración en `docs/COMPATIBILITY-STRATEGY.md`. Estado actual por tier:
+>
+> | Tier | Componentes                                                                                              | Implementado |
+> |------|----------------------------------------------------------------------------------------------------------|--------------|
+> | T1   | Lexer case-insensitive, `IF/ENDIF`, `DO WHILE/ENDDO`, `FOR/NEXT`, `?`, `??`                              | Parcial (lexer + parser + IR para control de flujo; `@…SAY/GET` requiere `fpx.rtl` no-stub) |
+> | T2   | Traducción `USE/SKIP/SEEK/GO TOP/EOF/BOF/REPLACE/PACK/ZAP` → SQL sobre RDD virtual                      | No (tokens lexados; parser reconoce sintaxis; lowering IR→RTL pendiente) |
+> | T3   | Restricción de `&` macro a identificadores y expresiones simples; promoción a codeblocks `{|a, b| …}`   | No (lexer entrega `&` como `ttAmp` sin transformación) |
+
+FPXBASE ofrece **tres tiers opt-in** de compatibilidad con código xBASE legacy. La estrategia es explícitamente estratificada: en cada tier se asume un porcentaje de compatibilidad decreciente a cambio de ganancias en modernidad, predictibilidad y optimización.
+
+### 5.A.1 Tier 1 — Sintaxis y control de flujo (~95 %)
+
+- **Soporte completo e insensibilidad a mayúsculas/minúsculas** para comandos legacy (`IF/ENDIF`, `DO WHILE/ENDDO`, `FOR/NEXT`, `@ … SAY/GET`, `?`, `??`).
+- **Eliminación de la regla de abreviación de comandos a 4 letras** (exigir palabras clave completas para mantener el lexer limpio). Razón: en xBASE clásico, `DECLARE` admitía `DECL`, `PROCEDURE` admitía `PROC`, etc. FPXBASE exige la palabra completa para reducir el espacio de tokens y eliminar ambigüedad entre dialectos.
+
+### 5.A.2 Tier 2 — Datos y RDD virtual (Sintaxis ~80 % / Binaria 0 %)
+
+- **Desmantelamiento en compile-time** de los comandos clásicos de navegación (`USE`, `SKIP`, `SEEK`, `GO TOP/BOTTOM`, `APPEND BLANK`, `REPLACE`, `EOF()`, `BOF()`, `PACK`, `ZAP`) y redirección a una **capa RDD Virtual** sobre motores SQL (SQLite, PostgreSQL, MSSQL).
+- **Compatibilidad binaria con archivos físicos `.dbf/.cdx/.ntx/.fpt`: explícitamente obsoleta.** Estado runtime: solo SQL. Solo `fpx-dbf` (CLI) puede importar schema/datos `.dbf` → SQL o exportar una tabla SQL → `.dbf` para interoperabilidad.
+- **Herramienta de migración** incluida: `fpx-dbf import` / `fpx-dbf export` (ver `docs/COMPATIBILITY-STRATEGY.md` §5).
+
+### 5.A.3 Tier 3 — Evaluación dinámica de macros (`&`)
+
+- **Restricción** de la macroevaluación en runtime mediante `&` a **resolución de identificadores** o **expresiones simples aisladas** (`USE &tablename`, `? FIELD&fname`).
+- **Promoción** del uso de **Bloques de Código** (`{|a, b| …}`) y **lambdas** para garantizar la optimización **AOT** (Ahead-Of-Time). Las macros complejas (`&macro.{}`, `&macro.()`, `&macro.field`, `&macro->method`) se marcan como **FPW-LEG-0002** y se rechazan en `--strict`.
+- **Razón:** las macros `&` requieren emitir código que evalúe la expresión en runtime, lo que imposibilita análisis estático de tipos, inline, constant folding y verificación de seguridad.
+
+### 5.A.4 Referencias cruzadas
+
+- Gramática de directivas: `docs/GRAMMAR-FXBASE.md` §3.6 (`#pragma strict` / `#strict`).
+- EBNF de smart pointers y tipos valor vs referencia: `docs/GRAMMAR-FXBASE.md` §5.A.
+- RTL multi-modelo de memoria: `docs/PARALLEL-COMPILER-ARCHITECTURE.md` §"Gestión de Memoria en el Runtime".
+- Prefetching de cursores SQL: `docs/PARALLEL-COMPILER-ARCHITECTURE.md` §"Optimización RDD SQL".
+
+---
+
+## 5.B Roadmap — Tipado Gradual y Directivas de Estrictez
+
+> **Estado:** Roadmap — pendiente de implementación. No hay directivas `#pragma strict` ni `#strict` activas en `fpx.preprocessor.pas`.
+
+FPXBASE implementa un sistema de tipos **opcional y gradual** similar al de TypeScript: las variables sin anotación de tipo se infieren como `VARIANT` (o `ANY`), y la rigidez se activa por archivo o bloque.
+
+### 5.B.1 Sintaxis de la directiva
+
+```xbase
+#pragma strict(ON | OFF)    // Forma canónica, preferida
+#strict ON                  // Forma abreviada (legacy xBASE)
+#strict OFF
+```
+
+### 5.B.2 Semántica
+
+| Modo        | `LOCAL x` (sin tipo) | `LOCAL x : INTEGER` | Cast runtime           |
+|-------------|----------------------|---------------------|------------------------|
+| `#strict OFF` (legacy) | `VARIANT` / `ANY`, libre mutación  | Asignación validada | Implícito (coerción)    |
+| `#strict ON`  | **Error: tipo requerido** (FPX-T-0103) | Validado en compile-time | Exige `AS` o `CAST<T>()` |
+
+### 5.B.3 Estado actual del tipado
+
+- **Lexer:** acepta `:` y `AS` como tokens (`ttColon`, `kwAs`); parser maneja `LOCAL x AS TYPE` desde el commit de Phase 1.1.
+- **Backend de tipos:** la propiedad `TFunctionDef.ReturnType` y los accesos `TVarDeclStmt.GetType(i)` ya existen en `fpx.ast.pas`, pero el lowering IR no los valida aún.
+- **Implementación completa:** Fase 2.5 del roadmap.
+
+---
+
+## 5.C Roadmap — Tipos Valor vs Referencia y Smart Pointers
+
+> **Estado:** Roadmap — pendiente de implementación. Los tokens `kwStruct`, `kwClass`, `kwUnique_ptr`, `kwShared_ptr`, `kwWeak_ptr` **existen** en `fpx.tokens.pas`/`fpx.lexer.pas`, pero el parser no los procesa como modificadores semánticos (sin distinción stack/heap, sin ownership tracking).
+
+### 5.C.1 STRUCT vs CLASS
+
+| Forma                                | Asignación | Lifetime                                  |
+|--------------------------------------|------------|-------------------------------------------|
+| `STRUCT Foo … ENDSTRUCT`             | **Stack** (valor, copia por asignación)  | Léxico (RAII)                             |
+| `CLASS Foo … ENDCLASS`               | **Heap** (referencia, alias por copia)  | Refcount + cycle detection (default)      |
+| `CLASS Foo … ENDCLASS WITH NO GC`    | **Heap** sin GC                           | Manual (FFI / interop C/FPC)              |
+
+### 5.C.2 Smart pointers
+
+| Modificador                  | Modelo de ownership                       | Uso típico                                  |
+|------------------------------|-------------------------------------------|---------------------------------------------|
+| `UNIQUE_PTR<T>`              | Exclusivo, transferible                   | Recursos críticos (archivos, sockets, locks) |
+| `SHARED_PTR<T>`              | Compartido, refcount                      | Recursos compartidos entre hilos/módulos    |
+| `WEAK_PTR<T>`                | Observador no-propietario                 | Cache, callbacks, romper ciclos de referencia |
+
+**Sintaxis propuesta:**
+
+```xbase
+LOCAL file : UNIQUE_PTR<HANDLE> := UniquePtr{HANDLE, OpenFile("data.bin")}
+LOCAL cache : SHARED_PTR<HashTable> := SharedPtr{HashTable}
+LOCAL weak_cache : WEAK_PTR<HashTable> := WeakPtr{HashTable}
+
+IF weak_cache.LOCK() != NIL THEN
+   ? weak_cache.LOCK()["key"]
+ENDIF
+```
+
+### 5.C.3 RTL multi-modelo (referencia)
+
+FPXBASE elegirá el modelo de memory management en compile-time según el tipo declarado:
+
+| Tipo                          | Modelo de memoria (RTL)               |
+|-------------------------------|---------------------------------------|
+| `CLASS Foo`                   | RefCount + cycle detection (default)  |
+| `CLASS Foo WITH NO GC`        | Manual / RAII                          |
+| `STRUCT Foo`                  | RAII (lifetime léxico)                 |
+| `TASK` / `CHANNEL`            | Generational GC o region-based allocator |
+| `UNIQUE_PTR<T>` / `SHARED_PTR<T>` | RefCount intrínseco              |
+| Código FFI C/Free Pascal      | Manual (`ALLOCATE` / `DEALLOCATE`)     |
+
+Detalle arquitectónico en `docs/PARALLEL-COMPILER-ARCHITECTURE.md` §"Gestión de Memoria en el Runtime (RTL)".
+
+---
+
 ## 6. Migración desde Código xBase Legacy
 
 ### 6.1 Compatibilidad hacia atrás

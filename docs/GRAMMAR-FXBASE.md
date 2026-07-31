@@ -326,7 +326,7 @@ InterfaceMember ::=
 
 **Ejemplo**:
 
-```
+```xbase
 INTERFACE IComparable
     METHOD Compare(other: OBJECT) AS INTEGER
 ENDINTERFACE
@@ -1132,9 +1132,14 @@ CompilerDirective ::=
 PragmaDirective ::=
     '#pragma' 'gc' '(' ('refcount' | 'generational' | 'manual' | 'none') ')'
     | '#pragma' 'gc' 'off'
+    | '#pragma' 'strict' '(' ('on' | 'off') ')'
     | '#pragma' 'strict' ('on' | 'off')
     | '#pragma' 'db_ansi' ('on' | 'off')
     | '#pragma' 'legacy' ('on' | 'off')
+
+LegacyStrictDirective ::=
+    '#strict' ('on' | 'off')           (* forma abreviada, equivalente a '#pragma strict' *)
+    | '#strict' '(' ('on' | 'off') ')'  (* forma canónica con paréntesis *)
 
 EntryDirective ::=
     '#entry' Identifier
@@ -1146,6 +1151,18 @@ EntryDirective ::=
 - `#pragma gc` controla el modo de gestión de memoria por archivo/bloque
 - `#pragma strict` controla tipado estricto por archivo/bloque
 - `--gc` flag CLI establece el default global
+
+**Implementación:**
+
+| Directiva                                 | Estado                                                              |
+|-------------------------------------------|---------------------------------------------------------------------|
+| `-n`, `-a`, `-m`, `-o`, `-p`, `-i`, `-D`  | Implementadas en `fpx.cli.pas`                                      |
+| `--target`, `--db`, `--connection`        | Implementadas en `fpx.cli.pas`                                      |
+| `--legacy`, `--strict`, `--no-strict`     | **Flags CLI** reconocidos en `fpx.cli.pas`; procesamiento semántico pendiente |
+| `--gc`, `--jobs`, `--output-type`, `--optimize` | Flags CLI reconocidas; efectos pendientes (`fpx.backend`/`fpx.rtl` son stubs) |
+| `#pragma strict` / `#strict`              | **Roadmap:** directiva léxica documentada, sin efecto en `fpx.preprocessor.pas` |
+| `#pragma gc`                              | **Roadmap:** directiva léxica documentada, sin efecto                |
+| `#entry`                                  | **Roadmap:** directiva léxica documentada, sin efecto                |
 
 ---
 
@@ -1177,6 +1194,137 @@ LegacyCommand ::=
     'LIST' 'MEMORY' |
     'SET' 'PROCEDURE'
 ```
+
+---
+
+## 11. Roadmap — Tipado Gradual y Smart Pointers
+
+> **Estado:** Roadmap — pendiente de implementación. Los tokens léxicos (`kwStruct`, `kwClass`, `kwUnique_ptr`, `kwShared_ptr`, `kwWeak_ptr`) **existen en** `src/fpx/fpx.tokens.pas`/`fpx.lexer.pas`, pero el parser no los trata como modificadores semánticos: no hay distinción stack/heap en el IR, ni ownership tracking, ni verificación de `#pragma strict`. El detalle estratégico (tiers, prefetching, ejemplos) está en `docs/COMPATIBILITY-STRATEGY.md` y `docs/PRD-FPXBASE.md` §5.A–5.C.
+
+### 11.1 Directivas de Estrictez y Tipado Gradual
+
+```ebnf
+StrictDirective ::=
+      '#pragma' 'strict' '(' ('on' | 'off') ')'
+    | '#pragma' 'strict' ('on' | 'off')
+    | '#strict' ('on' | 'off')                       (* legacy alias *)
+    | '#strict' '(' ('on' | 'off') ')'
+
+TypeAnnotation ::=
+      Identifier ':' DataType                       (* forma canónica FPXBASE *)
+    | Identifier 'AS' DataType                      (* forma xBASE heredada *)
+```
+
+**Semántica:**
+
+| Modo           | `LOCAL x` sin tipo        | `LOCAL x : INTEGER`        | Cast runtime            |
+|----------------|---------------------------|----------------------------|-------------------------|
+| `#strict OFF`  | `VARIANT` / `ANY`         | Validado, free reasignable | Implícito (coerción)    |
+| `#strict ON`   | **Error: FPX-T-0103**     | Validado en compile-time   | Requiere `AS` o `CAST<T>()` |
+
+```xbase
+#pragma strict(off)              // legacy, variantes dinámicas
+LOCAL n := 42                    // n : VARIANT
+
+#pragma strict(on)               // strict, requiere anotación
+LOCAL n : INTEGER := 42          // OK
+LOCAL m := 42                    // Error: FPX-T-0103 — tipo requerido
+LOCAL m : INTEGER := "hola"      // Error: FPX-T-0104 — tipo incompatible
+```
+
+### 11.2 STRUCT (tipo valor) vs CLASS (tipo referencia)
+
+```ebnf
+StructDef ::=
+    'STRUCT' Identifier [GenericParamList] [AlignSpec]
+        {StructMember}
+    'ENDSTRUCT'
+
+ClassDef ::=
+    'CLASS' Identifier [GenericParamList]
+        ['WITH' ClassModifier]
+        ['FROM' ParentClassList]
+        ['IMPLEMENTS' InterfaceList]
+        {ClassMember}
+    'ENDCLASS'
+
+ClassModifier ::=
+    'NO' 'GC'                                         (* manual / RAII *)
+
+GenericParamList ::=
+    '<' Identifier [',' Identifier]* '>'
+
+StructMember ::=
+      Identifier ':' DataType [ArrayDim] [Initializer]
+    | 'METHOD' Identifier '(' [FormalParamList] ')' [':' DataType] MethodBody
+    | 'INLINE' 'METHOD' ...
+    | 'PADDING' '(' Expression ')'
+
+ClassMember ::=
+      Identifier [':' DataType] ['=>' Initializer]     (* propiedad auto *)
+    | 'METHOD' ...
+    | 'INLINE' 'METHOD' ...
+    | 'CONSTRUCTOR' ...
+    | 'DESTRUCTOR' ...
+```
+
+| Forma                       | Asignación | Lifetime                          |
+|-----------------------------|------------|-----------------------------------|
+| `STRUCT Foo … ENDSTRUCT`    | **Stack**  | Léxico (RAII) — copia por asignación |
+| `CLASS Foo … ENDCLASS`      | **Heap**   | RefCount + cycle detection (default) |
+| `CLASS Foo WITH NO GC …`    | **Heap**   | Manual (`DISPOSE`, `FREE`)          |
+
+### 11.3 Smart Pointers
+
+```ebnf
+SmartPointerType ::=
+      'UNIQUE_PTR'  '<' DataType '>'
+    | 'SHARED_PTR'  '<' DataType '>'
+    | 'WEAK_PTR'    '<' DataType '>'
+
+SmartPtrDecl ::=
+    Identifier ':' SmartPointerType [':=' SmartPtrInitializer]
+
+SmartPtrInitializer ::=
+      'UniquePtr' '<' DataType ',' Expression '>'     (* UNIQUE_PTR<T> con recurso *)
+    | 'SharedPtr' '<' DataType ['(' Expression ')'] '>'
+    | 'WeakPtr'   '<' DataType ['(' Expression ')'] '>'
+    | 'NIL'
+```
+
+| Modificador     | Modelo de ownership   | Uso típico                                |
+|-----------------|-----------------------|-------------------------------------------|
+| `UNIQUE_PTR<T>` | Exclusivo, transferible (`MOVE()`) | Recursos críticos (archivos, sockets, locks) |
+| `SHARED_PTR<T>` | Compartido, refcount   | Recursos compartidos entre hilos/módulos  |
+| `WEAK_PTR<T>`   | Observador no-propietario | Cache, callbacks, romper ciclos         |
+
+**Operaciones:**
+
+```xbase
+LOCAL file : UNIQUE_PTR<HANDLE> := UniquePtr<HANDLE, OpenFile("data.bin")>
+LOCAL cache : SHARED_PTR<HashTable> := SharedPtr{HashTable}
+LOCAL weak  : WEAK_PTR<HashTable> := WeakPtr{cache}
+
+LOCAL locked := weak.LOCK()           (* devuelve SHARED_PTR o NIL si expiró *)
+IF locked != NIL THEN
+   ? locked["key"]
+ENDIF
+
+LOCAL other : UNIQUE_PTR<HANDLE> := MOVE(file)    (* transferencia explícita *)
+file := NIL                                       (* tras MOVE, source queda NIL *)
+```
+
+### 11.4 Estado de implementación (resumen)
+
+| Elemento                                         | Estado                                                                    |
+|--------------------------------------------------|---------------------------------------------------------------------------|
+| `STRUCT Foo … ENDSTRUCT`                         | Sintaxis parseada; semántica valor (stack) pendiente de IR/RTL            |
+| `CLASS Foo … ENDCLASS`                           | Sintaxis parseada; semántica heap pendiente                                |
+| `UNIQUE_PTR<T>` / `SHARED_PTR<T>` / `WEAK_PTR<T>`| Tokens en `fpx.tokens.pas`; ningún uso semántico aún                       |
+| `#pragma strict` / `#strict`                     | Directiva léxica documentada; sin efecto en preprocesador                  |
+| `Identifier AS DataType` (forma legacy xBASE)    | Soportado en `fpx.parser.pas` desde Phase 1.1                              |
+| `Identifier : DataType` (forma FPXBASE canónica) | Soportado en `fpx.parser.pas` desde Phase 1.1                              |
+| Validación strict en IR                          | **Pendiente** (Fase 2.5)                                                  |
 
 ---
 
