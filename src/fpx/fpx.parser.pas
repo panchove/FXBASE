@@ -8,6 +8,14 @@ uses
   sysutils, classes, fpx.tokens, fpx.errors, fpx.ast, fpx.lexer;
 
 type
+  TParamInfo = record
+    Name: string;
+    Typ: string;
+    IsRef: Boolean;
+  end;
+
+  TParamInfoArray = array of TParamInfo;
+
   TParser = class
   private
     FLexer: TLexer;
@@ -50,7 +58,9 @@ type
 
     // Type parsing
     function ParseDataType: string;
+    function ParseTypeRef: string;
     function ParseGenericArgs: TStringArray;
+    function ParseParamList: TParamInfoArray;
 
     // Statement parsing
     function ParseStatement: TASTNode;
@@ -88,7 +98,7 @@ begin
   FLexer := Lexer;
   FReporter := Reporter;
   FLoopDepth := 0;
-  Advance; // prime the first token
+  FCurrent.TokenType := ttEof;
 end;
 
 procedure TParser.Advance;
@@ -668,6 +678,54 @@ begin
     Result := '';
 end;
 
+function TParser.ParseTypeRef: string;
+begin
+  Result := '';
+  if MatchKeyword(kwArray) then
+  begin
+    if MatchKeyword(kwOf) then
+      Result := 'ARRAY OF ' + ParseDataType
+    else
+      Result := 'ARRAY';
+  end
+  else
+    Result := ParseDataType;
+end;
+
+function TParser.ParseParamList: TParamInfoArray;
+begin
+  Result := nil;
+  if Peek <> ttLParen then Exit;
+  Advance; // '('
+  if Peek = ttRParen then
+  begin
+    Advance;
+    Exit;
+  end;
+  repeat
+    SetLength(Result, Length(Result) + 1);
+    Result[High(Result)].IsRef := False;
+    if MatchKeyword(kwRef) then
+      Result[High(Result)].IsRef := True;
+    if Peek = ttIdentifier then
+    begin
+      Result[High(Result)].Name := FCurrent.StrValue;
+      Advance;
+      if Peek = ttColon then
+      begin
+        Advance; // ':'
+        Result[High(Result)].Typ := ParseTypeRef;
+      end
+      else if MatchKeyword(kwAs) then
+        Result[High(Result)].Typ := ParseTypeRef;
+      if Peek = ttComma then Advance;
+    end
+    else
+      Error(FPX_EXPECTED_IDENT, 'Expected parameter name');
+  until Peek = ttRParen;
+  Consume(ttRParen, 'Expected ) after parameters');
+end;
+
 function TParser.ParseGenericArgs: TStringArray;
 begin
   Result := nil;
@@ -727,6 +785,8 @@ begin
           kwNewType: Exit(ParseNewTypeDef);
           else
             Error('Unexpected keyword ' + KeywordNames[FCurrent.Keyword]);
+            Advance;
+            Exit(nil);
         end;
       end;
 
@@ -755,7 +815,6 @@ begin
   end;
 
   // Skip trailing newlines
-  while Peek in [ttNewline, ttSemicolon] do Advance;
 end;
 
 function TParser.ParseVarDecl: TASTNode;
@@ -783,17 +842,10 @@ begin
     if Peek = ttColon then
     begin
       Advance; // consume ':'
-      if MatchKeyword(kwArray) then
-      begin
-        // ARRAY OF <type>
-        if MatchKeyword(kwOf) then
-          typ := 'ARRAY OF ' + ParseDataType
-        else
-          typ := 'ARRAY';
-      end
-      else
-        typ := ParseDataType;
-    end;
+      typ := ParseTypeRef;
+    end
+    else if MatchKeyword(kwAs) then
+      typ := ParseTypeRef;
 
     initVal := nil;
     if Peek = ttAssign then
@@ -846,9 +898,7 @@ begin
   stmt := TIfStmt.Create(cond, FCurrent.Line, FCurrent.Col);
 
   // Skip to statement body
-  while Peek in [ttNewline, ttSemicolon] do Advance;
-
-  // Then body
+   // Then body
   while not CheckKeyword(kwElseIf) and not CheckKeyword(kwElse)
     and not CheckKeyword(kwEndIf) and not CheckKeyword(kwEnd)
     and (Peek <> ttEof) do
@@ -861,11 +911,10 @@ begin
   begin
     Advance; // ELSEIF
     cond := ParseExpression;
-    stmt.AddElseIf(cond);
-    while Peek in [ttNewline, ttSemicolon] do Advance;
-    while not CheckKeyword(kwElseIf) and not CheckKeyword(kwElse)
-      and not CheckKeyword(kwEndIf) and not CheckKeyword(kwEnd)
-      and (Peek <> ttEof) do
+stmt.AddElseIf(cond);
+     while not CheckKeyword(kwElseIf) and not CheckKeyword(kwElse)
+       and not CheckKeyword(kwEndIf) and not CheckKeyword(kwEnd)
+       and (Peek <> ttEof) do
     begin
       stmt.AddElseIfStmt(ParseStatement);
     end;
@@ -875,7 +924,6 @@ begin
   if CheckKeyword(kwElse) then
   begin
     Advance; // ELSE
-    while Peek in [ttNewline, ttSemicolon] do Advance;
     while not CheckKeyword(kwEndIf) and not CheckKeyword(kwEnd)
       and (Peek <> ttEof) do
     begin
@@ -904,8 +952,6 @@ begin
   cond := ParseExpression;
   whileStmt := TWhileStmt.Create(cond, FCurrent.Line, FCurrent.Col);
 
-  while Peek in [ttNewline, ttSemicolon] do Advance;
-
   while not CheckKeyword(kwEndDo) and not CheckKeyword(kwEnd)
     and not CheckKeyword(kwLoop) and (Peek <> ttEof) do
   begin
@@ -933,8 +979,6 @@ begin
   cond := ParseExpression;
   whileStmt := TWhileStmt.Create(cond, FCurrent.Line, FCurrent.Col);
 
-  while Peek in [ttNewline, ttSemicolon] do Advance;
-
   while not CheckKeyword(kwEnd) and not CheckKeyword(kwElse)
     and (Peek <> ttEof) do
   begin
@@ -949,7 +993,6 @@ begin
   if CheckKeyword(kwElse) then
   begin
     Advance;
-    while Peek in [ttNewline, ttSemicolon] do Advance;
     while not CheckKeyword(kwEnd) and (Peek <> ttEof) do
       whileStmt.AddElseStmt(ParseStatement);
   end;
@@ -1001,8 +1044,6 @@ begin
     forStmt.SetStep(ParseExpression);
   end;
 
-  while Peek in [ttNewline, ttSemicolon] do Advance;
-
   Inc(FLoopDepth);
   while not CheckKeyword(kwNext) and not CheckKeyword(kwEnd)
     and (Peek <> ttEof) do
@@ -1039,7 +1080,9 @@ end;
 function TParser.ParseReturn: TASTNode;
 begin
   ConsumeKeyword(kwReturn, 'Expected RETURN');
-  if Peek in [ttNewline, ttEof, ttSemicolon] then
+  // Bare RETURN if next token cannot start an expression
+  if not (Peek in [ttIdentifier, ttInteger, ttReal, ttString, ttDate, ttLogical, ttNil,
+       ttLParen, ttLBrace, ttPlus, ttMinus, ttNot, ttDotNot, ttBitAnd, ttAt, ttCaret]) then
     Result := TReturnStmt.Create(FPrevious.Line, FPrevious.Col)
   else
     Result := TReturnStmt.CreateWithValue(ParseExpression, FPrevious.Line, FPrevious.Col);
@@ -1060,8 +1103,6 @@ begin
     if FLoopDepth = 0 then
       FReporter.WarningFPW(FPW_LEGACY_COMMAND, kind + ' outside a loop', FCurrent.Line, FCurrent.Col);
   Result := TLoopCtrlStmt.Create(kind, FCurrent.Line, FCurrent.Col);
-  // Skip possible newlines
-  while Peek in [ttNewline, ttSemicolon] do Advance;
 end;
 
 function TParser.ParseMisc: TASTNode;
@@ -1086,7 +1127,7 @@ var
   name: string;
   func: TFunctionDef;
   typ: string;
-  isRef: Boolean;
+  p: TParamInfo;
 begin
   isStatic := False;
   if MatchKeyword(kwStatic) then isStatic := True;
@@ -1110,30 +1151,8 @@ begin
   // Formal params
   if Peek = ttLParen then
   begin
-    Advance; // '('
-    if Peek <> ttRParen then
-    begin
-      repeat
-        isRef := False;
-        if MatchKeyword(kwRef) then isRef := True;
-        if Peek = ttIdentifier then
-        begin
-          name := FCurrent.StrValue;
-          Advance;
-          typ := '';
-          if Peek = ttColon then
-          begin
-            Advance; // ':'
-            typ := ParseDataType;
-          end;
-          func.AddParam(name, typ, nil, isRef);
-          if Peek = ttComma then Advance;
-        end
-        else
-          Error(FPX_EXPECTED_IDENT, 'Expected parameter name');
-      until Peek = ttRParen;
-    end;
-    Consume(ttRParen, 'Expected ) after function parameters');
+    for p in ParseParamList do
+      func.AddParam(p.Name, p.Typ, nil, p.IsRef);
   end;
 
   // Return type
@@ -1144,8 +1163,6 @@ begin
   end;
 
   // Body
-  while Peek in [ttNewline, ttSemicolon] do Advance;
-
   while not CheckKeyword(kwEndFunc) and not CheckKeyword(kwEndFunction)
     and not CheckKeyword(kwEnd) and (Peek <> ttEof) do
   begin
@@ -1167,7 +1184,7 @@ var
   isStatic: Boolean;
   name: string;
   proc: TProcedureDef;
-  isRef: Boolean;
+  p: TParamInfo;
 begin
   isStatic := False;
   if MatchKeyword(kwStatic) then isStatic := True;
@@ -1189,33 +1206,9 @@ begin
 
   if Peek = ttLParen then
   begin
-    Advance;
-    if Peek <> ttRParen then
-    begin
-      repeat
-        isRef := False;
-        if MatchKeyword(kwRef) then isRef := True;
-        if Peek = ttIdentifier then
-        begin
-          name := FCurrent.StrValue;
-          Advance;
-          if Peek = ttColon then
-          begin
-            Advance;
-            proc.AddParam(name, ParseDataType, nil, isRef);
-          end
-          else
-            proc.AddParam(name, '', nil, isRef);
-          if Peek = ttComma then Advance;
-        end
-        else
-          Error(FPX_EXPECTED_IDENT, 'Expected parameter name');
-      until Peek = ttRParen;
-    end;
-    Consume(ttRParen, 'Expected ) after procedure parameters');
+    for p in ParseParamList do
+      proc.AddParam(p.Name, p.Typ, nil, p.IsRef);
   end;
-
-  while Peek in [ttNewline, ttSemicolon] do Advance;
 
   while not CheckKeyword(kwEndProc) and not CheckKeyword(kwEndProcedure)
     and not CheckKeyword(kwEnd) and (Peek <> ttEof) do
@@ -1265,8 +1258,6 @@ begin
     end;
   end;
 
-  while Peek in [ttNewline, ttSemicolon] do Advance;
-
   // Skip until ENDCLASS
   while not CheckKeyword(kwEndClass) and (Peek <> ttEof) do
     ParseStatement;
@@ -1305,8 +1296,6 @@ begin
       if Peek = ttRParen then Advance;
     end;
   end;
-
-  while Peek in [ttNewline, ttSemicolon] do Advance;
 
   // Skip members
   while not CheckKeyword(kwEndStruct) and (Peek <> ttEof) do
@@ -1401,6 +1390,9 @@ var
   node: TASTNode;
 begin
   prog := TCompilationUnit.Create(1, 1);
+
+  if FCurrent.TokenType = ttEof then
+    Advance;
 
   while Peek <> ttEof do
   begin

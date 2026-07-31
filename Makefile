@@ -8,28 +8,13 @@ BUILD_DIR := build
 BIN_DIR := bin
 
 # Main targets
-.PHONY: all clean test fpx fpx-lsp fpx-fmt fpx-pkg fpx-dbf fpx-dap install
+.PHONY: all clean test fpx install
 
-all: fpx fpx-fmt fpx-dbf
+all: fpx
 
 # Main compiler
 fpx: $(BUILD_DIR) $(BIN_DIR)
 	$(FPC) $(FPCFLAGS) -o$(BIN_DIR)/fpx $(SRC_DIR)/fpx/fpx.lpr
-
-fpx-lsp: $(BUILD_DIR) $(BIN_DIR)
-	$(FPC) $(FPCFLAGS) -o$(BIN_DIR)/fpx-lsp $(SRC_DIR)/tools/fpx-lsp/fpx-lsp.lpr
-
-fpx-fmt: $(BUILD_DIR) $(BIN_DIR)
-	$(FPC) $(FPCFLAGS) -o$(BIN_DIR)/fpx-fmt $(SRC_DIR)/tools/fpx-fmt/fpx-fmt.lpr
-
-fpx-pkg: $(BUILD_DIR) $(BIN_DIR)
-	$(FPC) $(FPCFLAGS) -o$(BIN_DIR)/fpx-pkg $(SRC_DIR)/tools/fpx-pkg/fpx-pkg.lpr
-
-fpx-dbf: $(BUILD_DIR) $(BIN_DIR)
-	$(FPC) $(FPCFLAGS) -o$(BIN_DIR)/fpx-dbf $(SRC_DIR)/tools/fpx-dbf/fpx-dbf.lpr
-
-fpx-dap: $(BUILD_DIR) $(BIN_DIR)
-	$(FPC) $(FPCFLAGS) -o$(BIN_DIR)/fpx-dap $(SRC_DIR)/tools/fpx-dap/fpx-dap.lpr
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -38,7 +23,7 @@ $(BIN_DIR):
 	mkdir -p $(BIN_DIR)
 
 # Testing
-test: test-unit test-integration test-implementation
+test: test-unit test-integration test-implementation test-ir
 	@echo "All test suites passed."
 
 test-unit: fpx
@@ -49,6 +34,9 @@ test-integration: fpx
 
 test-implementation: fpx
 	@bash tests/run_implementation.sh
+
+test-ir: fpx
+	@bash tests/run_ir.sh
 
 test-all: fpx
 	@bash tests/run_all_tests.sh
@@ -67,8 +55,6 @@ clean:
 install: all
 	install -d /usr/local/bin
 	install $(BIN_DIR)/fpx /usr/local/bin/fpx
-	install $(BIN_DIR)/fpx-fmt /usr/local/bin/fpx-fmt
-	install $(BIN_DIR)/fpx-dbf /usr/local/bin/fpx-dbf
 	@echo "Installed to /usr/local/bin"
 
 # Development
@@ -87,17 +73,13 @@ dist: clean all
 # Help
 help:
 	@echo "FPXBASE Makefile targets:"
-	@echo "  all                 - Build all tools (default)"
+	@echo "  all                 - Build main compiler (default)"
 	@echo "  fpx                 - Build main compiler"
-	@echo "  fpx-lsp             - Build LSP server"
-	@echo "  fpx-fmt             - Build formatter"
-	@echo "  fpx-pkg             - Build package manager"
-	@echo "  fpx-dbf             - Build DBF import/export tool"
-	@echo "  fpx-dap             - Build DAP debugger"
-	@echo "  test                - Run all unit/integration/impl tests"
+	@echo "  test                - Run all unit/integration/impl/IR tests"
 	@echo "  test-unit           - Run unit tests only"
 	@echo "  test-integration    - Run integration tests only"
 	@echo "  test-implementation - Run implementation tests only"
+	@echo "  test-ir             - Run IR lowering tests only"
 	@echo "  test-all            - Run full suite (verbose)"
 	@echo "  test-coverage       - Generate coverage report"
 	@echo "  test-quality        - Generate quality metrics"

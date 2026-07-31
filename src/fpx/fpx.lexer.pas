@@ -40,6 +40,7 @@ type
     FStrictMode: Boolean;
     FDBAnsiMode: Boolean;
     procedure AddToken(const AType: TTokenType; const AValue: string);
+    procedure AddTokenCopy(const Tok: TToken);
     procedure AddTokenFull(const AType: TTokenType; const AValue: string;
       IntVal: Int64; UIntVal: UInt64; RealVal: Double; const StrVal: string; Kw: TKeyword);
     procedure AddError(const AMsg: string; ACode: Integer = 1001);
@@ -144,6 +145,7 @@ begin
   FKeywordMap.Add('TO', kwTo);
   FKeywordMap.Add('STEP', kwStep);
   FKeywordMap.Add('ENDFOR', kwEndFor);
+  FKeywordMap.Add('NEXT', kwNext);
   FKeywordMap.Add('FOREACH', kwForEach);
   FKeywordMap.Add('IN', kwIn);
   FKeywordMap.Add('ENDFOREACH', kwEndForEach);
@@ -465,26 +467,27 @@ begin
       '0'..'9':
       begin
         tok := ScanNumber;
-        AddTokenFull(tok.TokenType, tok.StrValue, tok.IntValue, tok.UIntValue, tok.RealValue, tok.StrValue, tok.Keyword);
+        AddTokenCopy(tok);
       end;
       '"', '''', '[':
       begin
         if (c = '[') and (FPos + 1 <= Length(FSource)) and (FSource[FPos + 1] <> ']') then
         begin
           tok := ScanString;
-          AddTokenFull(tok.TokenType, tok.StrValue, tok.IntValue, tok.UIntValue, tok.RealValue, tok.StrValue, tok.Keyword);
+          AddTokenCopy(tok);
         end
         else if c = '[' then
           AddToken(ttLBracket, '[')
         else
         begin
           tok := ScanString;
-          AddTokenFull(tok.TokenType, tok.StrValue, tok.IntValue, tok.UIntValue, tok.RealValue, tok.StrValue, tok.Keyword);
+          AddTokenCopy(tok);
         end;
       end;
-      'r', 'R':
+      'a'..'z', 'A'..'Z', '_':
       begin
-        if (FPos + 1 <= Length(FSource)) and ((FSource[FPos + 1] = '"') or (FSource[FPos + 1] = '''')) then
+        if ((c = 'r') or (c = 'R')) and (FPos + 1 <= Length(FSource))
+          and ((FSource[FPos + 1] = '"') or (FSource[FPos + 1] = '''')) then
         begin
           tok := ScanRawString;
           AddTokenFull(tok.TokenType, '', 0, 0, 0.0, tok.StrValue, kwNone);
@@ -493,18 +496,13 @@ begin
         begin
           tok := ScanIdentifier;
           if tok.Keyword = kwNil then
-            AddTokenFull(ttNil, tok.StrValue, 0, 0, 0.0, tok.StrValue, tok.Keyword)
+          begin
+            tok.TokenType := ttNil;
+            AddTokenCopy(tok);
+          end
           else
-            AddTokenFull(tok.TokenType, tok.StrValue, 0, 0, 0.0, tok.StrValue, tok.Keyword);
+            AddTokenCopy(tok);
         end;
-      end;
-      'a'..'q', 's'..'z', 'A'..'Q', 'S'..'Z', '_':
-      begin
-        tok := ScanIdentifier;
-        if tok.Keyword = kwNil then
-          AddTokenFull(ttNil, tok.StrValue, 0, 0, 0.0, tok.StrValue, tok.Keyword)
-        else
-          AddTokenFull(tok.TokenType, tok.StrValue, 0, 0, 0.0, tok.StrValue, tok.Keyword);
       end;
       '@':
         AddToken(ttAt, '@');
@@ -513,7 +511,7 @@ begin
       '&', '|', '~', '#', '$':
       begin
         tok := ScanOperator;
-        AddTokenFull(tok.TokenType, tok.StrValue, tok.IntValue, tok.UIntValue, tok.RealValue, tok.StrValue, tok.Keyword);
+        AddTokenCopy(tok);
       end;
       else
       begin
@@ -571,6 +569,24 @@ begin
   token.StrValue := AValue;
   token.Line := FLine;
   token.Col := FColumn - Length(AValue);
+  token.FileName := FFileName;
+  token.Flags := [];
+  SetLength(FTokens, Length(FTokens) + 1);
+  FTokens[High(FTokens)] := token;
+end;
+
+procedure TFPXLexer.AddTokenCopy(const Tok: TToken);
+var
+  token: TToken;
+begin
+  token.TokenType := Tok.TokenType;
+  token.Keyword := Tok.Keyword;
+  token.IntValue := Tok.IntValue;
+  token.UIntValue := Tok.UIntValue;
+  token.RealValue := Tok.RealValue;
+  token.StrValue := Tok.StrValue;
+  token.Line := FLine;
+  token.Col := FColumn - Length(Tok.StrValue);
   token.FileName := FFileName;
   token.Flags := [];
   SetLength(FTokens, Length(FTokens) + 1);

@@ -34,8 +34,3 @@ Thumbs.db
 
 # Install artifacts
 /*.deb
-
-# Hand-written lexer/parser test inputs (not executable)
-/test.prg
-/test2.prg
-/test/

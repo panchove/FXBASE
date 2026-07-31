@@ -1,9 +1,6 @@
 unit fpx.cli;
 
-{$mode delphi}
-{$modeSwitch advancedRecords}
-{$modeSwitch typeHelpers}
-{$H+}
+{$mode objfpc}{$H+}
 
 interface
 
