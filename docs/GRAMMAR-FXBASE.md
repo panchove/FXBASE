@@ -32,62 +32,62 @@ Digit            ::= '0'..'9'
 
 ```ebnf
 ReservedWord ::=
-    'IF' | 'ELSE' | 'ELSEIF' | 'ENDIF' | 'END' |
-    'DO' | 'WHILE' | 'FOR' | 'TO' | 'STEP' | 'NEXT' |
-    'LOOP' | 'EXIT' |
-    'SWITCH' | 'CASE' | 'OTHERWISE' | 'ENDSWITCH' |
-    'BEGIN' | 'SEQUENCE' | 'RECOVER' | 'BREAK' |
-    'FUNCTION' | 'PROCEDURE' | 'RETURN' |
-    'LOCAL' | 'PRIVATE' | 'PUBLIC' | 'STATIC' | 'PARAMETERS' |
-    'FIELD' | 'MEMVAR' |
-    'WITH' | 'OBJECT' | 'ENDWITH' |
-    'FOREACH' | 'IN' |
-    'TRY' | 'CATCH' | 'FINALLY' | 'ENDTRY' |
-    'CLASS' | 'ENDCLASS' | 'METHOD' | 'DATA' | 'INLINE' |
-    'INTERFACE' | 'ENDINTERFACE' |
-    'VIRTUAL' | 'OVERRIDE' | 'ABSTRACT' | 'FINAL' | 'SEALED' |
-    'IMPLEMENTS' | 'IMPLEMENTEDBY' |
-    'CONSTRUCTOR' | 'DESTRUCTOR' |
-    'PROPERTY' | 'GETTER' | 'SETTER' |
-    'NEW' | 'SELF' | 'SUPER' | 'THIS' |
-    'NIL' | 'TRUE' | 'FALSE' | '.T.' | '.F.' |
-    'AND' | 'OR' | 'NOT' | '.AND.' | '.OR.' | '.NOT.' |
-    'USE' | 'SELECT' | 'SET' | 'INDEX' | 'ORDER' | 'TAG' |
-    'SEEK' | 'SKIP' | 'GO' | 'GOTO' | 'LOCATE' | 'CONTINUE' |
-    'APPEND' | 'BLANK' | 'FROM' |
-    'REPLACE' | 'DELETE' | 'RECALL' | 'PACK' | 'ZAP' |
-    'SORT' | 'AVERAGE' | 'SUM' | 'COUNT' | 'TOTAL' |
-    'COPY' | 'STRUCTURE' | 'TO' |
-    'REPORT' | 'FORM' | 'LABEL' |
-    'SAY' | 'GET' | 'READ' | 'INPUT' | 'ACCEPT' | 'WAIT' |
-    'TEXT' | 'ENDTEXT' |
-    'ANNOUNCE' | 'REQUEST' | 'EXTERNAL' |
-    'INIT' | 'EXIT' | 'PROCEDURE' |
-    'OPEN' | 'CLOSE' | 'DATABASE' |
-    'CREATE' | 'TABLE' | 'INDEX' | 'UNIQUE' |
-    'INSERT' | 'INTO' | 'VALUES' | 'UPDATE' |
-    'DECLARE' | 'DEFINE' | 'WINDOW' | 'MENU' | 'PROMPT' |
     'ACTIVATE' | 'DEACTIVATE' | 'HIDE' | 'SHOW' |
-    'KEYBOARD' | 'TYPE' | 'EJECT' | 'FLUSH' | 'COMMIT' |
-    'RUN' | 'CALL' | 'QUIT' | 'CANCEL' |
+    'AND' | 'OR' | 'NOT' | '.AND.' | '.OR.' | '.NOT.' |
+    'ANNOUNCE' | 'REQUEST' | 'EXTERNAL' |
+    'APPEND' | 'BLANK' | 'FROM' |
     'AS' | 'IS' | 'OF' | 'REF' | 'OUT' |
-    'DB' | 'SQL' | 'CONNECTION' | 'EXECUTE' | 'PREPARE' |
-    'STRUCT' | 'ENDSTRUCT' |
-    'UNIQUE_PTR' | 'SHARED_PTR' | 'WEAK_PTR' |
+    'BEGIN' | 'SEQUENCE' | 'RECOVER' | 'BREAK' |
     'CAST' |
+    'CLASS' | 'ENDCLASS' | 'METHOD' | 'DATA' | 'INLINE' |
+    'CONSTRUCTOR' | 'DESTRUCTOR' |
+    'COPY' | 'STRUCTURE' | 'TO' |
+    'CREATE' | 'TABLE' | 'INDEX' | 'UNIQUE' |
+    'DB' | 'SQL' | 'CONNECTION' | 'EXECUTE' | 'PREPARE' |
+    'DECLARE' | 'DEFINE' | 'WINDOW' | 'MENU' | 'PROMPT' |
+    'DO' | 'WHILE' | 'FOR' | 'TO' | 'STEP' | 'NEXT' |
+    'FIELD' | 'MEMVAR' |
+    'FOREACH' | 'IN' |
+    'FUNCTION' | 'PROCEDURE' | 'RETURN' |
+    'IF' | 'ELSE' | 'ELSEIF' | 'ENDIF' | 'END' |
+    'IMPLEMENTS' | 'IMPLEMENTEDBY' |
+    'INIT' | 'EXIT' | 'PROCEDURE' |
+    'INSERT' | 'INTO' | 'VALUES' | 'UPDATE' |
+    'INTERFACE' | 'ENDINTERFACE' |
+    'KEYBOARD' | 'TYPE' | 'EJECT' | 'FLUSH' | 'COMMIT' |
+    'LOCAL' | 'PRIVATE' | 'PUBLIC' | 'STATIC' | 'PARAMETERS' |
+    'LOOP' | 'EXIT' |
+    'NEW' | 'SELF' | 'SUPER' | 'THIS' |
     'NEWTYPE' | 'ENDNEWTYPE' |
+    'NIL' | 'TRUE' | 'FALSE' | '.T.' | '.F.' |
+    'OPEN' | 'CLOSE' | 'DATABASE' |
+    'PROPERTY' | 'GETTER' | 'SETTER' |
+    'REPLACE' | 'DELETE' | 'RECALL' | 'PACK' | 'ZAP' |
+    'REPORT' | 'FORM' | 'LABEL' |
+    'RUN' | 'CALL' | 'QUIT' | 'CANCEL' |
+    'SAY' | 'GET' | 'READ' | 'INPUT' | 'ACCEPT' | 'WAIT' |
+    'SEEK' | 'SKIP' | 'GO' | 'GOTO' | 'LOCATE' | 'CONTINUE' |
+    'SORT' | 'AVERAGE' | 'SUM' | 'COUNT' | 'TOTAL' |
+    'STRUCT' | 'ENDSTRUCT' |
+    'SWITCH' | 'CASE' | 'OTHERWISE' | 'ENDSWITCH' |
+    'TEXT' | 'ENDTEXT' |
+    'TRY' | 'CATCH' | 'FINALLY' | 'ENDTRY' |
+    'UNIQUE_PTR' | 'SHARED_PTR' | 'WEAK_PTR' |
+    'USE' | 'SELECT' | 'SET' | 'INDEX' | 'ORDER' | 'TAG' |
+    'VIRTUAL' | 'OVERRIDE' | 'ABSTRACT' | 'FINAL' | 'SEALED' |
+    'WITH' | 'OBJECT' | 'ENDWITH' |
     'YIELD' |
     -- Concurrencia / Tasks (FPXBASE)
-    'TASK' | 'ASYNC' | 'AWAIT' | 'SPAWN' | 'PARALLEL' |
     'CHANNEL' | 'SEND' | 'RECEIVE' | 'SELECT' |
-    'MUTEX' | 'SEMAPHORE' | 'ATOMIC' | 'THREAD_LOCAL' |
     'LOCK' | 'UNLOCK' | 'TRYLOCK' |
+    'MUTEX' | 'SEMAPHORE' | 'ATOMIC' | 'THREAD_LOCAL' |
+    'TASK' | 'ASYNC' | 'AWAIT' | 'SPAWN' | 'PARALLEL' |
     -- Memoria / GC
     'GC' | 'REFCOUNT' | 'GENERATIONAL' | 'MANUAL' |
     -- Red / Serial / Crypto (built-ins via std.fph)
-    'TCP' | 'UDP' | 'HTTP' | 'DNS' | 'TLS' |
-    'SERIAL' | 'RS232' | 'RS485' |
     'AES' | 'CHACHA20' | 'BCRYPT' | 'JWT' | 'BASE64'
+    'SERIAL' | 'RS232' | 'RS485' |
+    'TCP' | 'UDP' | 'HTTP' | 'DNS' | 'TLS' |
 ```
 
 > Los comandos xBASE no distinguen mayúsculas/minúsculas.  \
@@ -126,29 +126,28 @@ NIL             ::= 'NIL'
 
 ```ebnf
 DataType ::=
-    'STRING'   | 'CHARACTER' | 'CHAR' |
-    'NUMERIC'  | 'INTEGER' | 'INT' | 'FLOAT' | 'DOUBLE' |
-    'DATE'     | 'DATETIME' |
-    'LOGICAL'  | 'BOOLEAN' | 'BOOL' |
-    'NIL'      |
-    'MEMO'     |
-    'BLOB'     |
     'ARRAY'    | ArrayOfType |
-    'HASH'     | 'MAP' |
-    'OBJECT'   | 'CLASS' |
-    'STRUCT'   |
+    'BLOB'     |
     'CODEBLOCK'| 'BLOCK' |
-    'POINTER'  | SmartPointerType |
-    'SYMBOL'   |
     'CURSOR'   | 'RECORDSET' |
+    'DATE'     | 'DATETIME' |
+    'HASH'     | 'MAP' |
     'ITERATOR' |
+    'LOGICAL'  | 'BOOLEAN' | 'BOOL' |
+    'MEMO'     |
+    'NIL'      |
+    'NUMERIC'  | 'INTEGER' | 'INT' | 'FLOAT' | 'DOUBLE' |
+    'OBJECT'   | 'CLASS' |
+    'POINTER'  | SmartPointerType |
+    'STRING'   | 'CHARACTER' | 'CHAR' |
+    'STRUCT'   |
+    'SYMBOL'   |
     GenericInstantiation
 
 SmartPointerType ::=
-    'UNIQUE_PTR' '<' DataType '>' |
     'SHARED_PTR' '<' DataType '>' |
+    'UNIQUE_PTR' '<' DataType '>' |
     'WEAK_PTR'   '<' DataType '>'
-
 ArrayOfType ::= 'ARRAY' 'OF' DataType
 
 GenericInstantiation ::= Identifier '<' DataType {',' DataType} '>'
@@ -539,29 +538,29 @@ TryStatement ::=
 
 ```ebnf
 DatabaseStatement ::=
-    UseStatement |
-    SelectStatement |
-    CloseStatement |
     AppendStatement |
-    ReplaceStatement |
-    DeleteRecallStatement |
-    PackZapStatement |
-    SeekFindStatement |
-    SkipGoStatement |
-    LocateContinueStatement |
-    IndexStatement |
-    SetOrderStatement |
-    SetFilterStatement |
-    SetRelationStatement |
-    CommitFlushStatement |
-    SortStatement |
     AverageSumCountStatement |
-    TotalStatement |
+    CloseStatement |
+    CommitFlushStatement |
     CopyStatement |
-    ReportLabelStatement |
     CreateStatement |
-    RenameFileStatement |
+    DeleteRecallStatement |
     EraseFileStatement
+    IndexStatement |
+    LocateContinueStatement |
+    PackZapStatement |
+    RenameFileStatement |
+    ReplaceStatement |
+    ReportLabelStatement |
+    SeekFindStatement |
+    SelectStatement |
+    SetFilterStatement |
+    SetOrderStatement |
+    SetRelationStatement |
+    SkipGoStatement |
+    SortStatement |
+    TotalStatement |
+    UseStatement |
 
 UseStatement ::=
     'USE' StringLiteral
@@ -699,6 +698,7 @@ SetStatement ::=
 SetSubject ::=
     'ALTERNATE' | 'BELL' | 'CENTURY' | 'COLOR' | 'CONFIRM' |
     'CONSOLE' | 'CURSOR' | 'DATE' | 'DECIMALS' | 'DEFAULT' |
+    'DB' | 'CONNECTION'
     'DELETED' | 'DELIMITERS' | 'DESCENDING' | 'DEVICE' |
     'EPOCH' | 'ESCAPE' | 'EVENTMASK' | 'EXACT' | 'EXCLUSIVE' |
     'FILTER' | 'FIXED' | 'FORMAT' | 'FUNCTION' |
@@ -707,7 +707,6 @@ SetSubject ::=
     'PATH' | 'PRINTER' | 'PROCEDURE' | 'RELATION' |
     'SCOPE' | 'SCOPEBOTTOM' | 'SCOPETOP' | 'SCOREBOARD' |
     'SOFTSEEK' | 'TYPEAHEAD' | 'UNIQUE' | 'VIDEOMODE' | 'WRAP' |
-    'DB' | 'CONNECTION'
 ```
 
 ### 4.7 I/O Commands
@@ -1172,27 +1171,27 @@ Los siguientes comandos se aceptan solo en modo `--legacy` y emiten un warning:
 
 ```ebnf
 LegacyCommand ::=
-    'SET' 'PROCEDURE' 'TO' Identifier |
-    'SET' 'FORMAT' 'TO' Identifier |
-    'SET' 'COLOR' 'TO' StringLiteral |
-    'SET' 'UNIQUE' ('ON' | 'OFF') |
-    'RESTORE' 'SCREEN' |
-    'SAVE' 'SCREEN' 'TO' Identifier |
-    'RESTORE' 'FROM' Identifier |
-    'SAVE' 'TO' Identifier |
+    'ACCEPT' StringLiteral 'TO' Identifier |
+    'CALL' Identifier |
     'CLEAR' 'ALL' |
     'DECLARE' IdentifierList |
-    'INPUT' StringLiteral 'TO' Identifier |
-    'ACCEPT' StringLiteral 'TO' Identifier |
-    'TEXT' 'TO' Identifier |
-    'FIND' StringLiteral |
-    'CALL' Identifier |
     'DIR' [StringLiteral] |
-    'DISPLAY' 'STRUCTURE' |
     'DISPLAY' 'MEMORY' |
-    'LIST' 'STRUCTURE' |
+    'DISPLAY' 'STRUCTURE' |
+    'FIND' StringLiteral |
+    'INPUT' StringLiteral 'TO' Identifier |
     'LIST' 'MEMORY' |
+    'LIST' 'STRUCTURE' |
+    'RESTORE' 'FROM' Identifier |
+    'RESTORE' 'SCREEN' |
+    'SAVE' 'SCREEN' 'TO' Identifier |
+    'SAVE' 'TO' Identifier |
+    'SET' 'COLOR' 'TO' StringLiteral |
+    'SET' 'FORMAT' 'TO' Identifier |
     'SET' 'PROCEDURE'
+    'SET' 'PROCEDURE' 'TO' Identifier |
+    'SET' 'UNIQUE' ('ON' | 'OFF') |
+    'TEXT' 'TO' Identifier |
 ```
 
 ---
@@ -1217,10 +1216,10 @@ TypeAnnotation ::=
 
 **Semántica:**
 
-| Modo           | `LOCAL x` sin tipo        | `LOCAL x : INTEGER`        | Cast runtime            |
-|----------------|---------------------------|----------------------------|-------------------------|
-| `#strict OFF`  | `VARIANT` / `ANY`         | Validado, free reasignable | Implícito (coerción)    |
-| `#strict ON`   | **Error: FPX-T-0103**     | Validado en compile-time   | Requiere `AS` o `CAST<T>()` |
+| Modo          | `LOCAL x` sin tipo    | `LOCAL x : INTEGER`        | Cast runtime                |
+|---------------|-----------------------|----------------------------|-----------------------------|
+| `#strict OFF` | `VARIANT` / `ANY`     | Validado, free reasignable | Implícito (coerción)        |
+| `#strict ON`  | **Error: FPX-T-0103** | Validado en compile-time   | Requiere `AS` o `CAST<T>()` |
 
 ```xbase
 #pragma strict(off)              // legacy, variantes dinámicas
@@ -1316,15 +1315,15 @@ file := NIL                                       (* tras MOVE, source queda NIL
 
 ### 11.4 Estado de implementación (resumen)
 
-| Elemento                                         | Estado                                                                    |
-|--------------------------------------------------|---------------------------------------------------------------------------|
-| `STRUCT Foo … ENDSTRUCT`                         | Sintaxis parseada; semántica valor (stack) pendiente de IR/RTL            |
-| `CLASS Foo … ENDCLASS`                           | Sintaxis parseada; semántica heap pendiente                                |
-| `UNIQUE_PTR<T>` / `SHARED_PTR<T>` / `WEAK_PTR<T>`| Tokens en `fpx.tokens.pas`; ningún uso semántico aún                       |
-| `#pragma strict` / `#strict`                     | Directiva léxica documentada; sin efecto en preprocesador                  |
-| `Identifier AS DataType` (forma legacy xBASE)    | Soportado en `fpx.parser.pas` desde Phase 1.1                              |
-| `Identifier : DataType` (forma FPXBASE canónica) | Soportado en `fpx.parser.pas` desde Phase 1.1                              |
-| Validación strict en IR                          | **Pendiente** (Fase 2.5)                                                  |
+| Elemento                                          | Estado                                                         |
+|---------------------------------------------------|----------------------------------------------------------------|
+| `STRUCT Foo … ENDSTRUCT`                          | Sintaxis parseada; semántica valor (stack) pendiente de IR/RTL |
+| `CLASS Foo … ENDCLASS`                            | Sintaxis parseada; semántica heap pendiente                    |
+| `UNIQUE_PTR<T>` / `SHARED_PTR<T>` / `WEAK_PTR<T>` | Tokens en `fpx.tokens.pas`; ningún uso semántico aún           |
+| `#pragma strict` / `#strict`                      | Directiva léxica documentada; sin efecto en preprocesador      |
+| `Identifier AS DataType` (forma legacy xBASE)     | Soportado en `fpx.parser.pas` desde Phase 1.1                  |
+| `Identifier : DataType` (forma FPXBASE canónica)  | Soportado en `fpx.parser.pas` desde Phase 1.1                  |
+| Validación strict en IR                           | **Pendiente** (Fase 2.5)                                       |
 
 ---
 

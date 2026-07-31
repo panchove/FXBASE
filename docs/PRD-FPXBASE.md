@@ -1356,11 +1356,11 @@ Control de warnings:
 
 > **Estado:** Roadmap — pendiente de implementación. Detalle operativo y herramientas de migración en `docs/COMPATIBILITY-STRATEGY.md`. Estado actual por tier:
 >
-> | Tier | Componentes                                                                                              | Implementado |
-> |------|----------------------------------------------------------------------------------------------------------|--------------|
-> | T1   | Lexer case-insensitive, `IF/ENDIF`, `DO WHILE/ENDDO`, `FOR/NEXT`, `?`, `??`                              | Parcial (lexer + parser + IR para control de flujo; `@…SAY/GET` requiere `fpx.rtl` no-stub) |
-> | T2   | Traducción `USE/SKIP/SEEK/GO TOP/EOF/BOF/REPLACE/PACK/ZAP` → SQL sobre RDD virtual                      | No (tokens lexados; parser reconoce sintaxis; lowering IR→RTL pendiente) |
-> | T3   | Restricción de `&` macro a identificadores y expresiones simples; promoción a codeblocks `{|a, b| …}`   | No (lexer entrega `&` como `ttAmp` sin transformación) |
+| Tier | Componentes                                                                                         | Implementado                                                                                |
+|------|-----------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|
+| T1   | Lexer case-insensitive, `IF/ENDIF`, `DO WHILE/ENDDO`, `FOR/NEXT`, `?`, `??`                         | Parcial (lexer + parser + IR para control de flujo; `@…SAY/GET` requiere `fpx.rtl` no-stub) |
+| T2   | Traducción `USE/SKIP/SEEK/GO TOP/EOF/BOF/REPLACE/PACK/ZAP` → SQL sobre RDD virtual                  | No (tokens lexados; parser reconoce sintaxis; lowering IR→RTL pendiente)                    |
+| T3   | Restricción de `&` macro a identificadores y expresiones simples; promoción a codeblocks `{|a, b| …}` | No (lexer entrega `&` como `ttAmp` sin transformación)                                      |
 
 FPXBASE ofrece **tres tiers opt-in** de compatibilidad con código xBASE legacy. La estrategia es explícitamente estratificada: en cada tier se asume un porcentaje de compatibilidad decreciente a cambio de ganancias en modernidad, predictibilidad y optimización.
 

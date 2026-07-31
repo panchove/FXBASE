@@ -12,11 +12,11 @@ El ecosistema xBASE tiene ~40 años de historia y dialectos divergentes (Clipper
 
 La estrategia es estratificada:
 
-| Tier                                  | Compatibilidad objetivo | Qué se mantiene                                              | Qué se descarta                                  |
-|---------------------------------------|-------------------------|--------------------------------------------------------------|--------------------------------------------------|
-| **T1 — Sintaxis y control de flujo**  | ~95 %                   | IF/ENDIF, DO WHILE/ENDDO, FOR/NEXT, ?, ??, @...SAY/GET       | Abreviaturas de 4 letras (DECL→DECLARE, etc.)     |
-| **T2 — DB legacy sobre RDD virtual**  | Sintaxis ~80 % / Binaria 0 % | Comandos `USE`, `SKIP`, `SEEK`, `GO TOP`, `EOF()`, `BOF()` traducidos a SQL | Archivos `.dbf/.cdx/.ntx/.fpt` como estado runtime |
-| **T3 — Macros dinámicas (`&`)**       | Sintaxis ~30 %          | Resolución de identificadores y expresiones simples aisladas | `&` en declaraciones, parámetros de macros, types |
+| Tier                                 | Compatibilidad objetivo      | Qué se mantiene                                                             | Qué se descarta                                    |
+|--------------------------------------|------------------------------|-----------------------------------------------------------------------------|----------------------------------------------------|
+| **T1 — Sintaxis y control de flujo** | ~95 %                        | IF/ENDIF, DO WHILE/ENDDO, FOR/NEXT, ?, ??, @...SAY/GET                      | Abreviaturas de 4 letras (DECL→DECLARE, etc.)      |
+| **T2 — DB legacy sobre RDD virtual** | Sintaxis ~80 % / Binaria 0 % | Comandos `USE`, `SKIP`, `SEEK`, `GO TOP`, `EOF()`, `BOF()` traducidos a SQL | Archivos `.dbf/.cdx/.ntx/.fpt` como estado runtime |
+| **T3 — Macros dinámicas (`&`)**      | Sintaxis ~30 %               | Resolución de identificadores y expresiones simples aisladas                | `&` en declaraciones, parámetros de macros, types  |
 
 Cada tier es **opt-in progresivo** (compilación por archivo / bloque) — el código nuevo FPXBASE no paga el costo de compatibilidad si no lo usa.
 
@@ -28,13 +28,13 @@ Cada tier es **opt-in progresivo** (compilación por archivo / bloque) — el c�
 
 ### 2.1 Comandos soportados sin diferencia semántica
 
-| Familia      | Comandos                                                                            |
-|--------------|-------------------------------------------------------------------------------------|
-| Condicionales | `IF … ENDIF`, `DO CASE … ENDCASE`, `IIF(cond, a, b)`                               |
-| Bucles       | `DO WHILE … ENDDO`, `FOR … NEXT`, `FOR EACH … IN … NEXT`                           |
-| Salida       | `? expr` (newline), `?? expr` (same-line), `?>` a stdout con buffering             |
-| IO formato   | `@ row, col SAY expr`, `@ row, col GET var PICTURE '…'`                            |
-| Procedural   | `FUNCTION … ENDFUNC`, `PROCEDURE … ENDPROC`, `DO procname`, `RETURN`               |
+| Familia       | Comandos                                                               |
+|---------------|------------------------------------------------------------------------|
+| Condicionales | `IF … ENDIF`, `DO CASE … ENDCASE`, `IIF(cond, a, b)`                   |
+| Bucles        | `DO WHILE … ENDDO`, `FOR … NEXT`, `FOR EACH … IN … NEXT`               |
+| Salida        | `? expr` (newline), `?? expr` (same-line), `?>` a stdout con buffering |
+| IO formato    | `@ row, col SAY expr`, `@ row, col GET var PICTURE '…'`                |
+| Procedural    | `FUNCTION … ENDFUNC`, `PROCEDURE … ENDPROC`, `DO procname`, `RETURN`   |
 
 ### 2.2 Abreviaturas de 4 letras: eliminadas
 
@@ -61,23 +61,23 @@ Equivalencia semántica con Harbour (que también las eliminó en su mayoría).
 
 ### 3.1 Comandos redirigidos
 
-| Comando xBASE  | Traducción RTL                                                                                |
-|----------------|-----------------------------------------------------------------------------------------------|
-| `USE tabla`    | `OPEN CURSOR` + `SELECT * FROM tabla [WHERE active]`                                          |
-| `SKIP n`       | `CURSOR.SKIP(n)` (batched, ver §6)                                                           |
-| `SKIP 0`       | `CURSOR.REFRESH()` (no-op lógico, recarga buffer)                                            |
-| `GO TOP`       | `CURSOR.RESET()`                                                                              |
-| `GO BOTTOM`    | `CURSOR.LAST()`                                                                               |
-| `SEEK expr`    | `WHERE col = ?` + `CURSOR.SEEK` (índice binario si el motor lo soporta)                       |
-| `APPEND BLANK` | `INSERT INTO tabla DEFAULT VALUES`                                                           |
-| `REPLACE … WITH …` | `UPDATE tabla SET col = ? WHERE <current_row_predicate>` (CTE anchor)                     |
-| `EOF()`, `BOF()` | `CURSOR.EOF()` / `CURSOR.BOF()` (proxys sobre estado del buffer + cursor SQL real)        |
-| `PACK`         | `DELETE FROM tabla WHERE <mark-as-deleted-rowids>; VACUUM` (SQLite) o equivalente en motor |
-| `ZAP`          | `DROP TABLE tabla; CREATE TABLE tabla (...)` (recreate)                                       |
+| Comando xBASE      | Traducción RTL                                                                             |
+|--------------------|--------------------------------------------------------------------------------------------|
+| `USE tabla`        | `OPEN CURSOR` + `SELECT * FROM tabla [WHERE active]`                                       |
+| `SKIP n`           | `CURSOR.SKIP(n)` (batched, ver §6)                                                         |
+| `SKIP 0`           | `CURSOR.REFRESH()` (no-op lógico, recarga buffer)                                          |
+| `GO TOP`           | `CURSOR.RESET()`                                                                           |
+| `GO BOTTOM`        | `CURSOR.LAST()`                                                                            |
+| `SEEK expr`        | `WHERE col = ?` + `CURSOR.SEEK` (índice binario si el motor lo soporta)                    |
+| `APPEND BLANK`     | `INSERT INTO tabla DEFAULT VALUES`                                                         |
+| `REPLACE … WITH …` | `UPDATE tabla SET col = ? WHERE <current_row_predicate>` (CTE anchor)                      |
+| `EOF()`, `BOF()`   | `CURSOR.EOF()` / `CURSOR.BOF()` (proxys sobre estado del buffer + cursor SQL real)         |
+| `PACK`             | `DELETE FROM tabla WHERE <mark-as-deleted-rowids>; VACUUM` (SQLite) o equivalente en motor |
+| `ZAP`              | `DROP TABLE tabla; CREATE TABLE tabla (...)` (recreate)                                    |
 
 ### 3.2 Compatibilidad binaria: explícitamente descartada
 
-FPXBASE **NO abre `.dbf/.cdx/.ntx/.fpt` como estado runtime**. Solo `fpx-dbf` (herramienta CLI en `src/tools/fpx-dbf/`) puede **importar** schema + datos a SQLite/Postgres/MSSQL o **exportar** una tabla SQL a `.dbf` para interoperabilidad con sistemas externos.
+FPXBASE **NO abre `.dbf/.cdx/.ntx/.fpt` como estado runtime**. Solo `fpx-dbf` (herramienta CLI planificada, sin código aún) puede **importar** schema + datos a SQLite/Postgres/MSSQL o **exportar** una tabla SQL a `.dbf` para interoperabilidad con sistemas externos.
 
 ### 3.3 Estado de implementación
 
@@ -104,25 +104,27 @@ LOCAL op := "+"
 
 ### 4.2 Lo que se descarta
 
-| Forma                       | Por qué se descarta                                              |
-|-----------------------------|------------------------------------------------------------------|
-| `&macro.{}`                 | Constructor literal — reemplazable por `HASH{}`                  |
-| `&macro.()`                 | Constructor de tuplas — reemplazable por `TUPLE(...)` o arrays   |
-| `&macro(x, y, z)`           | Constructor de objeto literal — reemplazable por `CLASS {...}`   |
-| `&macro.1, &macro.2, …`     | Tuplas por número — reemplazable por `TUPLE{a, b, c}`            |
-| `&macro.field`              | Acceso a campo dinámico — reemplazable por `OBJECT.FIELD_GET(...)` |
-| `&macro->method`            | Mensaje dinámico — reemplazable por `OBJECT.METHOD_GET(...)`     |
-| `&macro\.literal`           | Constante — siempre reemplazable por la constante                |
+| Forma                   | Por qué se descarta                                                |
+|-------------------------|--------------------------------------------------------------------|
+| `&macro.{}`             | Constructor literal — reemplazable por `HASH{}`                    |
+| `&macro.()`             | Constructor de tuplas — reemplazable por `TUPLE(...)` o arrays     |
+| `&macro(x, y, z)`       | Constructor de objeto literal — reemplazable por `CLASS {...}`     |
+| `&macro.1, &macro.2, …` | Tuplas por número — reemplazable por `TUPLE{a, b, c}`              |
+| `&macro.field`          | Acceso a campo dinámico — reemplazable por `OBJECT.FIELD_GET(...)` |
+| `&macro->method`        | Mensaje dinámico — reemplazable por `OBJECT.METHOD_GET(...)`       |
+| `&macro\.literal`       | Constante — siempre reemplazable por la constante                  |
 
 ### 4.3 Razón: AOT y optimización
 
 Las macros `&` requieren que el compilador **emita código que evalúe la expresión en runtime**, lo que imposibilita:
+
 - Análisis estático de tipos
 - Eliminación de código muerto sobre la macro-expandida
 - Inline / constant folding
 - Verificación de seguridad (boundary checks, null checks)
 
 Promover Bloques de Código permite al compilador:
+
 - Inferir tipos de parámetros y retorno
 - Inline en sitios de uso
 - Generar código AOT sin overhead de dispatch dinámico
@@ -156,14 +158,14 @@ fpx --check-migrations Main.prg
 
 Detecta patrones legacy que el tier objetivo rechazará:
 
-| Patrón                           | Diagnóstico                                   |
-|----------------------------------|-----------------------------------------------|
-| Abreviatura de 4 letras (`DECL`) | FPW-LEG-0001                                  |
-| `&macro.{}`                      | FPW-LEG-0002                                  |
-| `GOTO n` numérico                | FPW-LEG-0003                                  |
-| `RECNO()`, `LASTREC()`           | FPW-LEG-0004                                  |
-| `BEGIN SEQUENCE` / `RECOVER`     | Sugerencia: usar `TRY/CATCH` (FPW-LEG-0005)   |
-| `SET FORMAT TO file.prt`         | FPW-LEG-0006                                  |
+| Patrón                           | Diagnóstico                                 |
+|----------------------------------|---------------------------------------------|
+| Abreviatura de 4 letras (`DECL`) | FPW-LEG-0001                                |
+| `&macro.{}`                      | FPW-LEG-0002                                |
+| `GOTO n` numérico                | FPW-LEG-0003                                |
+| `RECNO()`, `LASTREC()`           | FPW-LEG-0004                                |
+| `BEGIN SEQUENCE` / `RECOVER`     | Sugerencia: usar `TRY/CATCH` (FPW-LEG-0005) |
+| `SET FORMAT TO file.prt`         | FPW-LEG-0006                                |
 
 ---
 
@@ -171,7 +173,7 @@ Detecta patrones legacy que el tier objetivo rechazará:
 
 Para minimizar el clásico **problema N+1** al traducir bucles legacy a SQL:
 
-```
+```xbase
 DO WHILE .NOT. EOF()
    ? FIELD->name
    SKIP
@@ -180,7 +182,7 @@ ENDDO
 
 El runtime mantiene un **buffer de cursor**:
 
-```
+```xbase
 OPEN customers       →  SELECT * FROM customers ORDER BY id
                        ↓
                     fetchmany(N) en SQLite →  buffer de N filas
@@ -201,11 +203,11 @@ Detalle arquitectónico completo en `docs/PARALLEL-COMPILER-ARCHITECTURE.md` §"
 
 ## 7. Resumen de tiers (qué migración se hace)
 
-| Tier | Quién lo necesita                          | Costo de migración |
-|------|--------------------------------------------|--------------------|
-| T1   | Cualquier codebase xBASE                   | Bajo: renombrar abreviaturas |
-| T2   | Apps con DBF                               | Medio: ejecutar `fpx-dbf import` + ajustar sintaxis de PACK/ZAP |
-| T3   | Apps con macros `&` pesadas                | Alto: convertir macros a codeblocks |
+| Tier | Quién lo necesita           | Costo de migración                                              |
+|------|-----------------------------|-----------------------------------------------------------------|
+| T1   | Cualquier codebase xBASE    | Bajo: renombrar abreviaturas                                    |
+| T2   | Apps con DBF                | Medio: ejecutar `fpx-dbf import` + ajustar sintaxis de PACK/ZAP |
+| T3   | Apps con macros `&` pesadas | Alto: convertir macros a codeblocks                             |
 
 El usuario elige hasta qué tier migrar. **No hay un toggle "global"**; la mezcla de tiers es soportada por archivo:
 
