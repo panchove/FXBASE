@@ -14,9 +14,8 @@ type
 
   TExprArray = array of TExpr;
   TASTNodeArray = array of TASTNode;
+  TASTNodeArrayArray = array of TASTNodeArray;
   TKeywordArray = array of TKeyword;
-
-  TASTNodeClass = class of TASTNode;
 
   TASTNode = class
   protected
@@ -180,6 +179,8 @@ type
     destructor Destroy; override;
     procedure AddArg(Arg: TExpr);
     function Dump(Indent: Integer = 0): string; override;
+    property TypeName: string read FTypeName;
+    property Args: TExprArray read FArgs;
   end;
 
   TMacroExpr = class(TExpr)
@@ -188,6 +189,7 @@ type
   public
     constructor Create(const AName: string; ALine, ACol: Integer);
     function Dump(Indent: Integer = 0): string; override;
+    property Name: string read FName;
   end;
 
   // Statements
@@ -219,6 +221,10 @@ type
     function Dump(Indent: Integer = 0): string; override;
     property Scope: string read FScope;
     property Names: TStringArray read FNames;
+    function GetType(Index: Integer): string;
+    function GetInitVal(Index: Integer): TExpr;
+    function GetVarCount: Integer;
+    property VarCount: Integer read GetVarCount;
   end;
 
   TAssignStmt = class(TStmt)
@@ -252,6 +258,11 @@ type
     procedure AddElseStmt(Stmt: TASTNode);
     function Dump(Indent: Integer = 0): string; override;
     property Condition: TExpr read FCondition;
+    property ThenBody: TASTNodeArray read FThenBody;
+    property ElseIfConds: TExprArray read FElseIfConds;
+    property ElseIfBodies: TASTNodeArrayArray read FElseIfBodies;
+    property ElseBody: TASTNodeArray read FElseBody;
+    property HasElse: Boolean read FHasElse;
   end;
 
   TForStmt = class(TStmt)
@@ -269,6 +280,12 @@ type
     procedure SetDownTo(Down: Boolean);
     procedure AddStmt(Stmt: TASTNode);
     function Dump(Indent: Integer = 0): string; override;
+    property VarName: string read FVarName;
+    property StartExpr: TExpr read FStart;
+    property EndExpr: TExpr read FEnd;
+    property StepExpr: TExpr read FStep;
+    property IsDownTo: Boolean read FDownTo;
+    property Body: TASTNodeArray read FBody;
   end;
 
   TWhileStmt = class(TStmt)
@@ -283,6 +300,10 @@ type
     procedure AddStmt(Stmt: TASTNode);
     procedure AddElseStmt(Stmt: TASTNode);
     function Dump(Indent: Integer = 0): string; override;
+    property Condition: TExpr read FCondition;
+    property Body: TASTNodeArray read FBody;
+    property HasElse: Boolean read FHasElse;
+    property ElseBody: TASTNodeArray read FElseBody;
   end;
 
   TReturnStmt = class(TStmt)
@@ -305,6 +326,7 @@ type
     constructor Create(AValue: TExpr; ALine, ACol: Integer);
     destructor Destroy; override;
     function Dump(Indent: Integer = 0): string; override;
+    property Value: TExpr read FValue;
   end;
 
   TLoopCtrlStmt = class(TStmt)
@@ -313,6 +335,7 @@ type
   public
     constructor Create(const AKind: string; ALine, ACol: Integer);
     function Dump(Indent: Integer = 0): string; override;
+    property Kind: string read FKind;
   end;
 
   // Top-level declarations
@@ -338,6 +361,15 @@ type
     function Dump(Indent: Integer = 0): string; override;
     property Name: string read FName;
     property IsStatic: Boolean read FIsStatic;
+    property ReturnType: string read FReturnType;
+    function GetParamCount: Integer;
+    property ParamCount: Integer read GetParamCount;
+    function GetParamName(Index: Integer): string;
+    function GetParamType(Index: Integer): string;
+    function GetParamDefault(Index: Integer): TExpr;
+    function GetParamIsRef(Index: Integer): Boolean;
+    property Body: TASTNodeArray read FBody;
+    property HasExplicitReturn: Boolean read FHasExplicitReturn;
   end;
 
   TProcedureDef = class(TASTNode)
@@ -356,6 +388,14 @@ type
     procedure AddParam(const Name, Typ: string; Default: TExpr; IsRef: Boolean);
     procedure AddStmt(Stmt: TASTNode);
     function Dump(Indent: Integer = 0): string; override;
+    property Name: string read FName;
+    function GetParamCount: Integer;
+    property ParamCount: Integer read GetParamCount;
+    function GetParamName(Index: Integer): string;
+    function GetParamType(Index: Integer): string;
+    function GetParamDefault(Index: Integer): TExpr;
+    function GetParamIsRef(Index: Integer): Boolean;
+    property Body: TASTNodeArray read FBody;
   end;
 
   TClassDef = class(TASTNode)
@@ -367,6 +407,8 @@ type
     destructor Destroy; override;
     procedure AddParent(const Name: string);
     function Dump(Indent: Integer = 0): string; override;
+    property Name: string read FName;
+    property ParentClasses: TStringArray read FParentClasses;
   end;
 
   TStructDef = class(TASTNode)
@@ -375,6 +417,7 @@ type
   public
     constructor Create(const AName: string; ALine, ACol: Integer);
     function Dump(Indent: Integer = 0): string; override;
+    property Name: string read FName;
   end;
 
   TNewTypeDef = class(TASTNode)
@@ -383,6 +426,8 @@ type
   public
     constructor Create(const AName, ABaseType: string; ALine, ACol: Integer);
     function Dump(Indent: Integer = 0): string; override;
+    property Name: string read FName;
+    property BaseType: string read FBaseType;
   end;
 
   TCompilationUnit = class(TASTNode)
@@ -1295,6 +1340,101 @@ end;
 function TCompilationUnit.GetNodeCount: Integer;
 begin
   Result := Length(FNodes);
+end;
+
+function TFunctionDef.GetParamCount: Integer;
+begin
+  Result := Length(FParams);
+end;
+
+function TFunctionDef.GetParamName(Index: Integer): string;
+begin
+  if (Index >= 0) and (Index < Length(FParams)) then
+    Result := FParams[Index].Name
+  else
+    Result := '';
+end;
+
+function TFunctionDef.GetParamType(Index: Integer): string;
+begin
+  if (Index >= 0) and (Index < Length(FParams)) then
+    Result := FParams[Index].Typ
+  else
+    Result := '';
+end;
+
+function TFunctionDef.GetParamDefault(Index: Integer): TExpr;
+begin
+  if (Index >= 0) and (Index < Length(FParams)) then
+    Result := FParams[Index].Default
+  else
+    Result := nil;
+end;
+
+function TFunctionDef.GetParamIsRef(Index: Integer): Boolean;
+begin
+  if (Index >= 0) and (Index < Length(FParams)) then
+    Result := FParams[Index].IsRef
+  else
+    Result := False;
+end;
+
+function TProcedureDef.GetParamCount: Integer;
+begin
+  Result := Length(FParams);
+end;
+
+function TProcedureDef.GetParamName(Index: Integer): string;
+begin
+  if (Index >= 0) and (Index < Length(FParams)) then
+    Result := FParams[Index].Name
+  else
+    Result := '';
+end;
+
+function TProcedureDef.GetParamType(Index: Integer): string;
+begin
+  if (Index >= 0) and (Index < Length(FParams)) then
+    Result := FParams[Index].Typ
+  else
+    Result := '';
+end;
+
+function TProcedureDef.GetParamDefault(Index: Integer): TExpr;
+begin
+  if (Index >= 0) and (Index < Length(FParams)) then
+    Result := FParams[Index].Default
+  else
+    Result := nil;
+end;
+
+function TProcedureDef.GetParamIsRef(Index: Integer): Boolean;
+begin
+  if (Index >= 0) and (Index < Length(FParams)) then
+    Result := FParams[Index].IsRef
+  else
+    Result := False;
+end;
+
+function TVarDeclStmt.GetType(Index: Integer): string;
+begin
+  if (Index >= 0) and (Index < Length(FTypes)) then
+    Result := FTypes[Index]
+  else
+    Result := '';
+end;
+
+function TVarDeclStmt.GetInitVal(Index: Integer): TExpr;
+begin
+  if (Index >= 0) and (Index < Length(FInitVals)) then
+    Result := FInitVals[Index]
+  else
+    Result := nil;
+end;
+
+function TVarDeclStmt.GetVarCount: Integer;
+begin
+  Result := Length(FNames);
 end;
 
 end.

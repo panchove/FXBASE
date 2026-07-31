@@ -59,8 +59,9 @@ const
   FPX_MACRO_RECURSION  = 13;
   FPX_INCLUDE_NESTING  = 14;
   FPX_NO_ENTRY_POINT   = 15;
+  FPX_UNSUPPORTED_FEATURE = 16;
 
-  FPX_DESCRIPTIONS: array[1..15] of string = (
+  FPX_DESCRIPTIONS: array[1..16] of string = (
     'Syntax error',
     'Unexpected token',
     'Unterminated string literal',
@@ -75,7 +76,8 @@ const
     'Invalid preprocessor directive',
     'Macro recursion limit exceeded',
     'Include nesting limit exceeded',
-    'No entry point found'
+    'No entry point found',
+    'Unsupported feature'
   );
 
 // FPW warning codes (FPW-nnnn)
