@@ -137,8 +137,16 @@ begin
     Emit('call sqlite3_open');
     Emit('addl $8, %esp');
   end;
-  Emit('movq %rbp, %rsp');
-  Emit('popq %rbp');
+  if IsX86_64 then
+  begin
+    Emit('movq %rbp, %rsp');
+    Emit('popq %rbp');
+  end
+  else
+  begin
+    Emit('movl %ebp, %esp');
+    Emit('popl %ebp');
+  end;
   Emit('ret');
   EmitDirective('.size fxb_sqlite_open, .-fxb_sqlite_open');
   Emit('');
@@ -184,8 +192,16 @@ begin
     Emit('call sqlite3_exec');
     Emit('addl $20, %esp');
   end;
-  Emit('movq %rbp, %rsp');
-  Emit('popq %rbp');
+  if IsX86_64 then
+  begin
+    Emit('movq %rbp, %rsp');
+    Emit('popq %rbp');
+  end
+  else
+  begin
+    Emit('movl %ebp, %esp');
+    Emit('popl %ebp');
+  end;
   Emit('ret');
   EmitDirective('.size fxb_sqlite_exec, .-fxb_sqlite_exec');
   Emit('');
@@ -213,10 +229,18 @@ begin
     Emit('call sqlite3_close');
     Emit('addl $4, %esp');
   end;
-  if IsX86_64 and (not IsWindows) then
+  if IsX86_64 then
   begin
-    Emit('movq %rbp, %rsp');
-    Emit('popq %rbp');
+    if not IsWindows then
+    begin
+      Emit('movq %rbp, %rsp');
+      Emit('popq %rbp');
+    end;
+  end
+  else
+  begin
+    Emit('movl %ebp, %esp');
+    Emit('popl %ebp');
   end;
   Emit('ret');
   EmitDirective('.size fxb_sqlite_close, .-fxb_sqlite_close');
