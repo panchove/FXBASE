@@ -7,6 +7,8 @@ uses
   fxb.tokens, fxb.lexer, fxb.parser, fxb.ast, fxb.errors, fxb.ir, fxb.backend,
   fxb.test.framework;
 
+function CaptureProgramOutput(const Cmd: string): string; forward;
+
 type
   TLoadResult = record
     LexOK: Boolean;
@@ -333,6 +335,110 @@ begin
   AssertTrue(count >= 5, 'Mínimo 5 fixtures (fpg+prg)');
 end;
 
+// ----------------------------------------------------------------------
+// Backend: float arithmetic SSE2
+// ----------------------------------------------------------------------
+procedure TestImpl_Backend_FloatArithAsm;
+var
+  src, asmOut: string;
+  lex: TFXBLexer;
+  par: TParser;
+  rep: TErrorReporter;
+  ast: TCompilationUnit;
+  irGen: TFXBIRGenerator;
+  ir: TIRModule;
+  backend: TFXBBackend;
+begin
+  src :=
+    'FUNCTION Main() AS INTEGER' + sLineBreak +
+    '    ? 1.5 + 2.5' + sLineBreak +
+    '    ? 10.0 - 3.0' + sLineBreak +
+    '    ? 4.0 * 2.0' + sLineBreak +
+    '    ? 7.0 / 2.0' + sLineBreak +
+    '    RETURN 0' + sLineBreak +
+    'ENDFUNC';
+  lex := TFXBLexer.Create;
+  rep := TErrorReporter.Create('float.fpg');
+  par := TParser.Create(lex, rep);
+  irGen := TFXBIRGenerator.Create;
+  ir := nil;
+  ast := nil;
+  backend := TFXBBackend.Create;
+  try
+    lex.Tokenize(src, 'float.fpg');
+    ast := par.ParseProgram;
+    AssertFalse(rep.HasErrors, 'parse sin errores');
+    ir := irGen.Generate(ast);
+    AssertNotNil(ir, 'IR produced');
+    AssertTrue(backend.Generate(ir, 'float_test.s'), 'backend generate OK');
+    asmOut := backend.LastASM;
+    AssertTrue(Pos('addsd', asmOut) > 0, 'addsd emitido');
+    AssertTrue(Pos('subsd', asmOut) > 0, 'subsd emitido');
+    AssertTrue(Pos('mulsd', asmOut) > 0, 'mulsd emitido');
+    AssertTrue(Pos('divsd', asmOut) > 0, 'divsd emitido');
+    AssertTrue(Pos('# Unimplemented', asmOut) = 0, 'sin # Unimplemented');
+  finally
+    DeleteFile('float_test.s');
+    backend.Free;
+    if Assigned(ir) then ir.Free;
+    irGen.Free;
+    if Assigned(ast) then ast.Free;
+    par.Free;
+    rep.Free;
+    lex.Free;
+  end;
+end;
+
+procedure TestImpl_Backend_FloatExecutes;
+var
+  exePath, outp: string;
+  code: Integer;
+begin
+  exePath := 'float_exec_test_bin';
+  // Compile fixture to a real executable via the fxbc driver.
+  code := ExecuteProcess('./bin/fxbc', 'tests/fixtures/float.fbg -o ' + exePath);
+  AssertEqualsI(0, code, 'fxbc compila float.fbg');
+  AssertTrue(FileExists(exePath), 'binario generado');
+  try
+    code := SysUtils.ExecuteProcess('./' + exePath, '');
+    AssertEqualsI(0, code, 'ejecucion retorna 0');
+    outp := CaptureProgramOutput('./' + exePath);
+    AssertTrue(Pos('4', outp) > 0, 'contiene 4 (1.5+2.5)');
+    AssertTrue(Pos('7', outp) > 0, 'contiene 7 (10-3)');
+    AssertTrue(Pos('8', outp) > 0, 'contiene 8 (4*2)');
+    AssertTrue(Pos('3.5', outp) > 0, 'contiene 3.5 (7/2)');
+  finally
+    DeleteFile(exePath);
+  end;
+end;
+
+function CaptureProgramOutput(const Cmd: string): string;
+var
+  f: text;
+  tmp: string;
+  line: string;
+begin
+  Result := '';
+  tmp := 'float_exec_out.txt';
+  if SysUtils.ExecuteProcess('/bin/sh', '-c "' + Cmd + ' > ' + tmp + ' 2>&1"') <> 0 then
+  begin
+    if FileExists(tmp) then DeleteFile(tmp);
+    Exit;
+  end;
+  Assign(f, tmp);
+  {$I-} Reset(f); {$I+}
+  if IOResult = 0 then
+  begin
+    while not EOF(f) do
+    begin
+      ReadLn(f, line);
+      Result := Result + line + sLineBreak;
+    end;
+    Close(f);
+  end;
+  if FileExists(tmp) then DeleteFile(tmp);
+end;
+
 begin
   RegisterTest('Impl: hello.fpg lex',                @TestImpl_HelloWorld_Lexes);
   RegisterTest('Impl: hello.fpg AST',                @TestImpl_HelloWorld_ParseAST);
@@ -347,5 +453,7 @@ begin
   RegisterTest('Impl: DumpToken roundtrip',           @TestImpl_DumpRoundtrip);
   RegisterTest('Impl: metrics fixture count',         @TestImpl_Metrics_FileCount);
   RegisterTest('Impl: backend print asm',             @TestImpl_Backend_PrintAsm);
+  RegisterTest('Impl: backend float SSE2 asm',        @TestImpl_Backend_FloatArithAsm);
+  RegisterTest('Impl: backend float executes',         @TestImpl_Backend_FloatExecutes);
   RunAllTests('IMPLEMENTATION TESTS — fixtures reales');
 end.

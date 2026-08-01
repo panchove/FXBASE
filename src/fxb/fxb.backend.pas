@@ -46,6 +46,7 @@ type
     procedure AssignLocalOffsets(Func: TIRFunction);
     function GetOperandReg(Val: TIRValue; ScratchReg: string): string;
     function GetOperandMemRef(Val: TIRValue; ScratchReg: string): string;
+    function LoadFloatOperand(Val: TIRValue; const XmmReg: string): string;
     function GetStringLabel(const S: string): string;
     function GetRealLabel(const V: Double): string;
     procedure EmitStringPool;
@@ -59,6 +60,8 @@ type
     procedure GeneratePrologue(Func: TIRFunction);
     procedure GenerateEpilogue(Func: TIRFunction);
     procedure GenerateAllFunctions(const IR: TIRModule);
+    procedure EmitRuntimeHelpers;
+    procedure EmitRuntimeData;
 
     // Instruction generators
     procedure GenRet(Instr: TIRInstruction);
@@ -221,6 +224,43 @@ begin
   end
   else
     Result := ScratchReg;
+end;
+
+// Load a floating-point value into an XMM register and return the register name.
+// Handles real constants (via .rodata pool), locals (stack) and instruction-defined values.
+function TFXBBackend.LoadFloatOperand(Val: TIRValue; const XmmReg: string): string;
+var
+  c: TIRConstant;
+  l: TIRLocal;
+  inst: TIRInstruction;
+begin
+  Result := XmmReg;
+  if Val is TIRConstant then
+  begin
+    c := TIRConstant(Val);
+    if c.Type_.Kind in [fxb.ir.types.tkFloat32, fxb.ir.types.tkFloat64] then
+      Emit(Format('movsd %s(%%rip), %s', [GetRealLabel(c.RealVal), XmmReg]))
+    else
+      // Non-float constant promoted to 0.0 (should not happen for float ops)
+      Emit(Format('xorps %s, %s', [XmmReg, XmmReg]));
+  end
+  else if Val is TIRLocal then
+  begin
+    l := TIRLocal(Val);
+    Emit(Format('movsd %s, %s', [GetOperandMemRef(l, XmmReg), XmmReg]));
+  end
+  else if Val is TIRInstruction then
+  begin
+    inst := TIRInstruction(Val);
+    if (inst.Kind = fxb.ir.instr.ikLoad) and (inst.OperandCount > 0) then
+      Result := LoadFloatOperand(inst.GetOperand(0), XmmReg)
+    else
+      // Value defined by another instruction (e.g. a previous float op):
+      // it was materialized to its stack slot by GenBinaryOp, so reload it.
+      Emit(Format('movsd %s, %s', [GetOperandMemRef(inst, XmmReg), XmmReg]));
+  end
+  else
+    Emit(Format('xorps %s, %s', [XmmReg, XmmReg]));
 end;
 
 function TFXBBackend.GetStringLabel(const S: string): string;
@@ -479,19 +519,33 @@ begin
   isFloat := (left.Type_.Kind in [fxb.ir.types.tkFloat32, fxb.ir.types.tkFloat64]) or
              (right.Type_.Kind in [fxb.ir.types.tkFloat32, fxb.ir.types.tkFloat64]);
 
+  if left.Type_.Kind in [fxb.ir.types.tkFloat32, fxb.ir.types.tkFloat64] then
+  begin
+    // SSE2 floating point (operate in XMM registers)
+    leftReg := LoadFloatOperand(left, '%xmm0');
+    rightReg := LoadFloatOperand(right, '%xmm1');
+    case Instr.Kind of
+      fxb.ir.instr.ikAdd: Emit('addsd %xmm1, %xmm0');
+      fxb.ir.instr.ikSub: Emit('subsd %xmm1, %xmm0');
+      fxb.ir.instr.ikMul: Emit('mulsd %xmm1, %xmm0');
+      fxb.ir.instr.ikDiv: Emit('divsd %xmm1, %xmm0');
+      // Shift/bitwise ops are undefined for floats; report and skip.
+      else
+      begin
+        ReportError('Operador no válido para flotantes: ' + InstrKindToStr(Instr.Kind));
+        Exit;
+      end;
+    end;
+    // Materialize result into the destination slot (the instruction itself acts
+    // as the defining value). Subsequent users reload it via LoadFloatOperand.
+    Emit(Format('movsd %%xmm0, %s', [GetOperandMemRef(Instr, '%xmm0')]));
+    Exit;
+  end;
+
   leftReg := GetOperandReg(left, '%rax');
   rightReg := GetOperandReg(right, '%rcx');
   destReg := 'rax';
 
-  if left.Type_.Kind in [fxb.ir.types.tkFloat32, fxb.ir.types.tkFloat64] then
-  begin
-    // SSE2 floating point
-    case Instr.Kind of
-      fxb.ir.instr.ikAdd: Emit(Format('movsd xmm0, [%s]', [GetOperandMemRef(left, 'rax')]));
-      // ... floating point ops need proper implementation
-    end;
-  end
-  else
   begin
     // Integer operations - result in rax
     if leftReg <> '%rax' then
@@ -802,13 +856,19 @@ var
   fn: TIRFunction;
   i: Integer;
 begin
-  // Generate startup code that calls Main
+  // Generate startup code that captures argv/argc and calls Main
   EmitDirective('.globl _start');
   EmitDirective('.type _start, @function');
   EmitLabel('_start');
+  Emit('movq (%rsp), %rax');             // argc (top of stack at entry)
+  Emit('movq %rax, __fx_argc_g(%rip)');  // save argc for ArgC()/ArgV()/Command()
+  Emit('leaq 8(%rsp), %rax');            // argv
+  Emit('movq %rax, __fx_argv_g(%rip)');
   Emit('pushq %rbp');
   Emit('movq %rsp, %rbp');
   Emit('subq $8, %rsp');  // Align stack to 16 bytes before call
+  Emit('movq __fx_argc_g(%rip), %rdi');  // argc -> first Main param
+  Emit('movq __fx_argv_g(%rip), %rsi');  // argv -> second Main param
   Emit('callq Main');
   Emit('movq %rax, %rbx');     // Preserve exit code (rbx is callee-saved)
   Emit('xorq %rdi, %rdi');     // fflush(NULL): flush all stdio buffers
@@ -826,6 +886,93 @@ begin
     fn := TIRFunction(IR.Functions[i]);
     GenerateFunction(fn);
   end;
+
+  EmitRuntimeHelpers;
+  EmitRuntimeData;
+end;
+
+procedure TFXBBackend.EmitRuntimeHelpers;
+begin
+  // ArgC(): return saved argc
+  EmitDirective('.globl __fx_argc');
+  EmitDirective('.type __fx_argc, @function');
+  EmitLabel('__fx_argc');
+  Emit('movq __fx_argc_g(%rip), %rax');
+  Emit('ret');
+  EmitDirective('.size __fx_argc, .-__fx_argc');
+  Emit('');
+
+  // ArgV(n): return argv[n] (n in %rdi)
+  EmitDirective('.globl __fx_argv');
+  EmitDirective('.type __fx_argv, @function');
+  EmitLabel('__fx_argv');
+  Emit('movq __fx_argv_g(%rip), %rax');
+  Emit('movq (%rax, %rdi, 8), %rax');
+  Emit('ret');
+  EmitDirective('.size __fx_argv, .-__fx_argv');
+  Emit('');
+
+  // Command(): build full command line "argv[0] argv[1] ..." into a buffer
+  EmitDirective('.globl __fx_command');
+  EmitDirective('.type __fx_command, @function');
+  EmitLabel('__fx_command');
+  Emit('pushq %rbp');
+  Emit('movq %rsp, %rbp');
+  Emit('pushq %rbx');
+  Emit('pushq %r12');
+  Emit('leaq __fx_cmd_buf(%rip), %rdi');    // dest buffer
+  Emit('movq __fx_argv_g(%rip), %rsi');     // argv
+  Emit('movq __fx_argc_g(%rip), %rcx');     // argc
+  Emit('xorl %edx, %edx');                  // i = 0
+  Emit('.Lcmd_loop:');
+  Emit('cmpl %edx, %ecx');
+  Emit('jle .Lcmd_done');
+  Emit('testl %edx, %edx');
+  Emit('je .Lcmd_copy');
+  Emit('movb $32, (%rdi)');                 // space separator
+  Emit('incq %rdi');
+  Emit('.Lcmd_copy:');
+  Emit('movq (%rsi, %rdx, 8), %r12');       // argv[i]
+  Emit('.Lcmd_copyloop:');
+  Emit('movb (%r12), %al');
+  Emit('testb %al, %al');
+  Emit('je .Lcmd_next');
+  Emit('movb %al, (%rdi)');
+  Emit('incq %rdi');
+  Emit('incq %r12');
+  Emit('jmp .Lcmd_copyloop');
+  Emit('.Lcmd_next:');
+  Emit('incq %rdx');
+  Emit('jmp .Lcmd_loop');
+  Emit('.Lcmd_done:');
+  Emit('movb $0, (%rdi)');                  // null-terminate
+  Emit('leaq __fx_cmd_buf(%rip), %rax');
+  Emit('popq %r12');
+  Emit('popq %rbx');
+  Emit('popq %rbp');
+  Emit('ret');
+  EmitDirective('.size __fx_command, .-__fx_command');
+end;
+
+procedure TFXBBackend.EmitRuntimeData;
+begin
+  EmitDirective('.section .data');
+  EmitDirective('.globl __fx_argc_g');
+  EmitDirective('.type __fx_argc_g, @object');
+  EmitDirective('.size __fx_argc_g, 8');
+  EmitLabel('__fx_argc_g');
+  EmitDirective('.quad 0');
+  EmitDirective('.globl __fx_argv_g');
+  EmitDirective('.type __fx_argv_g, @object');
+  EmitDirective('.size __fx_argv_g, 8');
+  EmitLabel('__fx_argv_g');
+  EmitDirective('.quad 0');
+  EmitDirective('.section .bss');
+  EmitDirective('.globl __fx_cmd_buf');
+  EmitDirective('.type __fx_cmd_buf, @object');
+  EmitDirective('.size __fx_cmd_buf, 4096');
+  EmitLabel('__fx_cmd_buf');
+  EmitDirective('.zero 4096');
 end;
 
 function TFXBBackend.HasErrors: Boolean;
