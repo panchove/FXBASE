@@ -15,6 +15,8 @@ uses
   fxb.errors,
   fxb.ir,
   fxb.backend,
+  fxb.backend.x86_64,
+  fxb.backend.x86_32,
   fxb.ppo;
 
 type
@@ -574,7 +576,11 @@ sl := TStringList.Create;
     DumpIR(ir);
   end;
 
-  backend := TFXBBackend.Create;
+  // R2: instantiate the architecture-specific backend subclass.
+  if FTargetCPU = 'x86' then
+    backend := TFXBBackendX86_32.Create
+  else
+    backend := TFXBBackendX86_64.Create;
   try
     backend.TargetOS := FTargetOS;
     backend.TargetCPU := FTargetCPU;
