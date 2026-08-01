@@ -794,6 +794,42 @@ begin
 end;
 
 var
+procedure TestImpl_Backend_DBPackZap;
+var
+  exePath, outp: string;
+  code: Integer;
+  dbFile: string;
+begin
+  exePath := 'db_pz_test_bin';
+  // Fase 2.7: --db:sqlite=<path> selects the driver and the DB file.
+  dbFile := '/tmp/fxbase_pz.db';
+  if FileExists(dbFile) then DeleteFile(dbFile);
+  // Compile to a dedicated DB file via --db:sqlite=<path>, then run.
+  code := SysUtils.ExecuteProcess('/bin/sh', '-c "bin/fxbc --db:sqlite=' + dbFile + ' tests/fixtures/use_pack_zap.fbg -o ' + exePath + ' && ./' + exePath + '"');
+  AssertEqualsI(0, code, 'fxbc + ejecucion PACK/ZAP retorna 0');
+  AssertTrue(FileExists(dbFile), 'la base SQLite fue creada en la ruta de --db:sqlite');
+  try
+    with TStringList.Create do
+    try
+      Add('#!/bin/sh');
+      Add('/usr/bin/sqlite3 ' + dbFile + ' "SELECT id, nombre FROM clientes ORDER BY id;"');
+      SaveToFile('db_pz_check.sh');
+    finally
+      Free;
+    end;
+    outp := CaptureProgramOutput('/bin/sh db_pz_check.sh', code);
+    if FileExists('db_pz_check.sh') then DeleteFile('db_pz_check.sh');
+    AssertEqualsI(0, code, 'consulta sqlite3 retorna 0');
+    // ZAP cleared the two APPENDed rows; only the post-ZAP APPEND remains.
+    AssertTrue(Pos('9|Zoe', outp) > 0, 'fila post-ZAP (9, Zoe) presente');
+    AssertTrue(Pos('1|Ana', outp) = 0, 'ZAP borro la fila 1');
+    AssertTrue(Pos('2|Bob', outp) = 0, 'ZAP borro la fila 2');
+  finally
+    DeleteFile(exePath);
+    if FileExists(dbFile) then DeleteFile(dbFile);
+  end;
+end;
+
   fxWinePrefix: string;
 
 begin
@@ -828,5 +864,6 @@ begin
   RegisterTest('Impl: backend win64 executes',         @TestImpl_Backend_Win64_Executes);
   RegisterTest('Impl: backend win32 executes',         @TestImpl_Backend_Win32_Executes);
   RegisterTest('Impl: backend DB executes',             @TestImpl_Backend_DBExecutes);
+  RegisterTest('Impl: backend DB PACK/ZAP',           @TestImpl_Backend_DBPackZap);
   RunAllTests('IMPLEMENTATION TESTS — fixtures reales');
 end.
