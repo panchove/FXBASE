@@ -750,6 +750,49 @@ begin
   end;
 end;
 
+// ----------------------------------------------------------------------
+// Backend: SQLite DB (USE/APPEND/REPLACE) end-to-end
+// ----------------------------------------------------------------------
+procedure TestImpl_Backend_DBExecutes;
+var
+  exePath, outp: string;
+  code: Integer;
+  dbFile: string;
+begin
+  exePath := 'db_exec_test_bin';
+  // The generated binary opens /tmp/fxbase.db by default (no --db-connection).
+  dbFile := '/tmp/fxbase.db';
+  if FileExists(dbFile) then DeleteFile(dbFile);
+  // Compile + run the DB fixture; the binary creates/writes the SQLite file.
+  code := SysUtils.ExecuteProcess('/bin/sh', '-c "bin/fxbc tests/fixtures/use_append.fbg -o ' + exePath + ' && ./' + exePath + '"');
+  AssertEqualsI(0, code, 'fxbc + ejecucion DB retorna 0');
+  AssertTrue(FileExists(dbFile), 'la base SQLite fue creada');
+  try
+    // Verify the rows via the sqlite3 CLI. Write the query to a temp script
+    // and run it through /bin/sh: ExecuteProcess tokenizes a string argument
+    // by spaces (ignoring quotes), so a quoted SQL string would be split and
+    // the command would fail. A single-token '/bin/sh <script>' avoids that.
+    with TStringList.Create do
+    try
+      Add('#!/bin/sh');
+      Add('/usr/bin/sqlite3 ' + dbFile + ' "SELECT id, nombre FROM clientes ORDER BY id;"');
+      SaveToFile('db_check.sh');
+    finally
+      Free;
+    end;
+    outp := CaptureProgramOutput('/bin/sh db_check.sh', code);
+    if FileExists('db_check.sh') then DeleteFile('db_check.sh');
+    AssertEqualsI(0, code, 'consulta sqlite3 retorna 0');
+    // REPLACE must scope to the last inserted row, not all rows.
+    AssertTrue(Pos('1|Ana', outp) > 0, 'fila 1 conserva Ana');
+    AssertTrue(Pos('2|Anita', outp) > 0, 'fila 2 fue reemplazada por Anita');
+    AssertTrue(Pos('1|Anita', outp) = 0, 'REPLACE no toco la fila 1');
+  finally
+    DeleteFile(exePath);
+    if FileExists(dbFile) then DeleteFile(dbFile);
+  end;
+end;
+
 var
   fxWinePrefix: string;
 
@@ -784,5 +827,6 @@ begin
   RegisterTest('Impl: backend win64 asm',              @TestImpl_Backend_Win64_Asm);
   RegisterTest('Impl: backend win64 executes',         @TestImpl_Backend_Win64_Executes);
   RegisterTest('Impl: backend win32 executes',         @TestImpl_Backend_Win32_Executes);
+  RegisterTest('Impl: backend DB executes',             @TestImpl_Backend_DBExecutes);
   RunAllTests('IMPLEMENTATION TESTS — fixtures reales');
 end.
