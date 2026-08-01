@@ -629,7 +629,10 @@ begin
   // Assemble
   if FVerbose then
     WriteLn('Assembling: /usr/bin/as -o ', ChangeFileExt(OutputFile, '.o'), ' ', AsmFile);
-  exitCode := ExecuteProcess('/usr/bin/as', Format('-o %s.o %s', [ChangeFileExt(OutputFile, ''), AsmFile]));
+  if FTargetCPU = 'x86' then
+    exitCode := ExecuteProcess('/usr/bin/as', Format('--32 -o %s.o %s', [ChangeFileExt(OutputFile, ''), AsmFile]))
+  else
+    exitCode := ExecuteProcess('/usr/bin/as', Format('-o %s.o %s', [ChangeFileExt(OutputFile, ''), AsmFile]));
   if exitCode <> 0 then
   begin
     WriteLn(StdErr, 'Assembly failed with code: ', exitCode);
@@ -637,7 +640,10 @@ begin
   end;
 
   // Link
-  exitCode := ExecuteProcess('/usr/bin/ld', Format('-o %s %s.o -lc -dynamic-linker /lib64/ld-linux-x86-64.so.2 -e _start', [OutputFile, ChangeFileExt(OutputFile, '')]));
+  if FTargetCPU = 'x86' then
+    exitCode := ExecuteProcess('/usr/bin/ld', Format('-m elf_i386 -o %s %s.o -lc -dynamic-linker /lib/ld-linux.so.2 -e _start', [OutputFile, ChangeFileExt(OutputFile, '')]))
+  else
+    exitCode := ExecuteProcess('/usr/bin/ld', Format('-o %s %s.o -lc -dynamic-linker /lib64/ld-linux-x86-64.so.2 -e _start', [OutputFile, ChangeFileExt(OutputFile, '')]));
   if exitCode <> 0 then
   begin
     WriteLn(StdErr, 'Link failed with code: ', exitCode);

@@ -1,0 +1,7 @@
+FUNCTION Main() AS INTEGER
+    ? "hi"
+    ? 1 + 2
+    ? 7 / 2
+    ? 1.5 + 2.5
+    RETURN 0
+ENDFUNC

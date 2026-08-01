@@ -42,6 +42,26 @@ type
     procedure EmitLabel(const Name: string);
     procedure EmitDirective(const Dir: string);
     function RegName(Size: Integer; Index: Integer): string;
+    function IsX86_64: Boolean;
+    function WordSize: Integer;
+    function MovOp: string;
+    function AddOp: string;
+    function SubOp: string;
+    function MulOp: string;
+    function DivOp: string;
+    function RemOp: string;
+    function ShlOp: string;
+    function ShrOp: string;
+    function AndOp: string;
+    function OrOp: string;
+    function XorOp: string;
+    function CmpOp: string;
+    function BPReg: string;
+    function SPReg: string;
+    function AXReg: string;
+    function DXReg: string;
+    function CXReg: string;
+    function RIP(const LabelName: string): string;
     function GetLocalOffset(Local: TIRLocal): Integer;
     procedure AssignLocalOffsets(Func: TIRFunction);
     function GetOperandReg(Val: TIRValue; ScratchReg: string): string;
@@ -132,6 +152,75 @@ begin
   end;
 end;
 
+function TFXBBackend.IsX86_64: Boolean;
+begin
+  // Default (empty / 'x86_64' / 'native') is 64-bit; only explicit 'x86' is 32-bit.
+  Result := FTargetCPU <> 'x86';
+end;
+
+function TFXBBackend.WordSize: Integer;
+begin
+  if IsX86_64 then Result := 8 else Result := 4;
+end;
+
+function TFXBBackend.MovOp: string;
+begin if IsX86_64 then Result := 'movq' else Result := 'movl'; end;
+
+function TFXBBackend.AddOp: string;
+begin if IsX86_64 then Result := 'addq' else Result := 'addl'; end;
+
+function TFXBBackend.SubOp: string;
+begin if IsX86_64 then Result := 'subq' else Result := 'subl'; end;
+
+function TFXBBackend.MulOp: string;
+begin if IsX86_64 then Result := 'imulq' else Result := 'imull'; end;
+
+function TFXBBackend.DivOp: string;
+begin if IsX86_64 then Result := 'idivq' else Result := 'idivl'; end;
+
+function TFXBBackend.RemOp: string;
+begin if IsX86_64 then Result := 'idivq' else Result := 'idivl'; end;
+
+function TFXBBackend.ShlOp: string;
+begin if IsX86_64 then Result := 'shlq' else Result := 'shll'; end;
+
+function TFXBBackend.ShrOp: string;
+begin if IsX86_64 then Result := 'sarq' else Result := 'sarl'; end;
+
+function TFXBBackend.AndOp: string;
+begin if IsX86_64 then Result := 'andq' else Result := 'andl'; end;
+
+function TFXBBackend.OrOp: string;
+begin if IsX86_64 then Result := 'orq' else Result := 'orl'; end;
+
+function TFXBBackend.XorOp: string;
+begin if IsX86_64 then Result := 'xorq' else Result := 'xorl'; end;
+
+function TFXBBackend.CmpOp: string;
+begin if IsX86_64 then Result := 'cmpq' else Result := 'cmpl'; end;
+
+function TFXBBackend.BPReg: string;
+begin if IsX86_64 then Result := '%rbp' else Result := '%ebp'; end;
+
+function TFXBBackend.SPReg: string;
+begin if IsX86_64 then Result := '%rsp' else Result := '%esp'; end;
+
+function TFXBBackend.AXReg: string;
+begin if IsX86_64 then Result := '%rax' else Result := '%eax'; end;
+
+function TFXBBackend.DXReg: string;
+begin if IsX86_64 then Result := '%rdx' else Result := '%edx'; end;
+
+function TFXBBackend.CXReg: string;
+begin if IsX86_64 then Result := '%rcx' else Result := '%ecx'; end;
+
+// RIP-relative addressing only exists in x86_64. In 32-bit we use absolute
+// (non-PIE) references, which is what `as`/`ld` produce for ELF32 by default.
+function TFXBBackend.RIP(const LabelName: string): string;
+begin
+  if IsX86_64 then Result := LabelName + '(%rip)' else Result := LabelName;
+end;
+
 procedure TFXBBackend.AssignLocalOffsets(Func: TIRFunction);
 var
   i: Integer;
@@ -142,7 +231,7 @@ begin
   for i := 0 to High(Func.Locals) do
   begin
     local := Func.Locals[i];
-    FNextLocalOffset := FNextLocalOffset + 8;
+    FNextLocalOffset := FNextLocalOffset + WordSize;
     FLocalOffsets.Add(local, FNextLocalOffset);
   end;
 end;
@@ -160,6 +249,7 @@ var
   a: TIRArgument;
   l: TIRLocal;
   inst: TIRInstruction;
+  argSlot: Integer;
 begin
   // Ensure ScratchReg has % prefix for AT&T syntax
   if (Length(ScratchReg) > 0) and (ScratchReg[1] <> '%') then
@@ -170,31 +260,41 @@ begin
     c := TIRConstant(Val);
     if c.Type_.Kind in [fxb.ir.types.tkInt8, fxb.ir.types.tkInt16, fxb.ir.types.tkInt32, fxb.ir.types.tkInt64,
                        fxb.ir.types.tkUInt8, fxb.ir.types.tkUInt16, fxb.ir.types.tkUInt32, fxb.ir.types.tkUInt64] then
-      Emit(Format('movq $%d, %s', [c.IntVal, ScratchReg]))
+      Emit(Format('%s $%d, %s', [MovOp, c.IntVal, ScratchReg]))
     else if c.Type_.Kind in [fxb.ir.types.tkFloat32, fxb.ir.types.tkFloat64] then
-      Emit(Format('movq $%f, %s', [c.RealVal, ScratchReg])) // placeholder
+      Emit(Format('movsd %s, %s', [RIP(GetRealLabel(c.RealVal)), ScratchReg])) // placeholder
     else if c.Type_.Kind = fxb.ir.types.tkBool then
     begin
       if c.BoolVal then
-        Emit(Format('movq $1, %s', [ScratchReg]))
+        Emit(Format('%s $1, %s', [MovOp, ScratchReg]))
       else
-        Emit(Format('xorq %s, %s', [ScratchReg, ScratchReg]));
+        Emit(Format('xor%s %s, %s', [Copy(MovOp, 1, 3), ScratchReg, ScratchReg]));
     end
     else if c.IsNull then
-      Emit(Format('xorq %s, %s', [ScratchReg, ScratchReg]));
+      Emit(Format('xor%s %s, %s', [Copy(MovOp, 1, 3), ScratchReg, ScratchReg]));
   end
   else if Val is TIRArgument then
   begin
     a := TIRArgument(Val);
-    // x86_64 ABI: rdi, rsi, rdx, rcx, r8, r9
-case a.Index of
-      0: Result := '%rdi';
-      1: Result := '%rsi';
-      2: Result := '%rdx';
-      3: Result := '%rcx';
-      4: Result := '%r8';
-      5: Result := '%r9';
-      else Result := ScratchReg;
+    if IsX86_64 then
+    begin
+      // x86_64 ABI: rdi, rsi, rdx, rcx, r8, r9
+      case a.Index of
+        0: Result := '%rdi';
+        1: Result := '%rsi';
+        2: Result := '%rdx';
+        3: Result := '%rcx';
+        4: Result := '%r8';
+        5: Result := '%r9';
+        else Result := ScratchReg;
+      end;
+    end
+    else
+    begin
+      // x86_32 cdecl: arg i at [ebp + 8 + 4*i] (skip saved ebp + return addr)
+      argSlot := 8 + WordSize * a.Index;
+      Result := ScratchReg;
+      Emit(Format('%s %d(%%ebp), %s', [MovOp, argSlot, ScratchReg]));
     end;
   end
   else if Val is TIRLocal then
@@ -202,7 +302,7 @@ case a.Index of
     l := TIRLocal(Val);
     Result := ScratchReg;
     // Load from stack: movq [rbp - offset], reg
-    Emit(Format('movq %s, %s', [GetOperandMemRef(l, ScratchReg), ScratchReg]));
+    Emit(Format('%s %s, %s', [MovOp, GetOperandMemRef(l, ScratchReg), ScratchReg]));
   end
   else if Val is TIRInstruction then
   begin
@@ -220,7 +320,7 @@ begin
   if Val is TIRLocal then
   begin
     l := TIRLocal(Val);
-    Result := Format('%d(%%rbp)', [-GetLocalOffset(l)]);
+    Result := Format('%d(%s)', [-GetLocalOffset(l), BPReg]);
   end
   else
     Result := ScratchReg;
@@ -239,7 +339,7 @@ begin
   begin
     c := TIRConstant(Val);
     if c.Type_.Kind in [fxb.ir.types.tkFloat32, fxb.ir.types.tkFloat64] then
-      Emit(Format('movsd %s(%%rip), %s', [GetRealLabel(c.RealVal), XmmReg]))
+      Emit(Format('movsd %s, %s', [RIP(GetRealLabel(c.RealVal)), XmmReg]))
     else
       // Non-float constant promoted to 0.0 (should not happen for float ops)
       Emit(Format('xorps %s, %s', [XmmReg, XmmReg]));
@@ -328,10 +428,13 @@ begin
   if Val is TIRConstant then
   begin
     c := TIRConstant(Val);
-    Emit(Format('movsd %s(%%rip), %%xmm0', [GetRealLabel(c.RealVal)]));
+    Emit(Format('movsd %s, %%xmm0', [RIP(GetRealLabel(c.RealVal))]));
   end
   else if Val is TIRLocal then
     Emit(Format('movsd %s, %%xmm0', [GetOperandMemRef(Val, '%xmm0')]))
+  else if Val is TIRArgument then
+    // x86_32 cdecl passes float args on the stack, same slot as integer args
+    Emit(Format('movsd %s, %%xmm0', [GetOperandReg(Val, '%xmm0')]))
   else
     Emit('xorps %xmm0, %xmm0');
 end;
@@ -339,39 +442,72 @@ end;
 procedure TFXBBackend.LoadPrintArg(Val: TIRValue);
 var
   c: TIRConstant;
+  reg: string;
 begin
-  if Val is TIRConstant then
+  if IsX86_64 then
   begin
-    c := TIRConstant(Val);
-    case c.Type_.Kind of
-      fxb.ir.types.tkString:
-        Emit(Format('leaq %s(%%rip), %%rsi', [GetStringLabel(c.StrVal)]));
-      fxb.ir.types.tkBool:
-        if c.BoolVal then Emit('movq $1, %rsi')
+    // x86_64: 2nd printf arg in %rsi, format in %rdi (set by GenPrint).
+    if Val is TIRConstant then
+    begin
+      c := TIRConstant(Val);
+      case c.Type_.Kind of
+        fxb.ir.types.tkString:
+          Emit(Format('leaq %s, %%rsi', [RIP(GetStringLabel(c.StrVal))]));
+        fxb.ir.types.tkBool:
+          if c.BoolVal then Emit('movq $1, %rsi') else Emit('xorq %rsi, %rsi');
+        fxb.ir.types.tkInt8, fxb.ir.types.tkInt16, fxb.ir.types.tkInt32, fxb.ir.types.tkInt64,
+        fxb.ir.types.tkUInt8, fxb.ir.types.tkUInt16, fxb.ir.types.tkUInt32, fxb.ir.types.tkUInt64:
+          Emit(Format('movq $%d, %%rsi', [c.IntVal]));
+        else
+          Emit('xorq %rsi, %rsi');
+      end;
+    end
+    else if Val is TIRArgument then
+    begin
+      case TIRArgument(Val).Index of
+        0: Emit('movq %rdi, %rsi');
+        1: Emit('movq %rsi, %rsi');
+        2: Emit('movq %rdx, %rsi');
+        3: Emit('movq %rcx, %rsi');
+        4: Emit('movq %r8, %rsi');
+        5: Emit('movq %r9, %rsi');
         else Emit('xorq %rsi, %rsi');
-      fxb.ir.types.tkInt8, fxb.ir.types.tkInt16, fxb.ir.types.tkInt32, fxb.ir.types.tkInt64,
-      fxb.ir.types.tkUInt8, fxb.ir.types.tkUInt16, fxb.ir.types.tkUInt32, fxb.ir.types.tkUInt64:
-        Emit(Format('movq $%d, %%rsi', [c.IntVal]));
-      else
-        Emit('xorq %rsi, %rsi');
-    end;
+      end;
+    end
+    else if Val is TIRLocal then
+      Emit(Format('movq %s, %%rsi', [GetOperandMemRef(Val, 'rsi')]))
+    else
+      Emit('movq %rax, %rsi');
   end
-  else if Val is TIRArgument then
-  begin
-    case TIRArgument(Val).Index of
-      0: Emit('movq %rdi, %rsi');
-      1: Emit('movq %rsi, %rsi');
-      2: Emit('movq %rdx, %rsi');
-      3: Emit('movq %rcx, %rsi');
-      4: Emit('movq %r8, %rsi');
-      5: Emit('movq %r9, %rsi');
-      else Emit('xorq %rsi, %rsi');
-    end;
-  end
-  else if Val is TIRLocal then
-    Emit(Format('movq %s, %%rsi', [GetOperandMemRef(Val, 'rsi')]))
   else
-    Emit('movq %rax, %rsi');
+  begin
+    // x86_32 cdecl: print arg in %esi (loaded from stack).
+    if Val is TIRConstant then
+    begin
+      c := TIRConstant(Val);
+      case c.Type_.Kind of
+        fxb.ir.types.tkString:
+          Emit(Format('movl %s, %%esi', [RIP(GetStringLabel(c.StrVal))]));
+        fxb.ir.types.tkBool:
+          if c.BoolVal then Emit('movl $1, %esi') else Emit('xorl %esi, %esi');
+        fxb.ir.types.tkInt8, fxb.ir.types.tkInt16, fxb.ir.types.tkInt32, fxb.ir.types.tkInt64,
+        fxb.ir.types.tkUInt8, fxb.ir.types.tkUInt16, fxb.ir.types.tkUInt32, fxb.ir.types.tkUInt64:
+          Emit(Format('movl $%d, %%esi', [c.IntVal]));
+        else
+          Emit('xorl %esi, %esi');
+      end;
+    end
+    else
+    begin
+      // Arguments and locals live on the stack; reuse GetOperandReg.
+      if Val is TIRArgument then
+        reg := GetOperandReg(Val, '%esi')
+      else if Val is TIRLocal then
+        reg := GetOperandReg(Val, '%esi')
+      else
+        reg := GetOperandReg(Val, '%eax');
+    end;
+  end;
 end;
 
 procedure TFXBBackend.GenerateFunction(Func: TIRFunction);
@@ -402,19 +538,24 @@ procedure TFXBBackend.GeneratePrologue(Func: TIRFunction);
 var
   stackSize: Integer;
 begin
-  stackSize := Length(Func.Locals) * 8;
-  stackSize := (stackSize + 15) and not 15;
+  stackSize := Length(Func.Locals) * WordSize;
+  if IsX86_64 then
+    stackSize := (stackSize + 15) and not 15  // 16-byte align for x86_64 ABI
+  else
+    stackSize := (stackSize + 3) and not 3;   // 4-byte align for x86_32
 
-  Emit('pushq %rbp');
-  Emit('movq %rsp, %rbp');
+  Emit(Format('push%s %s', [Copy(MovOp, 4, 3), BPReg]));
+  Emit(Format('%s %s, %s', [MovOp, SPReg, BPReg]));
+  if not IsX86_64 then
+    Emit('andl $0xFFFFFFF0, %esp');   // align stack to 16 for cdecl varargs (printf)
   if stackSize > 0 then
-    Emit(Format('subq $%d, %%rsp', [stackSize]));
+    Emit(Format('%s $%d, %s', [SubOp, stackSize, SPReg]));
 end;
 
 procedure TFXBBackend.GenerateEpilogue(Func: TIRFunction);
 begin
-  Emit('movq %rbp, %rsp');
-  Emit('popq %rbp');
+  Emit(Format('%s %s, %s', [MovOp, BPReg, SPReg]));
+  Emit(Format('pop%s %s', [Copy(MovOp, 4, 3), BPReg]));
   Emit('ret');
 end;
 
@@ -461,15 +602,15 @@ begin
   if Instr.OperandCount > 0 then
   begin
     val := Instr.GetOperand(0);
-    reg := GetOperandReg(val, '%rax');
-    if (reg <> '%rax') and not (val is TIRConstant) then
-      Emit(Format('movq %s, %%rax', [reg]));
+    reg := GetOperandReg(val, AXReg);
+    if (reg <> AXReg) and not (val is TIRConstant) then
+      Emit(Format('%s %s, %s', [MovOp, reg, AXReg]));
   end
   else
-    Emit('xorq %rax, %rax');
+    Emit(Format('xor%s %s, %s', [Copy(MovOp, 4, 3), AXReg, AXReg]));
   // Emit epilogue directly
-  Emit('movq %rbp, %rsp');
-  Emit('popq %rbp');
+  Emit(Format('%s %s, %s', [MovOp, BPReg, SPReg]));
+  Emit(Format('pop%s %s', [Copy(MovOp, 4, 3), BPReg]));
   Emit('ret');
 end;
 
@@ -496,8 +637,8 @@ begin
     thenTarget := TIRBlock(Instr.GetOperand(1));
     elseTarget := TIRBlock(Instr.GetOperand(2));
 
-    condReg := GetOperandReg(cond, '%rax');
-    Emit(Format('testq %s, %s', [condReg, condReg]));
+    condReg := GetOperandReg(cond, AXReg);
+    Emit(Format('test%s %s, %s', [Copy(MovOp, 4, 3), condReg, condReg]));
     Emit(Format('jne %s', [thenTarget.Name]));
     Emit(Format('jmp %s', [elseTarget.Name]));
   end;
@@ -542,35 +683,35 @@ begin
     Exit;
   end;
 
-  leftReg := GetOperandReg(left, '%rax');
-  rightReg := GetOperandReg(right, '%rcx');
+  leftReg := GetOperandReg(left, AXReg);
+  rightReg := GetOperandReg(right, CXReg);
   destReg := 'rax';
 
   begin
-    // Integer operations - result in rax
-    if leftReg <> '%rax' then
-      Emit(Format('movq %s, %%rax', [leftReg]));
+    // Integer operations - result in rax/eax
+    if leftReg <> AXReg then
+      Emit(Format('%s %s, %s', [MovOp, leftReg, AXReg]));
 
     case Instr.Kind of
-      fxb.ir.instr.ikAdd: Emit(Format('addq %s, %%rax', [rightReg]));
-      fxb.ir.instr.ikSub: Emit(Format('subq %s, %%rax', [rightReg]));
-      fxb.ir.instr.ikMul: Emit(Format('imulq %s, %%rax', [rightReg]));
+      fxb.ir.instr.ikAdd: Emit(Format('%s %s, %s', [AddOp, rightReg, AXReg]));
+      fxb.ir.instr.ikSub: Emit(Format('%s %s, %s', [SubOp, rightReg, AXReg]));
+      fxb.ir.instr.ikMul: Emit(Format('%s %s, %s', [MulOp, rightReg, AXReg]));
       fxb.ir.instr.ikDiv:
         begin
-          Emit('cqo');
-          Emit(Format('idivq %s', [rightReg]));
+          if IsX86_64 then Emit('cqo') else Emit('cdq');
+          Emit(Format('%s %s', [DivOp, rightReg]));
         end;
       fxb.ir.instr.ikRem:
         begin
-          Emit('cqo');
-          Emit(Format('idivq %s', [rightReg]));
-          Emit('movq %rdx, %rax');
+          if IsX86_64 then Emit('cqo') else Emit('cdq');
+          Emit(Format('%s %s', [RemOp, rightReg]));
+          Emit(Format('%s %s, %s', [MovOp, DXReg, AXReg]));
         end;
-      fxb.ir.instr.ikShl: Emit('shlq %cl, %rax');
-      fxb.ir.instr.ikShr: Emit('sarq %cl, %rax');
-      fxb.ir.instr.ikAnd: Emit(Format('andq %s, %%rax', [rightReg]));
-      fxb.ir.instr.ikOr:  Emit(Format('orq %s, %%rax', [rightReg]));
-      fxb.ir.instr.ikXor: Emit(Format('xorq %s, %%rax', [rightReg]));
+      fxb.ir.instr.ikShl: Emit(Format('%s %%cl, %s', [ShlOp, AXReg]));
+      fxb.ir.instr.ikShr: Emit(Format('%s %%cl, %s', [ShrOp, AXReg]));
+      fxb.ir.instr.ikAnd: Emit(Format('%s %s, %s', [AndOp, rightReg, AXReg]));
+      fxb.ir.instr.ikOr:  Emit(Format('%s %s, %s', [OrOp, rightReg, AXReg]));
+      fxb.ir.instr.ikXor: Emit(Format('%s %s, %s', [XorOp, rightReg, AXReg]));
     end;
   end;
 end;
@@ -578,7 +719,7 @@ end;
 procedure TFXBBackend.GenLoad(Instr: TIRInstruction);
 begin
   if Instr.OperandCount < 1 then Exit;
-  Emit(Format('movq %s, %%rax', [GetOperandMemRef(Instr.GetOperand(0), 'rax')]));
+  Emit(Format('%s %s, %s', [MovOp, GetOperandMemRef(Instr.GetOperand(0), AXReg), AXReg]));
 end;
 
 procedure TFXBBackend.GenStore(Instr: TIRInstruction);
@@ -588,8 +729,8 @@ begin
   if Instr.OperandCount < 2 then Exit;
   val := Instr.GetOperand(0);
   ptr := Instr.GetOperand(1);
-  Emit(Format('movq %s, %%rax', [GetOperandReg(val, 'rax')]));
-  Emit(Format('movq %%rax, %s', [GetOperandMemRef(ptr, 'rcx')]));
+  Emit(Format('%s %s, %s', [MovOp, GetOperandReg(val, AXReg), AXReg]));
+  Emit(Format('%s %s, %s', [MovOp, AXReg, GetOperandMemRef(ptr, CXReg)]));
 end;
 
 procedure TFXBBackend.GenAlloca(Instr: TIRInstruction);
@@ -601,52 +742,94 @@ procedure TFXBBackend.GenCall(Instr: TIRInstruction);
 var
   fn: TIRFunction;
   i: Integer;
-  argRegs: array[0..5] of string = ('%rdi', '%rsi', '%rdx', '%rcx', '%r8', '%r9');
+  nArgs: Integer;
 begin
   if Instr.OperandCount < 1 then Exit;
   fn := TIRFunction(Instr.GetOperand(0));
+  nArgs := Instr.OperandCount - 1;
 
-  for i := 1 to Instr.OperandCount - 1 do
+  if IsX86_64 then
   begin
-    if i - 1 <= High(argRegs) then
-      GetOperandReg(Instr.GetOperand(i), argRegs[i - 1])
-    else
+    // x86_64: first 6 args in rdi,rsi,rdx,rcx,r8,r9; rest on stack.
+    for i := 1 to nArgs do
     begin
-      GetOperandReg(Instr.GetOperand(i), '%rax');
-      Emit('pushq %rax');
+      if i - 1 <= 5 then
+        GetOperandReg(Instr.GetOperand(i), (['%rdi','%rsi','%rdx','%rcx','%r8','%r9'])[i - 1])
+      else
+      begin
+        GetOperandReg(Instr.GetOperand(i), '%rax');
+        Emit('pushq %rax');
+      end;
+    end;
+  end
+  else
+  begin
+    // x86_32 cdecl: push args right-to-left (last arg pushed first).
+    for i := nArgs downto 1 do
+    begin
+      GetOperandReg(Instr.GetOperand(i), '%eax');
+      Emit('pushl %eax');
     end;
   end;
 
   Emit(Format('call %s', [fn.Name]));
 
-  if Instr.OperandCount - 1 > 6 then
-    Emit(Format('addq $%d, %%rsp', [(Instr.OperandCount - 7) * 8]));
+  if IsX86_64 then
+  begin
+    if nArgs > 6 then
+      Emit(Format('addq $%d, %%rsp', [(nArgs - 6) * 8]));
+  end
+  else
+  begin
+    if nArgs > 0 then
+      Emit(Format('addl $%d, %%esp', [nArgs * 4])); // cdecl: caller cleans up
+  end;
 end;
 
 procedure TFXBBackend.GenCallDirect(Instr: TIRInstruction);
 var
   fn: TIRFunction;
   i: Integer;
-  argRegs: array[0..5] of string = ('%rdi', '%rsi', '%rdx', '%rcx', '%r8', '%r9');
+  nArgs: Integer;
 begin
   if Instr.OperandCount < 1 then Exit;
   fn := TIRFunction(Instr.GetOperand(0));
+  nArgs := Instr.OperandCount - 1;
 
-  for i := 1 to Instr.OperandCount - 1 do
+  if IsX86_64 then
   begin
-    if i - 1 <= High(argRegs) then
-      GetOperandReg(Instr.GetOperand(i), argRegs[i - 1])
-    else
+    for i := 1 to nArgs do
     begin
-      GetOperandReg(Instr.GetOperand(i), '%rax');
-      Emit('pushq %rax');
+      if i - 1 <= 5 then
+        GetOperandReg(Instr.GetOperand(i), (['%rdi','%rsi','%rdx','%rcx','%r8','%r9'])[i - 1])
+      else
+      begin
+        GetOperandReg(Instr.GetOperand(i), '%rax');
+        Emit('pushq %rax');
+      end;
+    end;
+  end
+  else
+  begin
+    for i := nArgs downto 1 do
+    begin
+      GetOperandReg(Instr.GetOperand(i), '%eax');
+      Emit('pushl %eax');
     end;
   end;
 
   Emit(Format('call %s', [fn.Name]));
 
-  if Instr.OperandCount - 1 > 6 then
-    Emit(Format('addq $%d, %%rsp', [(Instr.OperandCount - 7) * 8]));
+  if IsX86_64 then
+  begin
+    if nArgs > 6 then
+      Emit(Format('addq $%d, %%rsp', [(nArgs - 6) * 8]));
+  end
+  else
+  begin
+    if nArgs > 0 then
+      Emit(Format('addl $%d, %%esp', [nArgs * 4]));
+  end;
 end;
 
 procedure TFXBBackend.GenICmp(Instr: TIRInstruction);
@@ -683,7 +866,7 @@ begin
     Exit;
   end;
 
-  Emit(Format('cmpq %s, %s', [GetOperandReg(right, '%rax'), GetOperandReg(left, '%rcx')]));
+  Emit(Format('%s %s, %s', [CmpOp, GetOperandReg(right, AXReg), GetOperandReg(left, CXReg)]));
   pred := Instr.Metadata.Values['pred'];
   if pred = '' then pred := 'eq';
   case pred of
@@ -694,7 +877,10 @@ begin
     'le': Emit('setle %al');
     'ge': Emit('setge %al');
   end;
-  Emit('movzbq %al, %rax');
+  if IsX86_64 then
+    Emit('movzbq %al, %rax')
+  else
+    Emit('movzbl %al, %eax');
 end;
 
 procedure TFXBBackend.GenPrint(Instr: TIRInstruction);
@@ -703,58 +889,119 @@ var
   val: TIRValue;
   newline: Boolean;
   fmtLabel: string;
+  slotBytes: Integer;
+  // 32-bit helpers: format-label resolver (cdecl)
+  function FmtLabelFor(Kind: TIRTypeKind): string;
+  begin
+    if Kind = fxb.ir.types.tkString then Result := '%s'
+    else if Kind in [fxb.ir.types.tkFloat32, fxb.ir.types.tkFloat64] then Result := '%g'
+    else if Kind = fxb.ir.types.tkBool then Result := '%d'
+    else Result := '%lld';
+  end;
 begin
   newline := Instr.Metadata.Values['newline'] = '1';
-  for i := 0 to Instr.OperandCount - 1 do
+
+  if IsX86_64 then
   begin
-    val := Instr.GetOperand(i);
-    case val.Type_.Kind of
-      fxb.ir.types.tkString:
-      begin
-        fmtLabel := GetStringLabel('%s');
-        Emit(Format('leaq %s(%%rip), %%rdi', [fmtLabel]));
-        LoadPrintArg(val);
-        Emit('xorl %eax, %eax');
+    // x86_64: format in %rdi, args in %rsi/%xmm0, varargs count in %al.
+    for i := 0 to Instr.OperandCount - 1 do
+    begin
+      val := Instr.GetOperand(i);
+      case val.Type_.Kind of
+        fxb.ir.types.tkString:
+        begin
+          fmtLabel := GetStringLabel('%s');
+          Emit(Format('leaq %s(%%rip), %%rdi', [fmtLabel]));
+          LoadPrintArg(val);
+          Emit('xorl %eax, %eax');
+        end;
+        fxb.ir.types.tkBool:
+        begin
+          fmtLabel := GetStringLabel('%d');
+          Emit(Format('leaq %s(%%rip), %%rdi', [fmtLabel]));
+          LoadPrintArg(val);
+          Emit('xorl %eax, %eax');
+        end;
+        fxb.ir.types.tkInt8, fxb.ir.types.tkInt16, fxb.ir.types.tkInt32, fxb.ir.types.tkInt64,
+        fxb.ir.types.tkUInt8, fxb.ir.types.tkUInt16, fxb.ir.types.tkUInt32, fxb.ir.types.tkUInt64:
+        begin
+          fmtLabel := GetStringLabel('%lld');
+          Emit(Format('leaq %s(%%rip), %%rdi', [fmtLabel]));
+          LoadPrintArg(val);
+          Emit('xorl %eax, %eax');
+        end;
+        fxb.ir.types.tkFloat32, fxb.ir.types.tkFloat64:
+        begin
+          fmtLabel := GetStringLabel('%g');
+          Emit(Format('leaq %s(%%rip), %%rdi', [fmtLabel]));
+          LoadPrintArgFloat(val);
+          Emit('movl $1, %eax');
+        end;
+        else
+        begin
+          fmtLabel := GetStringLabel('%s');
+          Emit(Format('leaq %s(%%rip), %%rdi', [fmtLabel]));
+          LoadPrintArg(val);
+          Emit('xorl %eax, %eax');
+        end;
       end;
-      fxb.ir.types.tkBool:
-      begin
-        fmtLabel := GetStringLabel('%d');
-        Emit(Format('leaq %s(%%rip), %%rdi', [fmtLabel]));
-        LoadPrintArg(val);
-        Emit('xorl %eax, %eax');
-      end;
-      fxb.ir.types.tkInt8, fxb.ir.types.tkInt16, fxb.ir.types.tkInt32, fxb.ir.types.tkInt64,
-      fxb.ir.types.tkUInt8, fxb.ir.types.tkUInt16, fxb.ir.types.tkUInt32, fxb.ir.types.tkUInt64:
-      begin
-        fmtLabel := GetStringLabel('%lld');
-        Emit(Format('leaq %s(%%rip), %%rdi', [fmtLabel]));
-        LoadPrintArg(val);
-        Emit('xorl %eax, %eax');
-      end;
-      fxb.ir.types.tkFloat32, fxb.ir.types.tkFloat64:
-      begin
-        fmtLabel := GetStringLabel('%g');
-        Emit(Format('leaq %s(%%rip), %%rdi', [fmtLabel]));
-        LoadPrintArgFloat(val);
-        Emit('movl $1, %eax');
-      end;
+      Emit('callq printf');
+    end;
+    if newline then
+    begin
+      fmtLabel := GetStringLabel('%s' + #10);
+      Emit(Format('leaq %s(%%rip), %%rdi', [fmtLabel]));
+      Emit(Format('leaq %s(%%rip), %%rsi', [GetStringLabel('')]));
+      Emit('xorl %eax, %eax');
+      Emit('callq printf');
+    end;
+  end
+  else
+  begin
+    // x86_32 cdecl: glibc i386 varargs (printf) require the stack to be
+    // 16-byte aligned at the call and arguments naturally aligned. We reserve a
+    // 16-byte-multiple slot with subl and store args with movl/movsd (like gcc),
+    // avoiding push which would break alignment. Format string goes at [esp].
+    slotBytes := ((Instr.OperandCount + 1) * 4 + 15) and not 15;
+    Emit(Format('subl $%d, %%esp', [slotBytes]));
+    for i := 0 to Instr.OperandCount - 1 do
+    begin
+      val := Instr.GetOperand(i);
+      if i = 0 then
+        fmtLabel := FmtLabelFor(val.Type_.Kind)
       else
-      begin
-        fmtLabel := GetStringLabel('%s');
-        Emit(Format('leaq %s(%%rip), %%rdi', [fmtLabel]));
-        LoadPrintArg(val);
-        Emit('xorl %eax, %eax');
+        fmtLabel := '%s';
+      // Each operand: write its value at [esp + 4*(i+1)] (slot 0 = format).
+      case val.Type_.Kind of
+        fxb.ir.types.tkString:
+          Emit(Format('movl $%s, %d(%%esp)', [GetStringLabel(TIRConstant(val).StrVal), 4 * (i + 1)]));
+        fxb.ir.types.tkFloat32, fxb.ir.types.tkFloat64:
+          begin
+            LoadPrintArgFloat(val);
+            // 8-byte value at the same slot as an integer arg (cdecl packs it
+            // contiguously at [esp + 4*(i+1)]); esp is 16-aligned so this is 4-aligned.
+            Emit(Format('movsd %%xmm0, %d(%%esp)', [4 * (i + 1)]));
+          end;
+        else
+          begin
+            GetOperandReg(val, '%eax');
+            Emit(Format('movl %%eax, %d(%%esp)', [4 * (i + 1)]));
+          end;
       end;
     end;
-    Emit('callq printf');
-  end;
-  if newline then
-  begin
-    fmtLabel := GetStringLabel('%s' + #10);
-    Emit(Format('leaq %s(%%rip), %%rdi', [fmtLabel]));
-    Emit(Format('leaq %s(%%rip), %%rsi', [GetStringLabel('')]));
-    Emit('xorl %eax, %eax');
-    Emit('callq printf');
+    if Instr.OperandCount > 0 then
+      Emit(Format('movl $%s, (%%esp)', [GetStringLabel(fmtLabel)]));
+    Emit('call printf');
+    // Clean up the reserved slot.
+    Emit(Format('addl $%d, %%esp', [slotBytes]));
+    if newline then
+    begin
+      Emit('subl $16, %esp');
+      Emit(Format('movl $%s, (%%esp)', [GetStringLabel('%s' + #10)]));
+      Emit(Format('movl $%s, 4(%%esp)', [GetStringLabel('')]));
+      Emit('call printf');
+      Emit('addl $16, %esp');
+    end;
   end;
 end;
 
@@ -858,7 +1105,10 @@ begin
 
   try
     EmitDirective('.file "fxbase_output"');
-    EmitDirective('.code64');
+    if IsX86_64 then
+      EmitDirective('.code64')
+    else
+      EmitDirective('.code32');
     EmitDirective('.text');
 
     GenerateAllFunctions(IR);
@@ -885,23 +1135,50 @@ begin
   EmitDirective('.globl _start');
   EmitDirective('.type _start, @function');
   EmitLabel('_start');
-  Emit('movq (%rsp), %rax');             // argc (top of stack at entry)
-  Emit('movq %rax, __fx_argc_g(%rip)');  // save argc for ArgC()/ArgV()/Command()
-  Emit('leaq 8(%rsp), %rax');            // argv
-  Emit('movq %rax, __fx_argv_g(%rip)');
-  Emit('pushq %rbp');
-  Emit('movq %rsp, %rbp');
-  Emit('subq $8, %rsp');  // Align stack to 16 bytes before call
-  Emit('movq __fx_argc_g(%rip), %rdi');  // argc -> first Main param
-  Emit('movq __fx_argv_g(%rip), %rsi');  // argv -> second Main param
-  Emit('callq Main');
-  Emit('movq %rax, %rbx');     // Preserve exit code (rbx is callee-saved)
-  Emit('xorq %rdi, %rdi');     // fflush(NULL): flush all stdio buffers
-  Emit('callq fflush');
-  Emit('addq $8, %rsp');       // Restore stack
-  Emit('movq %rbx, %rdi');
-  Emit('movq $60, %rax');
-  Emit('syscall');
+
+  if IsX86_64 then
+  begin
+    Emit('movq (%rsp), %rax');             // argc (top of stack at entry)
+    Emit(Format('movq %%rax, %s', [RIP('__fx_argc_g')]));  // save argc for ArgC()/ArgV()/Command()
+    Emit('leaq 8(%rsp), %rax');            // argv
+    Emit(Format('movq %%rax, %s', [RIP('__fx_argv_g')]));
+    Emit('pushq %rbp');
+    Emit('movq %rsp, %rbp');
+    Emit('subq $8, %rsp');  // Align stack to 16 bytes before call
+    Emit(Format('movq %s, %%rdi', [RIP('__fx_argc_g')]));  // argc -> first Main param
+    Emit(Format('movq %s, %%rsi', [RIP('__fx_argv_g')]));  // argv -> second Main param
+    Emit('callq Main');
+    Emit('movq %rax, %rbx');     // Preserve exit code (rbx is callee-saved)
+    Emit('xorq %rdi, %rdi');     // fflush(NULL): flush all stdio buffers
+    Emit('callq fflush');
+    Emit('addq $8, %rsp');       // Restore stack
+    Emit('movq %rbx, %rdi');
+    Emit('movq $60, %rax');
+    Emit('syscall');
+  end
+  else
+  begin
+    // x86_32: argc at [esp]; argv at [esp+4]. cdecl: push argv, push argc, call Main.
+    Emit('movl (%esp), %eax');                     // argc
+    Emit(Format('movl %%eax, %s', [RIP('__fx_argc_g')]));
+    Emit('leal 4(%esp), %eax');                    // argv
+    Emit(Format('movl %%eax, %s', [RIP('__fx_argv_g')]));
+    Emit('pushl %ebp');
+    Emit('movl %esp, %ebp');
+    Emit('pushl %ebx');                            // callee-saved, holds exit code
+    Emit(Format('pushl %s', [RIP('__fx_argv_g')]));   // argv -> 2nd Main param
+    Emit(Format('pushl %s', [RIP('__fx_argc_g')]));   // argc -> 1st Main param
+    Emit('andl $0xFFFFFFF0, %esp');                   // align stack to 16 before call
+    Emit('call Main');
+    Emit('movl %eax, %ebx');                       // preserve exit code
+    Emit('movl $0, %eax');                        // fflush(NULL)
+    Emit('pushl %eax');
+    Emit('call fflush');
+    Emit('addl $4, %esp');
+    Emit('movl %ebx, %eax');                      // exit code
+    Emit('movl $1, %eax');                        // __NR_exit
+    Emit('int $0x80');
+  end;
   EmitDirective('.size _start, .-_start');
   Emit('');
 
@@ -922,17 +1199,35 @@ begin
   EmitDirective('.globl __fx_argc');
   EmitDirective('.type __fx_argc, @function');
   EmitLabel('__fx_argc');
-  Emit('movq __fx_argc_g(%rip), %rax');
-  Emit('ret');
+  if IsX86_64 then
+  begin
+    Emit(Format('movq %s, %%rax', [RIP('__fx_argc_g')]));
+    Emit('ret');
+  end
+  else
+  begin
+    Emit(Format('movl %s, %%eax', [RIP('__fx_argc_g')]));
+    Emit('ret');
+  end;
   EmitDirective('.size __fx_argc, .-__fx_argc');
   Emit('');
 
-  // ArgV(n): return argv[n] (n in %rdi)
+  // ArgV(n): return argv[n] (n in %rdi/%eax)
   EmitDirective('.globl __fx_argv');
   EmitDirective('.type __fx_argv, @function');
   EmitLabel('__fx_argv');
-  Emit('movq __fx_argv_g(%rip), %rax');
-  Emit('movq (%rax, %rdi, 8), %rax');
+  if IsX86_64 then
+  begin
+    Emit(Format('movq %s, %%rax', [RIP('__fx_argv_g')]));
+    Emit('movq (%rax, %rdi, 8), %rax');
+  end
+  else
+  begin
+    // index in [ebp+8] (first cdecl argument); element size 4 bytes
+    Emit('movl 8(%ebp), %eax');
+    Emit(Format('movl %s, %%edx', [RIP('__fx_argv_g')]));
+    Emit('movl (%edx, %eax, 4), %eax');
+  end;
   Emit('ret');
   EmitDirective('.size __fx_argv, .-__fx_argv');
   Emit('');
@@ -941,41 +1236,84 @@ begin
   EmitDirective('.globl __fx_command');
   EmitDirective('.type __fx_command, @function');
   EmitLabel('__fx_command');
-  Emit('pushq %rbp');
-  Emit('movq %rsp, %rbp');
-  Emit('pushq %rbx');
-  Emit('pushq %r12');
-  Emit('leaq __fx_cmd_buf(%rip), %rdi');    // dest buffer
-  Emit('movq __fx_argv_g(%rip), %rsi');     // argv
-  Emit('movq __fx_argc_g(%rip), %rcx');     // argc
-  Emit('xorl %edx, %edx');                  // i = 0
-  Emit('.Lcmd_loop:');
-  Emit('cmpl %edx, %ecx');
-  Emit('jle .Lcmd_done');
-  Emit('testl %edx, %edx');
-  Emit('je .Lcmd_copy');
-  Emit('movb $32, (%rdi)');                 // space separator
-  Emit('incq %rdi');
-  Emit('.Lcmd_copy:');
-  Emit('movq (%rsi, %rdx, 8), %r12');       // argv[i]
-  Emit('.Lcmd_copyloop:');
-  Emit('movb (%r12), %al');
-  Emit('testb %al, %al');
-  Emit('je .Lcmd_next');
-  Emit('movb %al, (%rdi)');
-  Emit('incq %rdi');
-  Emit('incq %r12');
-  Emit('jmp .Lcmd_copyloop');
-  Emit('.Lcmd_next:');
-  Emit('incq %rdx');
-  Emit('jmp .Lcmd_loop');
-  Emit('.Lcmd_done:');
-  Emit('movb $0, (%rdi)');                  // null-terminate
-  Emit('leaq __fx_cmd_buf(%rip), %rax');
-  Emit('popq %r12');
-  Emit('popq %rbx');
-  Emit('popq %rbp');
-  Emit('ret');
+  if IsX86_64 then
+  begin
+    Emit('pushq %rbp');
+    Emit('movq %rsp, %rbp');
+    Emit('pushq %rbx');
+    Emit('pushq %r12');
+    Emit(Format('leaq %s, %%rdi', [RIP('__fx_cmd_buf')]));   // dest buffer
+    Emit(Format('movq %s, %%rsi', [RIP('__fx_argv_g')]));    // argv
+    Emit(Format('movq %s, %%rcx', [RIP('__fx_argc_g')]));    // argc
+    Emit('xorl %edx, %edx');                  // i = 0
+    Emit('.Lcmd_loop:');
+    Emit('cmpl %edx, %ecx');
+    Emit('jle .Lcmd_done');
+    Emit('testl %edx, %edx');
+    Emit('je .Lcmd_copy');
+    Emit('movb $32, (%rdi)');                 // space separator
+    Emit('incq %rdi');
+    Emit('.Lcmd_copy:');
+    Emit('movq (%rsi, %rdx, 8), %r12');       // argv[i]
+    Emit('.Lcmd_copyloop:');
+    Emit('movb (%r12), %al');
+    Emit('testb %al, %al');
+    Emit('je .Lcmd_next');
+    Emit('movb %al, (%rdi)');
+    Emit('incq %rdi');
+    Emit('incq %r12');
+    Emit('jmp .Lcmd_copyloop');
+    Emit('.Lcmd_next:');
+    Emit('incq %rdx');
+    Emit('jmp .Lcmd_loop');
+    Emit('.Lcmd_done:');
+    Emit('movb $0, (%rdi)');                  // null-terminate
+    Emit(Format('leaq %s, %%rax', [RIP('__fx_cmd_buf')]));
+    Emit('popq %r12');
+    Emit('popq %rbx');
+    Emit('popq %rbp');
+    Emit('ret');
+  end
+  else
+  begin
+    Emit('pushl %ebp');
+    Emit('movl %esp, %ebp');
+    Emit('pushl %ebx');
+    Emit('pushl %ecx');
+    Emit('pushl %edx');
+    Emit(Format('leal %s, %%edi', [RIP('__fx_cmd_buf')]));   // dest buffer
+    Emit(Format('movl %s, %%esi', [RIP('__fx_argv_g')]));    // argv
+    Emit(Format('movl %s, %%ecx', [RIP('__fx_argc_g')]));    // argc
+    Emit('xorl %edx, %edx');                  // i = 0
+    Emit('.Lcmd_loop:');
+    Emit('cmpl %edx, %ecx');
+    Emit('jle .Lcmd_done');
+    Emit('testl %edx, %edx');
+    Emit('je .Lcmd_copy');
+    Emit('movb $32, (%edi)');                 // space separator
+    Emit('incl %edi');
+    Emit('.Lcmd_copy:');
+    Emit('movl (%esi, %edx, 4), %ebx');       // argv[i]
+    Emit('.Lcmd_copyloop:');
+    Emit('movb (%ebx), %al');
+    Emit('testb %al, %al');
+    Emit('je .Lcmd_next');
+    Emit('movb %al, (%edi)');
+    Emit('incl %edi');
+    Emit('incl %ebx');
+    Emit('jmp .Lcmd_copyloop');
+    Emit('.Lcmd_next:');
+    Emit('incl %edx');
+    Emit('jmp .Lcmd_loop');
+    Emit('.Lcmd_done:');
+    Emit('movb $0, (%edi)');                  // null-terminate
+    Emit(Format('leal %s, %%eax', [RIP('__fx_cmd_buf')]));
+    Emit('popl %edx');
+    Emit('popl %ecx');
+    Emit('popl %ebx');
+    Emit('popl %ebp');
+    Emit('ret');
+  end;
   EmitDirective('.size __fx_command, .-__fx_command');
 end;
 
@@ -984,14 +1322,16 @@ begin
   EmitDirective('.section .data');
   EmitDirective('.globl __fx_argc_g');
   EmitDirective('.type __fx_argc_g, @object');
-  EmitDirective('.size __fx_argc_g, 8');
+  if IsX86_64 then EmitDirective('.size __fx_argc_g, 8')
+  else EmitDirective('.size __fx_argc_g, 4');
   EmitLabel('__fx_argc_g');
-  EmitDirective('.quad 0');
+  if IsX86_64 then EmitDirective('.quad 0') else EmitDirective('.long 0');
   EmitDirective('.globl __fx_argv_g');
   EmitDirective('.type __fx_argv_g, @object');
-  EmitDirective('.size __fx_argv_g, 8');
+  if IsX86_64 then EmitDirective('.size __fx_argv_g, 8')
+  else EmitDirective('.size __fx_argv_g, 4');
   EmitLabel('__fx_argv_g');
-  EmitDirective('.quad 0');
+  if IsX86_64 then EmitDirective('.quad 0') else EmitDirective('.long 0');
   EmitDirective('.section .bss');
   EmitDirective('.globl __fx_cmd_buf');
   EmitDirective('.type __fx_cmd_buf, @object');

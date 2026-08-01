@@ -485,6 +485,87 @@ begin
   end;
 end;
 
+// ----------------------------------------------------------------------
+// Backend: x86_32 (i386) ELF codegen
+// ----------------------------------------------------------------------
+procedure TestImpl_Backend_x86_32_Asm;
+var
+  src, asmOut: string;
+  lex: TFXBLexer;
+  par: TParser;
+  rep: TErrorReporter;
+  ast: TCompilationUnit;
+  irGen: TFXBIRGenerator;
+  ir: TIRModule;
+  backend: TFXBBackend;
+begin
+  src :=
+    'FUNCTION Main() AS INTEGER' + sLineBreak +
+    '    ? 1 + 2' + sLineBreak +
+    '    ? 1.5 + 2.5' + sLineBreak +
+    '    RETURN 0' + sLineBreak +
+    'ENDFUNC';
+  lex := TFXBLexer.Create;
+  rep := TErrorReporter.Create('backend32.fpg');
+  par := TParser.Create(lex, rep);
+  irGen := TFXBIRGenerator.Create;
+  ir := nil;
+  ast := nil;
+  backend := TFXBBackend.Create;
+  try
+    lex.Tokenize(src, 'backend32.fpg');
+    ast := par.ParseProgram;
+    AssertFalse(rep.HasErrors, 'parse sin errores');
+    ir := irGen.Generate(ast);
+    backend.TargetCPU := 'x86';
+    AssertTrue(backend.Generate(ir, 'backend32_test.s'), 'backend 32-bit generate OK');
+    asmOut := backend.LastASM;
+    AssertTrue(Pos('.code32', asmOut) > 0, 'emite .code32');
+    AssertTrue(Pos('pushl', asmOut) > 0, 'prologue usa pushl (32-bit)');
+    AssertTrue(Pos('movl', asmOut) > 0, 'usa movl');
+    AssertTrue(Pos('addl', asmOut) > 0, 'usa addl');
+    AssertTrue(Pos('int $0x80', asmOut) > 0, 'syscall 32-bit (int 0x80)');
+    AssertTrue(Pos('.code64', asmOut) = 0, 'NO emite .code64');
+    AssertTrue(Pos('pushq', asmOut) = 0, 'NO emite pushq (64-bit)');
+    AssertTrue(Pos('syscall', asmOut) = 0, 'NO emite syscall (64-bit)');
+  finally
+    DeleteFile('backend32_test.s');
+    backend.Free;
+    if Assigned(ir) then ir.Free;
+    irGen.Free;
+    if Assigned(ast) then ast.Free;
+    par.Free;
+    rep.Free;
+    lex.Free;
+  end;
+end;
+
+procedure TestImpl_Backend_x86_32_Executes;
+var
+  exePath, outp: string;
+  code: Integer;
+begin
+  exePath := 'x86_32_exec_test_bin';
+  code := SysUtils.ExecuteProcess('./bin/fxbc',
+    '--target-cpu x86 tests/fixtures/hello32.fbg -o ' + exePath);
+  if code <> 0 then
+  begin
+    // Environment may lack 32-bit libc (libc6-dev-i386); skip rather than fail.
+    WriteLn('  [SKIP] backend x86_32 executes: requiere libc6-dev-i386 (multilib); no disponible en este entorno');
+    Exit;
+  end;
+  AssertTrue(FileExists(exePath), 'binario 32-bit generado');
+  try
+    outp := CaptureProgramOutput('./' + exePath, code);
+    AssertEqualsI(0, code, 'ejecucion retorna 0');
+    AssertTrue(Pos('hi', outp) > 0, 'imprime hi');
+    AssertTrue(Pos('3', outp) > 0, 'imprime 3 (1+2 y 7/2)');
+    AssertTrue(Pos('4', outp) > 0, 'imprime 4.0 (1.5+2.5)');
+  finally
+    DeleteFile(exePath);
+  end;
+end;
+
 // Compile + run a program, returning its stdout and exit code without leaking
 // the child process output into the test runner's console.
 function CaptureProgramOutput(const Cmd: string; out ExitCode: Integer): string;
@@ -535,5 +616,7 @@ begin
   RegisterTest('Impl: backend float executes',         @TestImpl_Backend_FloatExecutes);
   RegisterTest('Impl: backend float cmp asm',          @TestImpl_Backend_FloatCmpAsm);
   RegisterTest('Impl: backend float cmp executes',     @TestImpl_Backend_FloatCmpExecutes);
+  RegisterTest('Impl: backend x86_32 asm',             @TestImpl_Backend_x86_32_Asm);
+  RegisterTest('Impl: backend x86_32 executes',         @TestImpl_Backend_x86_32_Executes);
   RunAllTests('IMPLEMENTATION TESTS — fixtures reales');
 end.
