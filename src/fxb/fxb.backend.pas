@@ -1038,7 +1038,10 @@ begin
       Emit('addq $32, %rsp');
     end
     else
+    begin
+      Emit('andq $0xFFFFFFFFFFFFFFF0, %rsp');  // align stack for the printf call
       Emit('callq printf');
+    end;
     if newline then
     begin
       fmtLabel := GetStringLabel('%s' + #10);
@@ -1052,7 +1055,10 @@ begin
         Emit('addq $32, %rsp');
       end
       else
+      begin
+        Emit('andq $0xFFFFFFFFFFFFFFF0, %rsp');  // align stack for the printf call
         Emit('callq printf');
+      end;
     end;
   end
   else
@@ -1185,7 +1191,11 @@ begin
     table := Instr.Metadata.Values['table'];
     field := Instr.Metadata.Values['field'];
     vals := ConstToSQL(Instr.GetOperand(0));
-    sql := 'UPDATE ' + table + ' SET ' + field + ' = ' + vals;
+    // Scope the UPDATE to the row most recently inserted by the preceding
+    // APPEND (xBASE REPLACE acts on the current record). Without a cursor we
+    // key on rowid = last_insert_rowid() for the open connection.
+    sql := 'UPDATE ' + table + ' SET ' + field + ' = ' + vals +
+           ' WHERE rowid = (SELECT last_insert_rowid())';
     EmitDBCall(sql, 'fxb_sqlite_exec');
   end;
 end;
@@ -1384,6 +1394,12 @@ begin
     Emit('xorq %rdi, %rdi');     // fflush(NULL): flush all stdio buffers
     EmitCall('fflush');
     Emit('addq $8, %rsp');       // Restore stack
+    // Close the SQLite connection if the DB runtime was linked in (no-op when nil).
+    if (FDBDriver = 'sqlite') or (FDBConnection <> '') then
+    begin
+      Emit('andq $0xFFFFFFFFFFFFFFF0, %rsp');  // align before the runtime call
+      EmitCall('fxb_sqlite_close');
+    end;
     Emit('movq %rbx, %rdi');
     Emit('movq $60, %rax');
     Emit('syscall');
@@ -1407,6 +1423,10 @@ begin
     Emit('pushl %eax');
     EmitCall('fflush');
     Emit('addl $4, %esp');
+    if (FDBDriver = 'sqlite') or (FDBConnection <> '') then
+    begin
+      Emit('call fxb_sqlite_close');
+    end;
     Emit('movl %ebx, %eax');                      // exit code
     Emit('movl $1, %eax');                        // __NR_exit
     Emit('int $0x80');
