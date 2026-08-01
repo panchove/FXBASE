@@ -7,6 +7,7 @@ interface
 uses
   SysUtils,
   Classes,
+  BaseUnix,
   fxb.tokens,
   fxb.lexer,
   fxb.parser,
@@ -52,6 +53,7 @@ type
     procedure ShowHelp;
     procedure ShowVersion;
     function CompileFile(const AFileName: string): Boolean;
+    function AssembleAndLink(const AsmFile, OutputFile: string): Boolean;
     procedure RunExecutable;
     procedure RunTests;
     procedure LintFile;
@@ -86,6 +88,48 @@ begin
   FIncludePaths.Free;
   FDefines.Free;
   inherited Destroy;
+end;
+
+function ExecuteProcess(const Program_: string; const Args: string): Integer;
+var
+  argList: TStringList;
+  argv: array of PChar;
+  pArgv: PPChar;
+  i: Integer;
+  pid: TPid;
+  status: cInt;
+begin
+  Result := -1;
+  argList := TStringList.Create;
+  try
+    argList.Delimiter := ' ';
+    argList.StrictDelimiter := True;
+    argList.DelimitedText := Args;
+    SetLength(argv, argList.Count + 2);
+    argv[0] := PChar(Program_);
+    for i := 0 to argList.Count - 1 do
+      argv[i + 1] := PChar(argList[i]);
+    argv[argList.Count + 1] := nil;
+    pArgv := @argv[0];
+
+    pid := FpFork;
+    case pid of
+      -1:
+        Exit; // fork failed
+      0:
+        begin
+          // Child: exec, then exit with error if it fails
+          FpExecV(PChar(Program_), pArgv);
+          FpExit(127);
+        end;
+      else
+        // Parent: wait for child
+        if FpWaitPid(pid, status, 0) = pid then
+          Result := WEXITSTATUS(status);
+    end;
+  finally
+    argList.Free;
+  end;
 end;
 
 procedure TFXCLI.SetDefaults;
@@ -355,7 +399,9 @@ begin
   end;
 
   if not CompileFile(FInputFile) then
+  begin
     Halt(1);
+  end;
 
   if FRunAfterBuild and (FOutputType = 'exe') then
     RunExecutable;
@@ -385,6 +431,7 @@ var
   ppo: TFXBPPO;
   source: string;
   outputFile: string;
+  asmFile: string;
   sl: TStringList;
   line: string;
   err: TFXBLexerError;
@@ -401,7 +448,7 @@ begin
   if FVerbose then
     WriteLn('Compiling: ', AFileName);
 
-  sl := TStringList.Create;
+sl := TStringList.Create;
   try
     sl.LoadFromFile(AFileName);
     source := '';
@@ -410,6 +457,8 @@ begin
   finally
     sl.Free;
   end;
+
+  outputFile := DetermineOutputFile(AFileName);
 
   ppo := TFXBPPO.Create;
   try
@@ -501,7 +550,9 @@ begin
   end;
 
   if FDumpIR then
+  begin
     DumpIR(ir);
+  end;
 
   backend := TFXBBackend.Create;
   try
@@ -512,12 +563,19 @@ begin
     backend.DebugInfo := FDebug;
     backend.DBDriver := FDBDriver;
     backend.DBConnection := FDBConnection;
-    outputFile := DetermineOutputFile(AFileName);
-    if not backend.Generate(ir, outputFile) then
+    // Generate assembly to temp file
+    asmFile := outputFile + '.s';
+    if not backend.Generate(ir, asmFile) then
     begin
       WriteLn(StdErr, 'Backend errors:');
       for msg in backend.Errors do
         WriteLn(StdErr, '  ', DumpMessage(msg));
+      Exit;
+    end;
+    // Assemble and link
+    if not AssembleAndLink(asmFile, outputFile) then
+    begin
+      WriteLn(StdErr, 'Assembly/Link failed');
       Exit;
     end;
   finally
@@ -525,7 +583,15 @@ begin
   end;
 
   if FDumpASM then
-    DumpASM(backend.LastASM);
+    begin
+      sl := TStringList.Create;
+      try
+        sl.LoadFromFile(asmFile);
+        DumpASM(sl.Text);
+      finally
+        sl.Free;
+      end;
+    end;
 
   if FVerbose then
     WriteLn('Output: ', outputFile);
@@ -553,6 +619,34 @@ begin
     else
       Result := Result + '.exe';
   end;
+end;
+
+function TFXCLI.AssembleAndLink(const AsmFile, OutputFile: string): Boolean;
+var
+  exitCode: Integer;
+begin
+  Result := False;
+  // Assemble
+  if FVerbose then
+    WriteLn('Assembling: /usr/bin/as -o ', ChangeFileExt(OutputFile, '.o'), ' ', AsmFile);
+  exitCode := ExecuteProcess('/usr/bin/as', Format('-o %s.o %s', [ChangeFileExt(OutputFile, ''), AsmFile]));
+  if exitCode <> 0 then
+  begin
+    WriteLn(StdErr, 'Assembly failed with code: ', exitCode);
+    Exit;
+  end;
+
+  // Link
+  exitCode := ExecuteProcess('/usr/bin/ld', Format('-o %s %s.o -lc -dynamic-linker /lib64/ld-linux-x86-64.so.2 -e _start', [OutputFile, ChangeFileExt(OutputFile, '')]));
+  if exitCode <> 0 then
+  begin
+    WriteLn(StdErr, 'Link failed with code: ', exitCode);
+    Exit;
+  end;
+
+  // Clean up object file
+  DeleteFile(ChangeFileExt(OutputFile, '.o'));
+  Result := True;
 end;
 
 procedure TFXCLI.RunExecutable;

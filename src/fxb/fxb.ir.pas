@@ -26,6 +26,7 @@ type
   TIRLocal = fxb.ir.instr.TIRLocal;
   TIRGlobal = fxb.ir.instr.TIRGlobal;
   TIRInstruction = fxb.ir.instr.TIRInstruction;
+  TIRInstructionKind = fxb.ir.instr.TIRInstructionKind;
   TIRBlock = fxb.ir.instr.TIRBlock;
   TIRFunction = fxb.ir.instr.TIRFunction;
   TIRModule = fxb.ir.instr.TIRModule;
@@ -117,6 +118,11 @@ type
     procedure ReportError(Code: Integer; const Msg: string; Line, Col: Integer);
     procedure ReportErrorNode(Node: TASTNode; Code: Integer; const Msg: string);
 
+    // Optimization passes
+    procedure RunConstantFolding;
+    function FoldBinaryOp(Kind: TIRInstructionKind; Left, Right: TIRConstant; ResultType: TIRType): TIRConstant;
+    procedure RunDeadCodeElimination;
+
   public
     property TargetOS: string read FTargetOS write FTargetOS;
     property TargetCPU: string read FTargetCPU write FTargetCPU;
@@ -143,11 +149,180 @@ begin
   FTypeCache := TStringList.Create;
   try
     LowerCompilationUnit(AST);
+    if FOptimizationLevel > 0 then
+    begin
+      RunConstantFolding;
+      RunDeadCodeElimination;
+    end;
     FModule.Verify;
     Result := FModule;
   finally
     FLocalVarMap.Free;
     FTypeCache.Free;
+  end;
+end;
+
+procedure TFXBIRGenerator.RunConstantFolding;
+var
+  fn: TIRFunction;
+  blk: TIRBlock;
+  fnIdx, blkIdx, instrIdx: Integer;
+  instr: TIRInstruction;
+  left, right: TIRValue;
+  constLeft, constRight: TIRConstant;
+  newConst: TIRConstant;
+  resultVal: TIRValue;
+begin
+  for fnIdx := 0 to FModule.Functions.Count - 1 do
+  begin
+    fn := TIRFunction(FModule.Functions[fnIdx]);
+    for blkIdx := 0 to fn.Blocks.Count - 1 do
+    begin
+      blk := TIRBlock(fn.Blocks[blkIdx]);
+      instrIdx := 0;
+      while instrIdx < blk.Instructions.Count do
+      begin
+        instr := TIRInstruction(blk.Instructions[instrIdx]);
+        // Only fold binary operations with constant operands
+        if instr.IsBinaryOp and (instr.OperandCount >= 2) then
+        begin
+          left := instr.GetOperand(0);
+          right := instr.GetOperand(1);
+          if (left is TIRConstant) and (right is TIRConstant) then
+          begin
+            constLeft := TIRConstant(left);
+            constRight := TIRConstant(right);
+            newConst := FoldBinaryOp(instr.Kind, constLeft, constRight, instr.Type_);
+            if Assigned(newConst) then
+            begin
+              // Replace the instruction with the constant
+              resultVal := newConst;
+              instr.ReplaceAllUsesWith(resultVal);
+              instr.EraseFromBlock;
+              Dec(instrIdx); // Re-check this index since we removed an instruction
+            end;
+          end;
+        end;
+        Inc(instrIdx);
+      end;
+    end;
+  end;
+end;
+
+function TFXBIRGenerator.FoldBinaryOp(Kind: TIRInstructionKind; Left, Right: TIRConstant; ResultType: TIRType): TIRConstant;
+var
+  lInt, rInt: Int64;
+  lUInt, rUInt: UInt64;
+  lReal, rReal: Double;
+  lBool, rBool: Boolean;
+  resInt: Int64;
+  resUInt: UInt64;
+  resReal: Double;
+  resBool: Boolean;
+  overflow: Boolean;
+begin
+  Result := nil;
+  overflow := False;
+
+  // Handle integer constants
+  if (Left.Type_.Kind in [tkInt8, tkInt16, tkInt32, tkInt64, tkUInt8, tkUInt16, tkUInt32, tkUInt64]) and
+     (Right.Type_.Kind in [tkInt8, tkInt16, tkInt32, tkInt64, tkUInt8, tkUInt16, tkUInt32, tkUInt64]) then
+  begin
+    lInt := Left.IntVal;
+    rInt := Right.IntVal;
+    lUInt := Left.UIntVal;
+    rUInt := Right.UIntVal;
+
+    case Kind of
+      ikAdd: resInt := lInt + rInt;
+      ikSub: resInt := lInt - rInt;
+      ikMul: resInt := lInt * rInt;
+      ikDiv:
+        if rInt <> 0 then resInt := lInt div rInt else Exit(nil);
+      ikRem:
+        if rInt <> 0 then resInt := lInt mod rInt else Exit(nil);
+      ikShl: resInt := lInt shl rInt;
+      ikShr: resInt := lInt shr rInt;
+      ikAnd: resInt := lInt and rInt;
+      ikOr:  resInt := lInt or rInt;
+      ikXor: resInt := lInt xor rInt;
+      else Exit(nil);
+    end;
+
+    Result := TIRConstant.CreateInt(ResultType, resInt, 'const.folded');
+    Exit;
+  end;
+
+  // Handle float constants
+  if (Left.Type_.Kind in [tkFloat32, tkFloat64]) and (Right.Type_.Kind in [tkFloat32, tkFloat64]) then
+  begin
+    lReal := Left.RealVal;
+    rReal := Right.RealVal;
+
+    case Kind of
+      ikAdd: resReal := lReal + rReal;
+      ikSub: resReal := lReal - rReal;
+      ikMul: resReal := lReal * rReal;
+      ikDiv:
+        if rReal <> 0.0 then resReal := lReal / rReal else Exit(nil);
+      else Exit(nil);
+    end;
+
+    Result := TIRConstant.CreateReal(ResultType, resReal, 'const.folded');
+    Exit;
+  end;
+
+  // Handle boolean/logical constants
+  if (Left.Type_.Kind = tkBool) and (Right.Type_.Kind = tkBool) then
+  begin
+    lBool := Left.BoolVal;
+    rBool := Right.BoolVal;
+
+    case Kind of
+      ikAnd: resBool := lBool and rBool;
+      ikOr:  resBool := lBool or rBool;
+      ikXor: resBool := lBool xor rBool;
+      else Exit(nil);
+    end;
+
+    Result := TIRConstant.CreateBool(ResultType, resBool, 'const.folded');
+    Exit;
+  end;
+end;
+
+procedure TFXBIRGenerator.RunDeadCodeElimination;
+var
+  fn: TIRFunction;
+  blk: TIRBlock;
+  fnIdx, blkIdx, instrIdx: Integer;
+  instr: TIRInstruction;
+  hasTerminator: Boolean;
+begin
+  for fnIdx := 0 to FModule.Functions.Count - 1 do
+  begin
+    fn := TIRFunction(FModule.Functions[fnIdx]);
+    for blkIdx := 0 to fn.Blocks.Count - 1 do
+    begin
+      blk := TIRBlock(fn.Blocks[blkIdx]);
+      hasTerminator := False;
+      instrIdx := 0;
+      while instrIdx < blk.Instructions.Count do
+      begin
+        instr := TIRInstruction(blk.Instructions[instrIdx]);
+        if instr.IsTerminator then
+        begin
+          hasTerminator := True;
+          // Remove all instructions after terminator
+          while (instrIdx + 1) < blk.Instructions.Count do
+          begin
+            TIRInstruction(blk.Instructions[instrIdx + 1]).EraseFromBlock;
+          end;
+          Break;
+        end;
+        Inc(instrIdx);
+      end;
+      // Remove empty blocks that are not entry and have no predecessors (optional)
+    end;
   end;
 end;
 
