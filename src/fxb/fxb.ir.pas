@@ -55,6 +55,7 @@ type
     FNextBlockId: Integer;
     FTypeCache: TStringList;
     FPendingPredicate: string;
+    FPrependStmts: array of TASTNode;
 
     function GetIRType(const TypeName: string): TIRType;
     function GetIRTypeFromToken(AToken: TToken): TIRType;
@@ -98,6 +99,7 @@ type
     procedure LowerReturn(Stmt: TReturnStmt);
     procedure LowerYield(Stmt: TYieldStmt);
     procedure LowerLoopCtrl(Stmt: TLoopCtrlStmt);
+    procedure LowerImplicitMain(Statements: array of TASTNode);
     function LowerExpression(Expr: TExpr): TIRValue;
     function LowerLiteral(Expr: TLiteralExpr): TIRValue;
     function LowerIdentifier(Expr: TIdentifierExpr): TIRValue;
@@ -524,7 +526,29 @@ procedure TFXBIRGenerator.LowerCompilationUnit(AST: TCompilationUnit);
 var
   i: Integer;
   node: TASTNode;
+  topLevel: array of TASTNode;
+  hasMain: Boolean;
 begin
+  hasMain := False;
+  for i := 0 to AST.Count - 1 do
+  begin
+    node := AST.Nodes[i];
+    if (node is TFunctionDef) and (TFunctionDef(node).Name = 'Main') then
+      hasMain := True
+    else if (node is TProcedureDef) and (TProcedureDef(node).Name = 'Main') then
+      hasMain := True
+    else if (node is TClassDef) or (node is TStructDef) or (node is TNewTypeDef) then
+      Continue
+    else
+    begin
+      SetLength(topLevel, Length(topLevel) + 1);
+      topLevel[High(topLevel)] := node;
+    end;
+  end;
+
+  if hasMain then
+    FPrependStmts := topLevel;
+
   for i := 0 to AST.Count - 1 do
   begin
     node := AST.Nodes[i];
@@ -538,9 +562,11 @@ begin
       LowerStructDef(TStructDef(node))
     else if node is TNewTypeDef then
       LowerNewTypeDef(TNewTypeDef(node))
-    else
-      LowerStatement(node);
   end;
+
+  if (not hasMain) and (Length(topLevel) > 0) then
+    LowerImplicitMain(topLevel);
+  FPrependStmts := nil;
 end;
 
 procedure TFXBIRGenerator.LowerFunctionDef(Func: TFunctionDef);
@@ -563,6 +589,10 @@ begin
     fn.AddArgument(GetIRType(paramType), paramName);
     FLocalVarMap.AddObject(paramName, fn.Arguments[i]);
   end;
+
+  if (Func.Name = 'Main') and (Length(FPrependStmts) > 0) then
+    for i := 0 to High(FPrependStmts) do
+      LowerStatement(FPrependStmts[i]);
 
   for i := 0 to High(Func.Body) do
     LowerStatement(Func.Body[i]);
@@ -593,8 +623,31 @@ begin
     FLocalVarMap.AddObject(paramName, fn.Arguments[i]);
   end;
 
+  if (Proc.Name = 'Main') and (Length(FPrependStmts) > 0) then
+    for i := 0 to High(FPrependStmts) do
+      LowerStatement(FPrependStmts[i]);
+
   for i := 0 to High(Proc.Body) do
     LowerStatement(Proc.Body[i]);
+
+  if (FCurrentBlock <> nil) and not FCurrentBlock.IsTerminated then
+    EmitInstr(TIRInstruction.Create(ikRet, TIRType.Void, ''));
+
+  FCurrentFunction := nil;
+  FCurrentBlock := nil;
+end;
+
+procedure TFXBIRGenerator.LowerImplicitMain(Statements: array of TASTNode);
+var
+  fn: TIRFunction;
+  i: Integer;
+begin
+  fn := FModule.AddFunction('Main', TIRType.Int(True, 32));
+  FCurrentFunction := fn;
+  FCurrentBlock := fn.EntryBlock;
+
+  for i := 0 to High(Statements) do
+    LowerStatement(Statements[i]);
 
   if (FCurrentBlock <> nil) and not FCurrentBlock.IsTerminated then
     EmitInstr(TIRInstruction.Create(ikRet, TIRType.Void, ''));

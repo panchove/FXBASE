@@ -3,7 +3,7 @@ program test_ir;
 {$mode delphi}{$H+}
 
 uses
-  SysUtils, Classes,
+  SysUtils, Classes, StrUtils,
   fxb.tokens, fxb.lexer, fxb.parser, fxb.ast, fxb.errors, fxb.ir,
   fxb.test.framework;
 
@@ -17,6 +17,19 @@ begin
     Result := sl.Text;
   finally
     sl.Free;
+  end;
+end;
+
+function CountSubstring(const AText, ASub: string): Integer;
+var
+  p: Integer;
+begin
+  Result := 0;
+  p := Pos(ASub, AText);
+  while p > 0 do
+  begin
+    Inc(Result);
+    p := PosEx(ASub, AText, p + Length(ASub));
   end;
 end;
 
@@ -331,6 +344,59 @@ begin
   end;
 end;
 
+procedure TestIR_ImplicitMain;
+var
+  src: string;
+  dump: string;
+  irGen: TFXBIRGenerator;
+  ir: TIRModule;
+  lexErr, parseErr: Integer;
+begin
+  src :=
+    '? "hi"' + sLineBreak +
+    '? 42';
+  irGen := Compile(src, 'implicit.fpg', ir, lexErr, parseErr);
+  try
+    AssertEqualsI(0, lexErr, 'no lexer errors');
+    AssertEqualsI(0, parseErr, 'no parser errors');
+    AssertNotNil(ir, 'IR produced');
+    dump := ir.Dump;
+    AssertTrue(Pos('@Main', dump) > 0, 'implicit Main created');
+    AssertTrue(Pos('ikRet', dump) > 0, 'ikRet terminates implicit Main');
+  finally
+    ir.Free;
+    irGen.Free;
+  end;
+end;
+
+procedure TestIR_TopLevelPrependedToMain;
+var
+  src: string;
+  dump: string;
+  irGen: TFXBIRGenerator;
+  ir: TIRModule;
+  lexErr, parseErr: Integer;
+begin
+  src :=
+    '? "top"' + sLineBreak +
+    'FUNCTION Main()' + sLineBreak +
+    ' ? "main"' + sLineBreak +
+    'ENDFUNC';
+  irGen := Compile(src, 'prepend.fpg', ir, lexErr, parseErr);
+  try
+    AssertEqualsI(0, lexErr, 'no lexer errors');
+    AssertEqualsI(0, parseErr, 'no parser errors');
+    AssertNotNil(ir, 'IR produced');
+    dump := ir.Dump;
+    AssertTrue(Pos('@Main', dump) > 0, 'explicit Main preserved');
+    AssertTrue(Pos('ikPrint', dump) > 0, 'top-level lowered inside Main');
+    AssertTrue(CountSubstring(dump, '@Main(') = 1, 'no duplicate Main');
+  finally
+    ir.Free;
+    irGen.Free;
+  end;
+end;
+
 begin
   RegisterTest('IR: empty function produces Main with entry block', @TestIR_EmptyFunction);
   RegisterTest('IR: function with 2 locals', @TestIR_FunctionWithLocals);
@@ -342,5 +408,7 @@ begin
   RegisterTest('IR: binary op emits corresponding instruction', @TestIR_BinOpTypes);
   RegisterTest('IR: ?/?? emit ikPrint with newline metadata', @TestIR_Print);
   RegisterTest('IR: target triple reflects TargetOS/TargetCPU', @TestIR_TargetTriple);
+  RegisterTest('IR: bare top-level statements create implicit Main', @TestIR_ImplicitMain);
+  RegisterTest('IR: top-level statements prepended to explicit Main', @TestIR_TopLevelPrependedToMain);
   RunAllTests('IR TESTS — AST-driven lowering');
 end.
