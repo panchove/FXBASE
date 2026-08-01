@@ -18,8 +18,8 @@ VERSION := $(shell cat VERSION 2>/dev/null || echo 0.0.0)
 all: fxbc
 
 # Main compiler
-fxbc: $(BUILD_DIR) $(BIN_DIR)
-	$(FPC) $(FPCFLAGS) -o$(BIN_DIR)/fxbc $(SRC_DIR)/fxb/fxb.lpr
+fxbc: $(BUILD_DIR) $(BIN_DIR) lib/libsqlite3.so
+	$(FPC) $(FPCFLAGS) -Fllib -k-lsqlite3 -k--dynamic-linker=/lib64/ld-linux-x86-64.so.2 -o$(BIN_DIR)/fxbc $(SRC_DIR)/fxb/fxb.lpr
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
