@@ -777,6 +777,11 @@ begin
           kwClass, kwFunction, kwProcedure: Exit(ParseTopLevel);
           kwStruct: Exit(ParseStructDef);
           kwNewType: Exit(ParseNewTypeDef);
+          kwEndIf, kwEndDo, kwEndFunc, kwEndFunction,
+          kwEndProc, kwEndProcedure, kwEndClass, kwEndStruct,
+          kwEndNewType, kwEndFor, kwNext, kwEndForEach,
+          kwEndSwitch, kwEndCase, kwEndTry, kwEndWith:
+            Exit(nil);
           else
             Error('Unexpected keyword ' + KeywordNames[FCurrent.Keyword]);
             Advance;
