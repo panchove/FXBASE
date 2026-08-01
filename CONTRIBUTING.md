@@ -4,17 +4,40 @@ Thank you for your interest in contributing to FXBASE! This document outlines th
 
 ## Table of Contents
 
-- [Code of Conduct](#code-of-conduct)
-- [Getting Started](#getting-started)
-- [Development Environment](#development-environment)
-- [Building the Project](#building-the-project)
-- [Running Tests](#running-tests)
-- [Code Style and Conventions](#code-style-and-conventions)
-- [Commit Guidelines](#commit-guidelines)
-- [Pull Request Process](#pull-request-process)
-- [Issue Reporting](#issue-reporting)
-- [Architecture Overview](#architecture-overview)
-- [Known Issues](#known-issues)
+- [Contributing to FXBASE](#contributing-to-fxbase)
+  - [Table of Contents](#table-of-contents)
+  - [Code of Conduct](#code-of-conduct)
+  - [Getting Started](#getting-started)
+    - [Prerequisites](#prerequisites)
+    - [Fork and Clone](#fork-and-clone)
+  - [Development Environment](#development-environment)
+    - [Compiler Modes](#compiler-modes)
+    - [Project Structure](#project-structure)
+    - [Entry Point](#entry-point)
+  - [Building the Project](#building-the-project)
+    - [Non-Debian/Ubuntu Systems](#non-debianubuntu-systems)
+  - [Running Tests](#running-tests)
+    - [Test Framework](#test-framework)
+    - [Coverage Thresholds (CI)](#coverage-thresholds-ci)
+  - [Code Style and Conventions](#code-style-and-conventions)
+    - [Pascal Coding Standards](#pascal-coding-standards)
+    - [Language Conventions (FXBASE)](#language-conventions-fxbase)
+    - [File Organization](#file-organization)
+  - [Commit Guidelines](#commit-guidelines)
+    - [Message Format](#message-format)
+    - [Area Prefixes](#area-prefixes)
+    - [Rules](#rules)
+  - [Pull Request Process](#pull-request-process)
+  - [Issue Reporting](#issue-reporting)
+    - [Before Filing](#before-filing)
+    - [Bug Reports](#bug-reports)
+    - [Feature Requests](#feature-requests)
+  - [Architecture Overview](#architecture-overview)
+    - [Compiler Pipeline](#compiler-pipeline)
+    - [Key Units](#key-units)
+  - [Known Issues](#known-issues)
+  - [Resources](#resources)
+  - [License](#license)
 
 ---
 
@@ -55,7 +78,7 @@ git remote add upstream https://github.com/ORIGINAL_OWNER/fxbase.git
 
 ### Project Structure
 
-```
+```text
 fxbase/
 ├── src/
 │   └── fxb/                # Compiler source (fxb.*.pas, fxb.lpr)
@@ -113,16 +136,16 @@ FPCFLAGS := -n -Mobjfpc -O2 -gl -vewnhi \
 
 ## Running Tests
 
-| Suite | Command | Binary |
-|-------|---------|--------|
-| Unit | `make test-unit` | `bin/test_tokens`, `bin/test_lexer`, `bin/test_sqlite` |
-| Integration | `make test-integration` | `bin/test_pipeline` |
-| Implementation | `make test-implementation` | `bin/test_impl` |
-| IR | `make test-ir` | `bin/test_ir` |
-| **All** | `make test` | Stops on first failure |
-| Coverage (heuristic) | `make test-coverage` | `build/coverage_report.txt` |
-| Coverage (real, gcov/lcov) | `make test-coverage-real` | `coverage_html/` |
-| Quality metrics | `make test-quality` | — |
+| Suite                      | Command                    | Binary                                                 |
+|----------------------------|----------------------------|--------------------------------------------------------|
+| Unit                       | `make test-unit`           | `bin/test_tokens`, `bin/test_lexer`, `bin/test_sqlite` |
+| Integration                | `make test-integration`    | `bin/test_pipeline`                                    |
+| Implementation             | `make test-implementation` | `bin/test_impl`                                        |
+| IR                         | `make test-ir`             | `bin/test_ir`                                          |
+| **All**                    | `make test`                | Stops on first failure                                 |
+| Coverage (heuristic)       | `make test-coverage`       | `build/coverage_report.txt`                            |
+| Coverage (real, gcov/lcov) | `make test-coverage-real`  | `coverage_html/`                                       |
+| Quality metrics            | `make test-quality`        | —                                                      |
 
 ### Test Framework
 
@@ -167,7 +190,7 @@ FPCFLAGS := -n -Mobjfpc -O2 -gl -vewnhi \
 
 ### Message Format
 
-```
+```text
 [Area] Brief description of change
 
 Longer explanation if needed (why, not what).
@@ -175,22 +198,22 @@ Longer explanation if needed (why, not what).
 
 ### Area Prefixes
 
-| Prefix | Area |
-|--------|------|
-| `[Lexer]` | Tokenizer / lexical analysis |
-| `[Parser]` | Syntax analysis / AST construction |
-| `[AST]` | Abstract syntax tree nodes |
-| `[IR]` | Intermediate representation / lowering |
-| `[Backend]` | Code generation / native backend |
-| `[Preprocessor]` | `#include`, `#define`, `#command`, etc. |
-| `[CLI]` | Command-line interface |
-| `[Tests]` | Test suite changes |
-| `[Docs]` | Documentation updates |
-| `[Build]` | Makefile / build system |
-| `[Infra]` | CI, tooling, scripts |
-| `[Refactor]` | Code restructuring without behavior change |
-| `[Fix]` | Bug fix |
-| `[Feat]` | New feature |
+| Prefix           | Area                                       |
+|------------------|--------------------------------------------|
+| `[Lexer]`        | Tokenizer / lexical analysis               |
+| `[Parser]`       | Syntax analysis / AST construction         |
+| `[AST]`          | Abstract syntax tree nodes                 |
+| `[IR]`           | Intermediate representation / lowering     |
+| `[Backend]`      | Code generation / native backend           |
+| `[Preprocessor]` | `#include`, `#define`, `#command`, etc.    |
+| `[CLI]`          | Command-line interface                     |
+| `[Tests]`        | Test suite changes                         |
+| `[Docs]`         | Documentation updates                      |
+| `[Build]`        | Makefile / build system                    |
+| `[Infra]`        | CI, tooling, scripts                       |
+| `[Refactor]`     | Code restructuring without behavior change |
+| `[Fix]`          | Bug fix                                    |
+| `[Feat]`         | New feature                                |
 
 ### Rules
 
@@ -204,6 +227,7 @@ Longer explanation if needed (why, not what).
 ## Pull Request Process
 
 1. **Create a feature branch** from `main`:
+
    ```bash
    git checkout -b feat/my-feature main
    ```
@@ -211,6 +235,7 @@ Longer explanation if needed (why, not what).
 2. **Make your changes** following the code style guidelines
 
 3. **Run the full test suite**:
+
    ```bash
    make test
    make test-coverage
@@ -222,6 +247,7 @@ Longer explanation if needed (why, not what).
 5. **Update documentation** if needed (README, docs/, code comments)
 
 6. **Push and open a PR** against `main`:
+
    ```bash
    git push origin feat/my-feature
    ```
@@ -253,6 +279,7 @@ Longer explanation if needed (why, not what).
 ### Bug Reports
 
 Include:
+
 - **FXBASE version** (`./bin/fxbc --version`)
 - **OS / Architecture** (e.g., `Ubuntu 22.04 x86_64`)
 - **FPC version** (`fpc -iV`)
@@ -263,6 +290,7 @@ Include:
 ### Feature Requests
 
 Include:
+
 - **Motivation**: What problem does this solve?
 - **Technical approach**: High-level implementation sketch
 - **Usage examples**: Pascal/FXBASE code demonstrating the feature
@@ -275,7 +303,7 @@ Include:
 
 ### Compiler Pipeline
 
-```
+```text
 Source (.prg/.fbg)
     │
     ▼
@@ -311,16 +339,16 @@ Source (.prg/.fbg)
 
 ### Key Units
 
-| Unit | Responsibility |
-|------|----------------|
-| `fxb.lexer.pas` | DFA-based tokenizer, modern + legacy syntax |
-| `fxb.parser.pas` | Recursive descent, expression precedence, statements |
-| `fxb.ast.*.pas` | AST node definitions (base, expr, stmt, def) |
-| `fxb.ir.pas` / `fxb.ir.builder.pas` | IR construction, types, instructions |
-| `fxb.backend.pas` | Codegen backend interface (pluggable) |
-| `fxb.preprocessor.pas` | File inclusion, macros, conditional compilation |
-| `fxb.cli.pas` | Command-line parsing, driver orchestration |
-| `fxb.sqlite.pas` | SQLite wrapper for DB command translation |
+| Unit                                | Responsibility                                       |
+|-------------------------------------|------------------------------------------------------|
+| `fxb.lexer.pas`                     | DFA-based tokenizer, modern + legacy syntax          |
+| `fxb.parser.pas`                    | Recursive descent, expression precedence, statements |
+| `fxb.ast.*.pas`                     | AST node definitions (base, expr, stmt, def)         |
+| `fxb.ir.pas` / `fxb.ir.builder.pas` | IR construction, types, instructions                 |
+| `fxb.backend.pas`                   | Codegen backend interface (pluggable)                |
+| `fxb.preprocessor.pas`              | File inclusion, macros, conditional compilation      |
+| `fxb.cli.pas`                       | Command-line parsing, driver orchestration           |
+| `fxb.sqlite.pas`                    | SQLite wrapper for DB command translation            |
 
 ---
 
