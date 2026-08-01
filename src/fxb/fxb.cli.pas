@@ -161,6 +161,8 @@ procedure TFXCLI.ParseArgs;
 var
   i: Integer;
   arg: string;
+  spec: string;
+  eq: Integer;
 begin
   i := 1;
   while i <= ParamCount do
@@ -258,6 +260,24 @@ begin
       begin
         Inc(i);
         FDBConnection := ParamStr(i);
+      end;
+    end
+    else if Copy(arg, 1, 5) = '--db:' then
+    begin
+      // Fase 2.7: compact flag form `--db:<driver>` or `--db:<driver>=<conn>`.
+      // e.g. `--db:sqlite` or `--db:sqlite=/path/to/file.db`
+      spec := Copy(arg, 6, Length(arg) - 5);   // strip '--db:'
+      eq := Pos('=', spec);
+      if eq > 0 then
+      begin
+        FDBDriver := Copy(spec, 1, eq - 1);
+        FDBConnection := Copy(spec, eq + 1, Length(spec) - eq);
+      end
+      else
+      begin
+        FDBDriver := spec;
+        // A bare `--db:sqlite` with no connection string: FDBConnection stays
+        // as-is and the backend falls back to a default path.
       end;
     end
     else if (arg = '--ppo') then
