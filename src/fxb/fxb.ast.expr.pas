@@ -7,7 +7,8 @@ interface
 uses
   SysUtils,
   fxb.ast.base,
-  fxb.tokens;
+  fxb.tokens,
+  fxb.ast.expr.binary;
 
 type
 
@@ -29,19 +30,8 @@ type
     property Name: string read FName;
   end;
 
-  TBinaryExpr = class(TExpr)
-  private
-    FLeft: TExpr;
-    FOp: TTokenType;
-    FRight: TExpr;
-  public
-    constructor Create(ALeft: TExpr; AOp: TTokenType; ARight: TExpr; ALine, ACol: Integer);
-    destructor Destroy; override;
-    function Dump(Indent: Integer = 0): string; override;
-    property Left: TExpr read FLeft;
-    property Op: TTokenType read FOp;
-    property Right: TExpr read FRight;
-  end;
+  // Re-export TBinaryExpr from dedicated unit
+  TBinaryExpr = fxb.ast.expr.binary.TBinaryExpr;
 
   TUnaryExpr = class(TExpr)
   private
@@ -190,31 +180,6 @@ end;
 function TIdentifierExpr.Dump(Indent: Integer = 0): string;
 begin
   Result := StringOfChar(' ', Indent * 2) + 'ID "' + FName + '"';
-end;
-
-constructor TBinaryExpr.Create(ALeft: TExpr; AOp: TTokenType; ARight: TExpr; ALine, ACol: Integer);
-begin
-  inherited Create(ALine, ACol);
-  FLeft := ALeft;
-  FOp := AOp;
-  FRight := ARight;
-end;
-
-destructor TBinaryExpr.Destroy;
-begin
-  FLeft.Free;
-  FRight.Free;
-  inherited;
-end;
-
-function TBinaryExpr.Dump(Indent: Integer = 0): string;
-var
-  pad: string;
-begin
-  pad := StringOfChar(' ', Indent * 2);
-  Result := pad + 'BINARY ' + TokenTypeName(FOp) + LineEnding;
-  Result := Result + FLeft.Dump(Indent + 1) + LineEnding;
-  Result := Result + FRight.Dump(Indent + 1);
 end;
 
 constructor TUnaryExpr.Create(AOp: TTokenType; AOperand: TExpr; ALine, ACol: Integer);

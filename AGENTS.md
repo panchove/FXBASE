@@ -1,52 +1,51 @@
-# Guía para Agentes de FXBASE
+# FXBASE Agent Guide
 
-## Fuente
+## Source Layout
 
-- El compilador vive en `src/fxb/` (unidades: `fxb.*.pas`).
-- La mayoría de las unidades se compilan con modo `objfpc`.
-- `fxb.lexer.pas` y `fxb.ir.pas` **no deben** usar `{$mode delphi}`; deben usar `{$mode objfpc}` con los switches `advancedRecords` y `typeHelpers`.
-- Punto de entrada: `src/fxb/fxb.lpr` → usa `fxb.cli` → `RunFXCLI`.
+- Compiler: `src/fxb/` (units `fxb.*.pas`)
+- Entry: `src/fxb/fxb.lpr` → `fxb.cli` → `RunFXCLI`
+- Most units: `{$mode objfpc}`
+- `fxb.lexer.pas` and `fxb.ir.pas`: **must** use `{$mode objfpc}` + `advancedRecords` + `typeHelpers` (no `delphi` mode)
 
-## Construcción
+## Build
 
-- `make fxbc` (o `make all`) → construye `bin/fxbc`.
-- `make clean` → elimina `build/` y `bin/fxbc*`.
-- Siempre reconstruya después de editar; los archivos `.o/.ppu` obsoletos en `src/fxb/` pueden causar errores extraños (son ignorados por git).
-- En sistemas no Debian/Ubuntu, ajuste `FPCFLAGS` en el Makefile (rutas de RTL y generics).
+- `make fxbc` (or `make all`) → `bin/fxbc`
+- `make clean` → removes `build/` and `bin/fxbc*`
+- **Always rebuild after edits** — stale `.o/.ppu` in `src/fxb/` cause weird errors (git-ignored)
+- Non-Debian/Ubuntu: adjust `FPCFLAGS` in Makefile (RTL + generics paths)
 
-## Pruebas
+## Tests
 
-- Unidad: `make test-unit` → `bin/test_tokens`, `bin/test_lexer`.
-- Integración: `make test-integration` → `bin/test_pipeline`.
-- Implementación: `make test-implementation` → `bin/test_impl`.
-- IR: `make test-ir` → `bin/test_ir`.
-- Todas las cuatro: `make test` (se detiene ante el primer conjunto fallido).
-- Cobertura: `make test-coverage`.
-- Calidad: `make test-quality`.
-- Binarios individuales: `./bin/test_<nombre>`.
-- El marco de pruebas es personalizado; una salida diferente de cero indica fallo.
-- NOTA: `make test-all` / `run_all_tests.sh` están obsoletos (omiten el conjunto IR).
+| Suite | Command | Binary |
+|-------|---------|--------|
+| Unit | `make test-unit` | `bin/test_tokens`, `bin/test_lexer` |
+| Integration | `make test-integration` | `bin/test_pipeline` |
+| Implementation | `make test-implementation` | `bin/test_impl` |
+| IR | `make test-ir` | `bin/test_ir` |
+| All | `make test` | stops on first failure |
+| Coverage | `make test-coverage` | `build/coverage_report.txt` |
+| Quality | `make test-quality` | — |
 
-## Problemas Conocidos
+- Custom test framework; non-zero exit = failure
+- `make test-all` / `run_all_tests.sh` **deprecated** (skip IR suite)
 
-- Un `RETURN` desnudo antes de una palabra clave (p. ej., `ENDFUNC`) se interpreta mal porque el lexer no emite token `ttNewline`. Esto hace que falle `TestIR_Return` (2 errores de parser). Solución: hacer que `ParseReturn` trate `RETURN` como desnudo cuando el siguiente token no puede iniciar una expresión, o agregar tokens de nueva línea reales.
-- Los bucles del parser que verifican `ttNewline` son código muerto (el lexer nunca lo emite).
+## Known Issues
 
-## Convenciones
+- Bare `RETURN` before keyword (e.g. `ENDFUNC`) mis-parsed: lexer emits no `ttNewline`. Fix: treat `RETURN` as bare when next token can't start an expression.
+- Parser loops checking `ttNewline` are dead code (lexer never emits it).
 
-- Las palabras clave no distinguen mayúsculas/minúsculas; se requieren variantes `END*` para desambiguar.
-- Anotaciones de tipo: `name: T` o `name AS T` (también `AS ARRAY OF T`).
-- Los bucles `FOR` se cierran con `NEXT` o `ENDFOR`.
-- Archivos de fuente: `.prg` (xBASE legado) o `.fbg` (FXBASE); encabezados `.ch` o `.fbh`.
-- Los comentarios están desalentados salvo que se soliciten (la base de código intencionalmente tiene pocos comentarios).
+## Conventions
 
-## Misceláneo
+- Keywords case-insensitive; `END*` variants required for disambiguation
+- Type annotations: `name: T` or `name AS T` (also `AS ARRAY OF T`)
+- `FOR` loops close with `NEXT` or `ENDFOR`
+- Source: `.prg` (legacy xBASE) or `.fbg` (FXBASE); headers `.ch` / `.fbh`
+- Comments discouraged unless requested (codebase intentionally sparse)
 
-- Los comandos DB (`USE`, `INDEX`, etc.) se traducen en tiempo de compilación a SQL; no hay motor DBF en tiempo de ejecución.
-- `make install` → `/usr/local/bin/fxbc`.
-- `make dist` → crea un tarball (excluye `build/` y `bin/`).
-- Consulte `docs/FXBASE-RULES.md` para las reglas obligatorias de estilo y contribución.
+## Misc
 
-## Cobertura
-
-- `make test-coverage` → genera `build/coverage_report.txt` (heurístico).
+- DB commands (`USE`, `INDEX`, …) compile-time → SQL; no DBF runtime engine
+- `make install` → `/usr/local/bin/fxbc`
+- `make dist` → tarball (excludes `build/` and `bin/`)
+- See `docs/FXBASE-RULES.md` for mandatory style/contribution rules
+- See `.opencode/rules.md` for OpenCode agent behavior rules
