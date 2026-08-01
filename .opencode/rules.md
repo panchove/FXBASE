@@ -98,4 +98,4 @@ Al proponer o implementar una nueva funcionalidad:
 - `docs/FXBASE-GRAMMAR.md` — Especificación gramatical del lenguaje
 - `src/fxb/` — Código fuente del compilador (unidades: `fxb.*.pas`)
 - Punto de entrada: `src/fxb/fxb.lpr` → `fxb.cli` → `RunFXCLI`
-- 
+  
