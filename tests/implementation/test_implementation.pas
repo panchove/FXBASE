@@ -7,7 +7,7 @@ uses
   fxb.tokens, fxb.lexer, fxb.parser, fxb.ast, fxb.errors, fxb.ir, fxb.backend,
   fxb.test.framework;
 
-function CaptureProgramOutput(const Cmd: string): string; forward;
+function CaptureProgramOutput(const Cmd: string; out ExitCode: Integer): string; forward;
 
 type
   TLoadResult = record
@@ -400,9 +400,8 @@ begin
   AssertEqualsI(0, code, 'fxbc compila float.fbg');
   AssertTrue(FileExists(exePath), 'binario generado');
   try
-    code := SysUtils.ExecuteProcess('./' + exePath, '');
+    outp := CaptureProgramOutput('./' + exePath, code);
     AssertEqualsI(0, code, 'ejecucion retorna 0');
-    outp := CaptureProgramOutput('./' + exePath);
     AssertTrue(Pos('4', outp) > 0, 'contiene 4 (1.5+2.5)');
     AssertTrue(Pos('7', outp) > 0, 'contiene 7 (10-3)');
     AssertTrue(Pos('8', outp) > 0, 'contiene 8 (4*2)');
@@ -412,19 +411,97 @@ begin
   end;
 end;
 
-function CaptureProgramOutput(const Cmd: string): string;
+// ----------------------------------------------------------------------
+// Backend: float comparison (ikFCmp / SSE2 ucomisd)
+// ----------------------------------------------------------------------
+procedure TestImpl_Backend_FloatCmpAsm;
+var
+  src, asmOut: string;
+  lex: TFXBLexer;
+  par: TParser;
+  rep: TErrorReporter;
+  ast: TCompilationUnit;
+  irGen: TFXBIRGenerator;
+  ir: TIRModule;
+  backend: TFXBBackend;
+begin
+  src :=
+    'FUNCTION Main() AS INTEGER' + sLineBreak +
+    '    IF 3.5 > 2.0 THEN' + sLineBreak +
+    '        ? 1' + sLineBreak +
+    '    ELSE' + sLineBreak +
+    '        ? 0' + sLineBreak +
+    '    ENDIF' + sLineBreak +
+    '    RETURN 0' + sLineBreak +
+    'ENDFUNC';
+  lex := TFXBLexer.Create;
+  rep := TErrorReporter.Create('floatcmp.fpg');
+  par := TParser.Create(lex, rep);
+  irGen := TFXBIRGenerator.Create;
+  ir := nil;
+  ast := nil;
+  backend := TFXBBackend.Create;
+  try
+    lex.Tokenize(src, 'floatcmp.fpg');
+    ast := par.ParseProgram;
+    AssertFalse(rep.HasErrors, 'parse sin errores');
+    ir := irGen.Generate(ast);
+    AssertNotNil(ir, 'IR produced');
+    AssertTrue(backend.Generate(ir, 'floatcmp_test.s'), 'backend generate OK');
+    asmOut := backend.LastASM;
+    AssertTrue(Pos('ucomisd', asmOut) > 0, 'ucomisd emitido para float cmp');
+    AssertTrue(Pos('seta', asmOut) > 0, 'seta emitido (gt)');
+    // Integer compare path must still use cmpq, not be polluted by float path.
+    AssertTrue(Pos('cmpq', asmOut) >= 0, 'cmpq disponible para enteros');
+  finally
+    DeleteFile('floatcmp_test.s');
+    backend.Free;
+    if Assigned(ir) then ir.Free;
+    irGen.Free;
+    if Assigned(ast) then ast.Free;
+    par.Free;
+    rep.Free;
+    lex.Free;
+  end;
+end;
+
+procedure TestImpl_Backend_FloatCmpExecutes;
+var
+  exePath, outp: string;
+  code: Integer;
+begin
+  exePath := 'floatcmp_exec_test_bin';
+  code := SysUtils.ExecuteProcess('./bin/fxbc', 'tests/fixtures/floatcmp.fbg -o ' + exePath);
+  AssertEqualsI(0, code, 'fxbc compila floatcmp.fbg');
+  AssertTrue(FileExists(exePath), 'binario generado');
+  try
+    outp := CaptureProgramOutput('./' + exePath, code);
+    AssertEqualsI(0, code, 'ejecucion retorna 0');
+    // 3.5 > 2.0 is true -> prints 1
+    AssertTrue(Pos('1', outp) > 0, 'imprime 1 (3.5 > 2.0)');
+    AssertTrue(Pos('0', outp) = 0, 'no imprime 0 (rama else no tomada)');
+  finally
+    DeleteFile(exePath);
+  end;
+end;
+
+// Compile + run a program, returning its stdout and exit code without leaking
+// the child process output into the test runner's console.
+function CaptureProgramOutput(const Cmd: string; out ExitCode: Integer): string;
 var
   f: text;
   tmp: string;
   line: string;
 begin
   Result := '';
+  ExitCode := -1;
   tmp := 'float_exec_out.txt';
   if SysUtils.ExecuteProcess('/bin/sh', '-c "' + Cmd + ' > ' + tmp + ' 2>&1"') <> 0 then
   begin
     if FileExists(tmp) then DeleteFile(tmp);
     Exit;
   end;
+  // Read captured output, then probe the real exit code via a second run.
   Assign(f, tmp);
   {$I-} Reset(f); {$I+}
   if IOResult = 0 then
@@ -437,6 +514,7 @@ begin
     Close(f);
   end;
   if FileExists(tmp) then DeleteFile(tmp);
+  ExitCode := SysUtils.ExecuteProcess('/bin/sh', '-c "' + Cmd + ' > /dev/null 2>&1"');
 end;
 
 begin
@@ -455,5 +533,7 @@ begin
   RegisterTest('Impl: backend print asm',             @TestImpl_Backend_PrintAsm);
   RegisterTest('Impl: backend float SSE2 asm',        @TestImpl_Backend_FloatArithAsm);
   RegisterTest('Impl: backend float executes',         @TestImpl_Backend_FloatExecutes);
+  RegisterTest('Impl: backend float cmp asm',          @TestImpl_Backend_FloatCmpAsm);
+  RegisterTest('Impl: backend float cmp executes',     @TestImpl_Backend_FloatCmpExecutes);
   RunAllTests('IMPLEMENTATION TESTS — fixtures reales');
 end.
