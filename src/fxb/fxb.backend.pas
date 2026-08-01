@@ -1080,8 +1080,14 @@ begin
           end;
         else
           begin
+            // Enteros: el IR los representa como int64, asi que el formato es %lld
+            // (8 bytes). Cargamos la parte baja en %eax y extendemos el signo a %edx,
+            // luego empujamos los 8 bytes en la pila (parte alta + parte baja).
             GetOperandReg(val, '%eax');
+            Emit('movl %eax, %edx');
+            Emit('sarl $31, %edx');
             Emit(Format('movl %%eax, %d(%%esp)', [4 * (i + 1)]));
+            Emit(Format('movl %%edx, %d(%%esp)', [4 * (i + 1) + 4]));
           end;
       end;
     end;
@@ -1255,11 +1261,14 @@ begin
       Emit(Format('movl %%eax, %s', [RIP('__fx_argc_g')]));
       Emit(Format('movl 12(%s), %%eax', [BPReg]));
       Emit(Format('movl %%eax, %s', [RIP('__fx_argv_g')]));
-      Emit('andl $0xFFFFFFF0, %esp');
+      // Align the stack to 16 bytes before the call WITHOUT clobbering %ebp's frame:
+      // after pushl %ebp, %esp is 16k-8; subl $8 makes it 16k-16 (aligned). The CRT
+      // must `ret` from main, so we must not `andl` %esp (that corrupts the return).
+      Emit('subl $8, %esp');
       Emit(Format('pushl %s', [RIP('__fx_argv_g')]));
       Emit(Format('pushl %s', [RIP('__fx_argc_g')]));
       EmitCall('Main');
-      Emit('addl $8, %esp');
+      Emit('addl $16, %esp');   // pop args (8) + undo subl $8 (8)
     end;
     Emit(Format('pop%s %s', [Copy(MovOp, 4, 3), BPReg]));
     Emit('ret');
