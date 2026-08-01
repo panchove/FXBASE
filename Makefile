@@ -31,7 +31,14 @@ $(BIN_DIR):
 test: test-unit test-integration test-implementation test-ir
 	@echo "All test suites passed."
 
-test-unit: fxbc
+# Local symlink so the linker finds libsqlite3 without libsqlite3-dev installed.
+# Points at the system shared object (libsqlite3.so.0); the resulting binary still
+# depends on the system libsqlite3 at runtime (local, no network).
+lib/libsqlite3.so:
+	@mkdir -p lib
+	@ln -sf /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 lib/libsqlite3.so
+
+test-unit: fxbc lib/libsqlite3.so
 	@bash tests/run_unit.sh
 
 test-integration: fxbc

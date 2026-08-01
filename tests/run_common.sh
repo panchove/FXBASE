@@ -7,5 +7,6 @@ FPC_FLAGS="-n -Mdelphi -O2 -vewnhi \
   -Fu/usr/share/fpcsrc/3.2.2/packages/rtl-generics/src \
   -Fusrc/fxb \
   -Futests \
+  -Fllib \
   -FEbuild/tests \
   -FUbuild/tests"
