@@ -1216,6 +1216,28 @@ var
   args: TIRValueArray;
   i: Integer;
 begin
+  if UpperCase(Expr.Name) = 'ARGC' then
+  begin
+    Result := CreateCallDirect('__fx_argc', TIRType.Int(True, 32), [], CreateTempName('argc'));
+    FModule.GetFunction('__fx_argc').IsExternal := True;
+    Exit;
+  end;
+  if UpperCase(Expr.Name) = 'ARGV' then
+  begin
+    SetLength(args, Expr.ArgCount);
+    for i := 0 to Expr.ArgCount - 1 do
+      args[i] := LowerExpression(Expr.Args[i]);
+    Result := CreateCallDirect('__fx_argv', TIRType.StringType, args, CreateTempName('argv'));
+    FModule.GetFunction('__fx_argv').IsExternal := True;
+    Exit;
+  end;
+  if UpperCase(Expr.Name) = 'COMMAND' then
+  begin
+    Result := CreateCallDirect('__fx_command', TIRType.StringType, [], CreateTempName('cmd'));
+    FModule.GetFunction('__fx_command').IsExternal := True;
+    Exit;
+  end;
+
   fn := FModule.GetFunction(Expr.Name);
   if not Assigned(fn) then
     fn := FModule.AddFunction(Expr.Name, TIRType.AnyType);
