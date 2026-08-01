@@ -640,7 +640,16 @@ begin
   end;
 
   // Link
-  if FTargetCPU = 'x86' then
+  if FTargetOS = 'windows' then
+  begin
+    // Cross-compile to PE via the MinGW toolchain. The gcc driver emits COFF and
+    // links msvcrt + the CRT (which provides the real entry and calls our `main`).
+    if FTargetCPU = 'x86' then
+      exitCode := ExecuteProcess('/usr/bin/i686-w64-mingw32-gcc', Format('-mconsole -o %s %s -static', [OutputFile, AsmFile]))
+    else
+      exitCode := ExecuteProcess('/usr/bin/x86_64-w64-mingw32-gcc', Format('-o %s %s -static', [OutputFile, AsmFile]));
+  end
+  else if FTargetCPU = 'x86' then
     exitCode := ExecuteProcess('/usr/bin/ld', Format('-m elf_i386 -o %s %s.o -lc -dynamic-linker /lib/ld-linux.so.2 -e _start', [OutputFile, ChangeFileExt(OutputFile, '')]))
   else
     exitCode := ExecuteProcess('/usr/bin/ld', Format('-o %s %s.o -lc -dynamic-linker /lib64/ld-linux-x86-64.so.2 -e _start', [OutputFile, ChangeFileExt(OutputFile, '')]));

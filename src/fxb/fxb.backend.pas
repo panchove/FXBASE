@@ -39,10 +39,14 @@ type
     FRealPool: TStringList;         // Double literal -> .LrealN pool for .rodata
 
     procedure Emit(const Line: string);
+    procedure EmitCall(const Name: string);
     procedure EmitLabel(const Name: string);
     procedure EmitDirective(const Dir: string);
     function RegName(Size: Integer; Index: Integer): string;
     function IsX86_64: Boolean;
+    function IsWindows: Boolean;
+    function Deco(const Name: string): string;
+    function PrintArgReg: string;
     function WordSize: Integer;
     function MovOp: string;
     function AddOp: string;
@@ -124,14 +128,44 @@ begin
   FASM.Add(FIndent + Line);
 end;
 
+procedure TFXBBackend.EmitCall(const Name: string);
+begin
+  Emit(Format('call%s %s', [Copy(MovOp, 4, 3), Deco(Name)]));
+end;
+
 procedure TFXBBackend.EmitLabel(const Name: string);
 begin
-  FASM.Add(Name + ':');
+  // Decorate non-local symbols (functions/globals) for COFF 32-bit Windows.
+  // Local labels (starting with '.') are left as-is.
+  if (Name <> '') and (Name[1] <> '.') then
+    FASM.Add(Deco(Name) + ':')
+  else
+    FASM.Add(Name + ':');
 end;
 
 procedure TFXBBackend.EmitDirective(const Dir: string);
+var
+  sp: Integer;
+  name: string;
+  d: string;
 begin
-  FASM.Add(#9 + Dir);
+  // COFF/PE (Windows, via MinGW) does not support ELF .type/.size directives; they
+  // produce assembler errors. Skip them for Windows targets.
+  if IsWindows and ((Copy(Dir, 1, 5) = '.type') or (Copy(Dir, 1, 5) = '.size')) then
+    Exit;
+  d := Dir;
+  // Decorate the symbol in `.globl NAME` for COFF 32-bit Windows.
+  if IsWindows and (not IsX86_64) and (Copy(d, 1, 6) = '.globl') then
+  begin
+    sp := Pos(' ', d);
+    if sp > 0 then
+    begin
+      name := Trim(Copy(d, sp + 1, MaxInt));
+      if (name <> '') and (name[1] <> '.') then
+        d := '.globl ' + Deco(name);
+    end;
+  end;
+  FASM.Add(#9 + d);
 end;
 
 function TFXBBackend.RegName(Size: Integer; Index: Integer): string;
@@ -156,6 +190,27 @@ function TFXBBackend.IsX86_64: Boolean;
 begin
   // Default (empty / 'x86_64' / 'native') is 64-bit; only explicit 'x86' is 32-bit.
   Result := FTargetCPU <> 'x86';
+end;
+
+function TFXBBackend.IsWindows: Boolean;
+begin
+  Result := (FTargetOS = 'windows') or (FTargetOS = 'win32') or (FTargetOS = 'win64');
+end;
+
+function TFXBBackend.Deco(const Name: string): string;
+begin
+  // COFF (32-bit Windows) decorates C symbols with a leading underscore.
+  // Local labels (starting with '.') are left as-is.
+  if IsWindows and (not IsX86_64) and ((Name = '') or (Name[1] <> '.')) then
+    Result := '_' + Name
+  else
+    Result := Name;
+end;
+
+function TFXBBackend.PrintArgReg: string;
+begin
+  // 2nd varargs register for printf: System V x86_64 uses %rsi, MS x86_64 uses %rdx.
+  if IsWindows then Result := '%rdx' else Result := '%rsi';
 end;
 
 function TFXBBackend.WordSize: Integer;
@@ -218,7 +273,10 @@ begin if IsX86_64 then Result := '%rcx' else Result := '%ecx'; end;
 // (non-PIE) references, which is what `as`/`ld` produce for ELF32 by default.
 function TFXBBackend.RIP(const LabelName: string): string;
 begin
-  if IsX86_64 then Result := LabelName + '(%rip)' else Result := LabelName;
+  if IsX86_64 then
+    Result := Deco(LabelName) + '(%rip)'
+  else
+    Result := Deco(LabelName);
 end;
 
 procedure TFXBBackend.AssignLocalOffsets(Func: TIRFunction);
@@ -383,7 +441,7 @@ var
   s: string;
 begin
   if FStringPool.Count = 0 then Exit;
-  EmitDirective('.section .rodata');
+  if IsWindows then EmitDirective('.section .rdata') else EmitDirective('.section .rodata');
   for i := 0 to FStringPool.Count - 1 do
   begin
     s := FStringPool[i];
@@ -413,7 +471,7 @@ var
   i: Integer;
 begin
   if FRealPool.Count = 0 then Exit;
-  EmitDirective('.section .rodata');
+  if IsWindows then EmitDirective('.section .rdata') else EmitDirective('.section .rodata');
   for i := 0 to FRealPool.Count - 1 do
   begin
     EmitLabel(Format('.Lreal%d', [i]));
@@ -437,6 +495,16 @@ begin
     Emit(Format('movsd %s, %%xmm0', [GetOperandReg(Val, '%xmm0')]))
   else
     Emit('xorps %xmm0, %xmm0');
+  // MS x64 ABI for varargs: the floating-point argument must also be present in the
+  // corresponding integer register (here %rdx, since the format occupies %rcx).
+  // xmm <-> GPR requires a stack bridge (movsd can't move between them directly).
+  if IsWindows and IsX86_64 then
+  begin
+    Emit('subq $8, %rsp');
+    Emit('movsd %xmm0, (%rsp)');
+    Emit('movq (%rsp), %rdx');
+    Emit('addq $8, %rsp');
+  end;
 end;
 
 procedure TFXBBackend.LoadPrintArg(Val: TIRValue);
@@ -446,38 +514,39 @@ var
 begin
   if IsX86_64 then
   begin
-    // x86_64: 2nd printf arg in %rsi, format in %rdi (set by GenPrint).
+    // x86_64: 2nd printf arg. Linux (System V): %rsi. Windows (MS): %rdx.
+    reg := PrintArgReg;
     if Val is TIRConstant then
     begin
       c := TIRConstant(Val);
       case c.Type_.Kind of
         fxb.ir.types.tkString:
-          Emit(Format('leaq %s, %%rsi', [RIP(GetStringLabel(c.StrVal))]));
+          Emit(Format('leaq %s, %s', [RIP(GetStringLabel(c.StrVal)), reg]));
         fxb.ir.types.tkBool:
-          if c.BoolVal then Emit('movq $1, %rsi') else Emit('xorq %rsi, %rsi');
+          if c.BoolVal then Emit(Format('movq $1, %s', [reg])) else Emit(Format('xorq %s, %s', [reg, reg]));
         fxb.ir.types.tkInt8, fxb.ir.types.tkInt16, fxb.ir.types.tkInt32, fxb.ir.types.tkInt64,
         fxb.ir.types.tkUInt8, fxb.ir.types.tkUInt16, fxb.ir.types.tkUInt32, fxb.ir.types.tkUInt64:
-          Emit(Format('movq $%d, %%rsi', [c.IntVal]));
+          Emit(Format('movq $%d, %s', [c.IntVal, reg]));
         else
-          Emit('xorq %rsi, %rsi');
+          Emit(Format('xorq %s, %s', [reg, reg]));
       end;
     end
     else if Val is TIRArgument then
     begin
       case TIRArgument(Val).Index of
-        0: Emit('movq %rdi, %rsi');
-        1: Emit('movq %rsi, %rsi');
-        2: Emit('movq %rdx, %rsi');
-        3: Emit('movq %rcx, %rsi');
-        4: Emit('movq %r8, %rsi');
-        5: Emit('movq %r9, %rsi');
-        else Emit('xorq %rsi, %rsi');
+        0: Emit(Format('movq %%rdi, %s', [reg]));
+        1: Emit(Format('movq %%rsi, %s', [reg]));
+        2: Emit(Format('movq %%rdx, %s', [reg]));
+        3: Emit(Format('movq %%rcx, %s', [reg]));
+        4: Emit(Format('movq %%r8, %s', [reg]));
+        5: Emit(Format('movq %%r9, %s', [reg]));
+        else Emit(Format('xorq %s, %s', [reg, reg]));
       end;
     end
     else if Val is TIRLocal then
-      Emit(Format('movq %s, %%rsi', [GetOperandMemRef(Val, 'rsi')]))
+      Emit(Format('movq %s, %s', [GetOperandMemRef(Val, 'rsi'), reg]))
     else
-      Emit('movq %rax, %rsi');
+      Emit(Format('movq %%rax, %s', [reg]));
   end
   else
   begin
@@ -890,6 +959,7 @@ var
   newline: Boolean;
   fmtLabel: string;
   slotBytes: Integer;
+  FmtReg, ArgReg: string;
   // 32-bit helpers: format-label resolver (cdecl)
   function FmtLabelFor(Kind: TIRTypeKind): string;
   begin
@@ -903,7 +973,19 @@ begin
 
   if IsX86_64 then
   begin
-    // x86_64: format in %rdi, args in %rsi/%xmm0, varargs count in %al.
+    // x86_64 calling convention for printf:
+    //  - Linux (System V): format in %rdi, args in %rsi/%xmm0, varargs count in %al.
+    //  - Windows (MS): format in %rcx, args in %rdx/%xmm0, no %al; 32-byte shadow space.
+    if IsWindows then
+    begin
+      FmtReg := '%rcx';
+      ArgReg := '%rdx';
+    end
+    else
+    begin
+      FmtReg := '%rdi';
+      ArgReg := '%rsi';
+    end;
     for i := 0 to Instr.OperandCount - 1 do
     begin
       val := Instr.GetOperand(i);
@@ -911,49 +993,63 @@ begin
         fxb.ir.types.tkString:
         begin
           fmtLabel := GetStringLabel('%s');
-          Emit(Format('leaq %s(%%rip), %%rdi', [fmtLabel]));
+          Emit(Format('leaq %s(%%rip), %s', [fmtLabel, FmtReg]));
           LoadPrintArg(val);
-          Emit('xorl %eax, %eax');
+          if not IsWindows then Emit('xorl %eax, %eax');
         end;
         fxb.ir.types.tkBool:
         begin
           fmtLabel := GetStringLabel('%d');
-          Emit(Format('leaq %s(%%rip), %%rdi', [fmtLabel]));
+          Emit(Format('leaq %s(%%rip), %s', [fmtLabel, FmtReg]));
           LoadPrintArg(val);
-          Emit('xorl %eax, %eax');
+          if not IsWindows then Emit('xorl %eax, %eax');
         end;
         fxb.ir.types.tkInt8, fxb.ir.types.tkInt16, fxb.ir.types.tkInt32, fxb.ir.types.tkInt64,
         fxb.ir.types.tkUInt8, fxb.ir.types.tkUInt16, fxb.ir.types.tkUInt32, fxb.ir.types.tkUInt64:
         begin
           fmtLabel := GetStringLabel('%lld');
-          Emit(Format('leaq %s(%%rip), %%rdi', [fmtLabel]));
+          Emit(Format('leaq %s(%%rip), %s', [fmtLabel, FmtReg]));
           LoadPrintArg(val);
-          Emit('xorl %eax, %eax');
+          if not IsWindows then Emit('xorl %eax, %eax');
         end;
         fxb.ir.types.tkFloat32, fxb.ir.types.tkFloat64:
         begin
           fmtLabel := GetStringLabel('%g');
-          Emit(Format('leaq %s(%%rip), %%rdi', [fmtLabel]));
+          Emit(Format('leaq %s(%%rip), %s', [fmtLabel, FmtReg]));
           LoadPrintArgFloat(val);
-          Emit('movl $1, %eax');
+          Emit('movl $1, %eax');   // 1 vector (XMM) arg for varargs (both ABIs)
         end;
         else
         begin
           fmtLabel := GetStringLabel('%s');
-          Emit(Format('leaq %s(%%rip), %%rdi', [fmtLabel]));
+          Emit(Format('leaq %s(%%rip), %s', [fmtLabel, FmtReg]));
           LoadPrintArg(val);
-          Emit('xorl %eax, %eax');
+          if not IsWindows then Emit('xorl %eax, %eax');
         end;
       end;
-      Emit('callq printf');
     end;
+    if IsWindows then
+    begin
+      Emit('subq $32, %rsp');   // shadow space for MS x64 ABI
+      EmitCall('printf');
+      Emit('addq $32, %rsp');
+    end
+    else
+      Emit('callq printf');
     if newline then
     begin
       fmtLabel := GetStringLabel('%s' + #10);
-      Emit(Format('leaq %s(%%rip), %%rdi', [fmtLabel]));
-      Emit(Format('leaq %s(%%rip), %%rsi', [GetStringLabel('')]));
-      Emit('xorl %eax, %eax');
-      Emit('callq printf');
+      Emit(Format('leaq %s(%%rip), %s', [fmtLabel, FmtReg]));
+      Emit(Format('leaq %s(%%rip), %s', [GetStringLabel(''), ArgReg]));
+      if not IsWindows then Emit('xorl %eax, %eax');
+      if IsWindows then
+      begin
+        Emit('subq $32, %rsp');
+        EmitCall('printf');
+        Emit('addq $32, %rsp');
+      end
+      else
+        Emit('callq printf');
     end;
   end
   else
@@ -991,7 +1087,7 @@ begin
     end;
     if Instr.OperandCount > 0 then
       Emit(Format('movl $%s, (%%esp)', [GetStringLabel(fmtLabel)]));
-    Emit('call printf');
+    EmitCall('printf');
     // Clean up the reserved slot.
     Emit(Format('addl $%d, %%esp', [slotBytes]));
     if newline then
@@ -999,7 +1095,7 @@ begin
       Emit('subl $16, %esp');
       Emit(Format('movl $%s, (%%esp)', [GetStringLabel('%s' + #10)]));
       Emit(Format('movl $%s, 4(%%esp)', [GetStringLabel('')]));
-      Emit('call printf');
+      EmitCall('printf');
       Emit('addl $16, %esp');
     end;
   end;
@@ -1132,6 +1228,46 @@ var
   i: Integer;
 begin
   // Generate startup code that captures argv/argc and calls Main
+  if IsWindows then
+  begin
+    // Windows: entry is `main`, linked via the MinGW CRT (msvcrt). The CRT sets up
+    // the process and calls our `main(int argc, char** argv)`. We stash argc/argv in
+    // globals, call Main, and return (msvcrt performs the exit).
+    EmitDirective('.globl main');
+    EmitDirective('.type main, @function');
+    EmitLabel('main');
+    Emit(Format('push%s %s', [Copy(MovOp, 4, 3), BPReg]));
+    Emit(Format('%s %s, %s', [MovOp, SPReg, BPReg]));
+    if IsX86_64 then
+    begin
+      // MS x64 ABI: argc in %rcx, argv in %rdx.
+      Emit(Format('movq %%rcx, %s', [RIP('__fx_argc_g')]));
+      Emit(Format('movq %%rdx, %s', [RIP('__fx_argv_g')]));
+      Emit('andq $0xFFFFFFFFFFFFFFF0, %rsp');            // 16-byte align before call
+      Emit(Format('movq %s, %%rcx', [RIP('__fx_argc_g')]));  // argc -> 1st Main param (MS ABI)
+      Emit(Format('movq %s, %%rdx', [RIP('__fx_argv_g')]));  // argv -> 2nd Main param (MS ABI)
+      EmitCall('Main');
+    end
+    else
+    begin
+      // cdecl: argc at [ebp+8], argv at [ebp+12] (after our pushl %ebp).
+      Emit(Format('movl 8(%s), %%eax', [BPReg]));
+      Emit(Format('movl %%eax, %s', [RIP('__fx_argc_g')]));
+      Emit(Format('movl 12(%s), %%eax', [BPReg]));
+      Emit(Format('movl %%eax, %s', [RIP('__fx_argv_g')]));
+      Emit('andl $0xFFFFFFF0, %esp');
+      Emit(Format('pushl %s', [RIP('__fx_argv_g')]));
+      Emit(Format('pushl %s', [RIP('__fx_argc_g')]));
+      EmitCall('Main');
+      Emit('addl $8, %esp');
+    end;
+    Emit(Format('pop%s %s', [Copy(MovOp, 4, 3), BPReg]));
+    Emit('ret');
+    EmitDirective('.size main, .-main');
+    Emit('');
+  end
+  else
+  begin
   EmitDirective('.globl _start');
   EmitDirective('.type _start, @function');
   EmitLabel('_start');
@@ -1147,10 +1283,10 @@ begin
     Emit('subq $8, %rsp');  // Align stack to 16 bytes before call
     Emit(Format('movq %s, %%rdi', [RIP('__fx_argc_g')]));  // argc -> first Main param
     Emit(Format('movq %s, %%rsi', [RIP('__fx_argv_g')]));  // argv -> second Main param
-    Emit('callq Main');
+    EmitCall('Main');
     Emit('movq %rax, %rbx');     // Preserve exit code (rbx is callee-saved)
     Emit('xorq %rdi, %rdi');     // fflush(NULL): flush all stdio buffers
-    Emit('callq fflush');
+    EmitCall('fflush');
     Emit('addq $8, %rsp');       // Restore stack
     Emit('movq %rbx, %rdi');
     Emit('movq $60, %rax');
@@ -1169,11 +1305,11 @@ begin
     Emit(Format('pushl %s', [RIP('__fx_argv_g')]));   // argv -> 2nd Main param
     Emit(Format('pushl %s', [RIP('__fx_argc_g')]));   // argc -> 1st Main param
     Emit('andl $0xFFFFFFF0, %esp');                   // align stack to 16 before call
-    Emit('call Main');
+    EmitCall('Main');
     Emit('movl %eax, %ebx');                       // preserve exit code
     Emit('movl $0, %eax');                        // fflush(NULL)
     Emit('pushl %eax');
-    Emit('call fflush');
+    EmitCall('fflush');
     Emit('addl $4, %esp');
     Emit('movl %ebx, %eax');                      // exit code
     Emit('movl $1, %eax');                        // __NR_exit
@@ -1181,6 +1317,7 @@ begin
   end;
   EmitDirective('.size _start, .-_start');
   Emit('');
+  end;
 
   // Generate user functions
   for i := 0 to IR.Functions.Count - 1 do
