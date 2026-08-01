@@ -1370,6 +1370,10 @@ begin
     Emit(Format('movq %%rax, %s', [RIP('__fx_argc_g')]));  // save argc for ArgC()/ArgV()/Command()
     Emit('leaq 8(%rsp), %rax');            // argv
     Emit(Format('movq %%rax, %s', [RIP('__fx_argv_g')]));
+    // Align the stack to 16 bytes BEFORE building any frame. The x86_64
+    // System V ABI requires %rsp % 16 == 0 at every call site; without this,
+    // library calls (e.g. sqlite3_open) fault inside SSE code paths.
+    Emit('andq $0xFFFFFFFFFFFFFFF0, %rsp');
     Emit('pushq %rbp');
     Emit('movq %rsp, %rbp');
     Emit('subq $8, %rsp');  // Align stack to 16 bytes before call
@@ -1585,6 +1589,9 @@ begin
     end
     else
     begin
+      Emit('pushq %rbp');
+      Emit('movq %rsp, %rbp');
+      Emit('andq $0xFFFFFFFFFFFFFFF0, %rsp');  // align stack for the sqlite3 call
       Emit('leaq fxb_db_handle(%rip), %rsi');    // 2nd arg: &handle
       Emit('call sqlite3_open');                 // path in %rdi (1st)
     end;
@@ -1598,6 +1605,8 @@ begin
     Emit('call sqlite3_open');
     Emit('addl $8, %esp');
   end;
+  Emit('movq %rbp, %rsp');
+  Emit('popq %rbp');
   Emit('ret');
   EmitDirective('.size fxb_sqlite_open, .-fxb_sqlite_open');
   Emit('');
@@ -1621,6 +1630,9 @@ begin
     end
     else
     begin
+      Emit('pushq %rbp');
+      Emit('movq %rsp, %rbp');
+      Emit('andq $0xFFFFFFFFFFFFFFF0, %rsp');  // align stack for the sqlite3 call
       Emit('movq %rdi, %rsi');                   // sql (was 1st) -> 2nd arg
       Emit('movq fxb_db_handle(%rip), %rdi');    // db -> 1st arg
       Emit('xorl %edx, %edx');                   // callback = 0
@@ -1640,6 +1652,8 @@ begin
     Emit('call sqlite3_exec');
     Emit('addl $20, %esp');
   end;
+  Emit('movq %rbp, %rsp');
+  Emit('popq %rbp');
   Emit('ret');
   EmitDirective('.size fxb_sqlite_exec, .-fxb_sqlite_exec');
   Emit('');
@@ -1653,7 +1667,12 @@ begin
     if IsWindows then
       Emit('movq fxb_db_handle(%rip), %rcx')
     else
+    begin
+      Emit('pushq %rbp');
+      Emit('movq %rsp, %rbp');
+      Emit('andq $0xFFFFFFFFFFFFFFF0, %rsp');  // align stack for the sqlite3 call
       Emit('movq fxb_db_handle(%rip), %rdi');
+    end;
     Emit('call sqlite3_close');
   end
   else
@@ -1661,6 +1680,11 @@ begin
     Emit('pushl fxb_db_handle');
     Emit('call sqlite3_close');
     Emit('addl $4, %esp');
+  end;
+  if IsX86_64 and (not IsWindows) then
+  begin
+    Emit('movq %rbp, %rsp');
+    Emit('popq %rbp');
   end;
   Emit('ret');
   EmitDirective('.size fxb_sqlite_close, .-fxb_sqlite_close');
