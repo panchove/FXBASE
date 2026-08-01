@@ -4,7 +4,7 @@ program test_implementation;
 
 uses
   SysUtils, Classes,
-  fxb.tokens, fxb.lexer, fxb.parser, fxb.ast, fxb.errors,
+  fxb.tokens, fxb.lexer, fxb.parser, fxb.ast, fxb.errors, fxb.ir, fxb.backend,
   fxb.test.framework;
 
 type
@@ -255,6 +255,59 @@ begin
 end;
 
 // ----------------------------------------------------------------------
+// Backend
+// ----------------------------------------------------------------------
+procedure TestImpl_Backend_PrintAsm;
+var
+  src, asmOut, dump: string;
+  lex: TFXBLexer;
+  par: TParser;
+  rep: TErrorReporter;
+  ast: TCompilationUnit;
+  irGen: TFXBIRGenerator;
+  ir: TIRModule;
+  backend: TFXBBackend;
+begin
+  src :=
+    'FUNCTION Main() AS INTEGER' + sLineBreak +
+    '    ? "hi"' + sLineBreak +
+    '    ? 42' + sLineBreak +
+    '    ?? "x"' + sLineBreak +
+    '    RETURN 0' + sLineBreak +
+    'ENDFUNC';
+  lex := TFXBLexer.Create;
+  rep := TErrorReporter.Create('backend.fpg');
+  par := TParser.Create(lex, rep);
+  irGen := TFXBIRGenerator.Create;
+  ir := nil;
+  ast := nil;
+  backend := TFXBBackend.Create;
+  try
+    lex.Tokenize(src, 'backend.fpg');
+    ast := par.ParseProgram;
+    AssertFalse(rep.HasErrors, 'parse sin errores');
+    ir := irGen.Generate(ast);
+    AssertNotNil(ir, 'IR produced');
+    AssertTrue(backend.Generate(ir, 'backend_test.s'), 'backend generate OK');
+    asmOut := backend.LastASM;
+    AssertTrue(Pos('callq printf', asmOut) > 0, 'printf call present');
+    AssertTrue(Pos('.Lstr', asmOut) > 0, 'string pool present');
+    AssertTrue(Pos('%s', asmOut) > 0, 'format %s present');
+    AssertTrue(Pos('%lld', asmOut) > 0, 'format %lld present');
+    AssertTrue(Pos(#10, asmOut) > 0, 'real newline byte in pool');
+    AssertTrue(Pos('callq fflush', asmOut) > 0, 'fflush in _start');
+  finally
+    DeleteFile('backend_test.s');
+    backend.Free;
+    if Assigned(ir) then ir.Free;
+    irGen.Free;
+    if Assigned(ast) then ast.Free;
+    par.Free;
+    rep.Free;
+    lex.Free;
+  end;
+end;
+
 // Reporte
 // ----------------------------------------------------------------------
 procedure TestImpl_Metrics_FileCount;
@@ -293,5 +346,6 @@ begin
   RegisterTest('Impl: stress 100 classes',            @TestImpl_Stress_RepeatClasses);
   RegisterTest('Impl: DumpToken roundtrip',           @TestImpl_DumpRoundtrip);
   RegisterTest('Impl: metrics fixture count',         @TestImpl_Metrics_FileCount);
+  RegisterTest('Impl: backend print asm',             @TestImpl_Backend_PrintAsm);
   RunAllTests('IMPLEMENTATION TESTS — fixtures reales');
 end.
