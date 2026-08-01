@@ -1193,6 +1193,20 @@ begin
     dbStmt.SetReplace(fieldName, val);
     Result := dbStmt;
     Exit;
+  end
+  else if kw = kwPack then
+  begin
+    // PACK: clear the active table (SQLite has no deleted-flag; equivalent to
+    // DELETE FROM). Scope/WHILE/NEXT clauses (Fase 2.4) would add a WHERE.
+    // The active table is resolved by the IR generator from the preceding USE.
+    Result := TASTDBStmt.Create('pack', '', FCurrent.Line, FCurrent.Col);
+    Exit;
+  end
+  else if kw = kwZap then
+  begin
+    // ZAP: truncate the active table, keep the schema.
+    Result := TASTDBStmt.Create('zap', '', FCurrent.Line, FCurrent.Col);
+    Exit;
   end;
 
   // Everything else: skip to end of statement (kept as a stub for not-yet-implemented
