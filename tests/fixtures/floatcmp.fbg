@@ -1,0 +1,8 @@
+FUNCTION Main() AS INTEGER
+    IF 3.5 > 2.0 THEN
+        ? 1
+    ELSE
+        ? 0
+    ENDIF
+    RETURN 0
+ENDFUNC

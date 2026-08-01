@@ -653,10 +653,35 @@ procedure TFXBBackend.GenICmp(Instr: TIRInstruction);
 var
   left, right: TIRValue;
   pred: string;
+  isFloat: Boolean;
 begin
   if Instr.OperandCount < 2 then Exit;
   left := Instr.GetOperand(0);
   right := Instr.GetOperand(1);
+
+  isFloat := (left.Type_.Kind in [fxb.ir.types.tkFloat32, fxb.ir.types.tkFloat64]) or
+             (right.Type_.Kind in [fxb.ir.types.tkFloat32, fxb.ir.types.tkFloat64]);
+
+  if isFloat then
+  begin
+    // SSE2 ordered compare: xmm0 = left, xmm1 = right, then test flags.
+    LoadFloatOperand(left, '%xmm0');
+    LoadFloatOperand(right, '%xmm1');
+    Emit('ucomisd %xmm1, %xmm0');
+    pred := Instr.Metadata.Values['pred'];
+    if pred = '' then pred := 'eq';
+    case pred of
+      'eq': Emit('sete %al');   // ZF=1
+      'ne': Emit('setne %al');  // ZF=0
+      'lt': Emit('setb %al');   // CF=1  (left < right)
+      'gt': Emit('seta %al');   // CF=0 and ZF=0 (left > right)
+      'le': Emit('setbe %al');  // CF=1 or ZF=1
+      'ge': Emit('setae %al');  // CF=0
+      else Emit('sete %al');
+    end;
+    Emit('movzbq %al, %rax');
+    Exit;
+  end;
 
   Emit(Format('cmpq %s, %s', [GetOperandReg(right, '%rax'), GetOperandReg(left, '%rcx')]));
   pred := Instr.Metadata.Values['pred'];
