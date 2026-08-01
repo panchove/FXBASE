@@ -94,10 +94,11 @@
 | 4.2     | `fx-lsp`         | Language Server Protocol: diagnostics, completions, hover, go-to-def, references |
 | 4.3     | `fx-fmt`         | Formateador con reglas configurables (indent, spacing, case)                     |
 | 4.4     | `fx-pkg`         | Package manager: `install`, `uninstall`, `update`, `list`                        |
-| 4.5     | `fx-dap`         | Debug Adapter Protocol: breakpoints, watches, step, call stack                   |
-| 4.6     | Cross-compilation | `--target win32/win64/linux32/linux64`, sysroot management                       |
+| 4.5     | `fx-fbu`         | **Sistema de unidades/módulos** (`.fbu`): `UNIT`/`INTERFACE`/`IMPLEMENTATION`, compilación separada, tabla de símbolos global, cache incremental estilo `.ppu`, linking por dependencias |
+| 4.6     | `fx-dap`         | Debug Adapter Protocol: breakpoints, watches, step, call stack                   |
+| 4.7     | Cross-compilation | `--target win32/win64/linux32/linux64`, sysroot management                       |
 
-**Verificación:** Editor LSP integration (VS Code), debug session, package publish/install cycle.
+**Verificación:** Editor LSP integration (VS Code), debug session, package publish/install cycle, **compilar proyecto multi-unidad (10+ .fbu) con cache incremental < 2s**.
 
 ---
 
