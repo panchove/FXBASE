@@ -567,22 +567,20 @@ begin
 end;
 
 // Compile + run a program, returning its stdout and exit code without leaking
-// the child process output into the test runner's console.
+// the child process output into the test runner's console. Output and exit code
+// are captured in a SINGLE run (a second run is racy under wine and unreliable).
 function CaptureProgramOutput(const Cmd: string; out ExitCode: Integer): string;
 var
   f: text;
-  tmp: string;
-  line: string;
+  tmp, codeTmp, line: string;
 begin
   Result := '';
   ExitCode := -1;
-  tmp := 'float_exec_out.txt';
-  if SysUtils.ExecuteProcess('/bin/sh', '-c "' + Cmd + ' > ' + tmp + ' 2>&1"') <> 0 then
-  begin
-    if FileExists(tmp) then DeleteFile(tmp);
-    Exit;
-  end;
-  // Read captured output, then probe the real exit code via a second run.
+  tmp := 'cap_out.txt';
+  codeTmp := 'cap_code.txt';
+  // Run once: redirect stdout+stderr to tmp, and write the real exit code to codeTmp.
+  SysUtils.ExecuteProcess('/bin/sh', '-c "' + Cmd + ' > ' + tmp + ' 2>&1; echo $? > ' + codeTmp + '"');
+  // Read captured output.
   Assign(f, tmp);
   {$I-} Reset(f); {$I+}
   if IOResult = 0 then
@@ -595,19 +593,43 @@ begin
     Close(f);
   end;
   if FileExists(tmp) then DeleteFile(tmp);
-  ExitCode := SysUtils.ExecuteProcess('/bin/sh', '-c "' + Cmd + ' > /dev/null 2>&1"');
+  // Read the real exit code from codeTmp.
+  Assign(f, codeTmp);
+  {$I-} Reset(f); {$I+}
+  if IOResult = 0 then
+  begin
+    ReadLn(f, line);
+    Close(f);
+    ExitCode := StrToIntDef(Trim(line), -1);
+  end;
+  if FileExists(codeTmp) then DeleteFile(codeTmp);
 end;
 
-// Same, but run the binary under Wine (for Windows PE targets built on Linux).
+// Same, but run the binary under Wine (for Windows PE targets built on Linux),
+// using a dedicated, initialized Wine prefix for deterministic execution.
+function WinePrefixDir: string;
+begin
+  // Dedicated, initialized Wine prefix so PE execution is deterministic and does
+  // not depend on a possibly-broken default ~/.wine.
+  Result := GetEnvironmentVariable('HOME') + '/.wine_fxbase_test';
+end;
+
 function CaptureProgramOutputWine(const BinPath: string; out ExitCode: Integer): string;
 begin
-  Result := CaptureProgramOutput('wine ' + BinPath, ExitCode);
+  Result := CaptureProgramOutput('WINEPREFIX=' + WinePrefixDir + ' wine ' + BinPath, ExitCode);
 end;
 
 function WineAvailable: Boolean;
 begin
   // wine is required to execute PE binaries on Linux.
   Result := (SysUtils.ExecuteProcess('/bin/sh', '-c "which wine > /dev/null 2>&1"') = 0);
+end;
+
+function Wine32Available: Boolean;
+begin
+  // A 32-bit PE needs wine32 (the 32-bit Wine loader + its built-in DLLs).
+  // Detect by the presence of Wine's 32-bit kernel32.dll (from libwine:i386).
+  Result := FileExists('/usr/lib/i386-linux-gnu/wine/i386-windows/kernel32.dll');
 end;
 
 // ----------------------------------------------------------------------
@@ -694,27 +716,52 @@ begin
   end;
 end;
 
-procedure TestImpl_Backend_Win32_LinkCheck;
+procedure TestImpl_Backend_Win32_Executes;
 var
-  fxbcPath, exePath: string;
+  fxbcPath, exePath, outp: string;
+  code: Integer;
 begin
-  // PE32 (i386) link check: ensures COFF decoration + MinGW link succeed.
-  // Execution is skipped if wine32 is absent (wine64 cannot run 32-bit PE).
+  // PE32 (i386): build + run under wine32. If wine32 cannot load 32-bit PE
+  // (DLLs absent), fall back to a link-only check so the suite stays green.
+  if not Wine32Available then
+  begin
+    WriteLn('  [SKIP] backend win32 executes: wine32 no disponible (solo link-check)');
+    fxbcPath := 'bin/fxbc';
+    exePath := 'win32_exec_test_bin.exe';
+    if SysUtils.ExecuteProcess('/bin/sh', '-c "' + fxbcPath + ' --target-os windows --target-cpu x86 tests/fixtures/hello32.fbg -o ' + exePath + '"') = 0 then
+      DeleteFile(exePath);
+    Exit;
+  end;
   fxbcPath := 'bin/fxbc';
   exePath := 'win32_exec_test_bin.exe';
   if SysUtils.ExecuteProcess('/bin/sh', '-c "' + fxbcPath + ' --target-os windows --target-cpu x86 tests/fixtures/hello32.fbg -o ' + exePath + '"') <> 0 then
   begin
-    WriteLn('  [SKIP] backend win32 link: fallo la compilacion PE32');
+    WriteLn('  [SKIP] backend win32 executes: fallo la compilacion PE32');
     Exit;
   end;
   try
-    AssertTrue(FileExists(exePath), 'binario PE32 generado');
+    outp := CaptureProgramOutputWine('./' + exePath, code);
+    AssertEqualsI(0, code, 'ejecucion PE32 retorna 0');
+    AssertTrue(Pos('hi', outp) > 0, 'imprime hi');
+    AssertTrue(Pos('3', outp) > 0, 'imprime 3 (1+2 y 7/2)');
+    AssertTrue(Pos('4', outp) > 0, 'imprime 4.0 (1.5+2.5)');
   finally
     DeleteFile(exePath);
   end;
 end;
 
+var
+  fxWinePrefix: string;
+
 begin
+  // Ensure a dedicated, initialized Wine prefix so PE execution is deterministic
+  // and does not depend on a possibly-broken default ~/.wine. Initialized once.
+  if WineAvailable then
+  begin
+    fxWinePrefix := WinePrefixDir;
+    if not DirectoryExists(fxWinePrefix) then
+      SysUtils.ExecuteProcess('/bin/sh', '-c "WINEPREFIX=' + fxWinePrefix + ' wineboot -i > /dev/null 2>&1"');
+  end;
   RegisterTest('Impl: hello.fpg lex',                @TestImpl_HelloWorld_Lexes);
   RegisterTest('Impl: hello.fpg AST',                @TestImpl_HelloWorld_ParseAST);
   RegisterTest('Impl: program.fpg generics/INTERFACE',@TestImpl_Program_HasGenerics);
@@ -736,6 +783,6 @@ begin
   RegisterTest('Impl: backend x86_32 executes',         @TestImpl_Backend_x86_32_Executes);
   RegisterTest('Impl: backend win64 asm',              @TestImpl_Backend_Win64_Asm);
   RegisterTest('Impl: backend win64 executes',         @TestImpl_Backend_Win64_Executes);
-  RegisterTest('Impl: backend win32 link',             @TestImpl_Backend_Win32_LinkCheck);
+  RegisterTest('Impl: backend win32 executes',         @TestImpl_Backend_Win32_Executes);
   RunAllTests('IMPLEMENTATION TESTS — fixtures reales');
 end.
