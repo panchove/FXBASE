@@ -624,6 +624,8 @@ end;
 function TFXCLI.AssembleAndLink(const AsmFile, OutputFile: string): Boolean;
 var
   exitCode: Integer;
+  NeedSQLite: Boolean;
+  LinkFlag: string;
 begin
   Result := False;
   // Assemble
@@ -640,19 +642,31 @@ begin
   end;
 
   // Link
+  // Fase 2: when targeting SQLite, link the runtime against libsqlite3.
+  // On Linux we point the linker at our local symlink (lib/libsqlite3.so).
+  NeedSQLite := (FDBDriver = 'sqlite') or (FDBConnection <> '');
+  if NeedSQLite then
+  begin
+    if FTargetOS = 'windows' then
+      LinkFlag := ' -lsqlite3'
+    else
+      LinkFlag := ' -Llib -lsqlite3';
+  end
+  else
+    LinkFlag := '';
   if FTargetOS = 'windows' then
   begin
     // Cross-compile to PE via the MinGW toolchain. The gcc driver emits COFF and
     // links msvcrt + the CRT (which provides the real entry and calls our `main`).
     if FTargetCPU = 'x86' then
-      exitCode := ExecuteProcess('/usr/bin/i686-w64-mingw32-gcc', Format('-mconsole -o %s %s -static', [OutputFile, AsmFile]))
+      exitCode := ExecuteProcess('/usr/bin/i686-w64-mingw32-gcc', Format('-mconsole -o %s %s -static%s', [OutputFile, AsmFile, LinkFlag]))
     else
-      exitCode := ExecuteProcess('/usr/bin/x86_64-w64-mingw32-gcc', Format('-o %s %s -static', [OutputFile, AsmFile]));
+      exitCode := ExecuteProcess('/usr/bin/x86_64-w64-mingw32-gcc', Format('-o %s %s -static%s', [OutputFile, AsmFile, LinkFlag]));
   end
   else if FTargetCPU = 'x86' then
-    exitCode := ExecuteProcess('/usr/bin/ld', Format('-m elf_i386 -o %s %s.o -lc -dynamic-linker /lib/ld-linux.so.2 -e _start', [OutputFile, ChangeFileExt(OutputFile, '')]))
+    exitCode := ExecuteProcess('/usr/bin/ld', Format('-m elf_i386 -o %s %s.o -lc -dynamic-linker /lib/ld-linux.so.2 -e _start%s', [OutputFile, ChangeFileExt(OutputFile, ''), LinkFlag]))
   else
-    exitCode := ExecuteProcess('/usr/bin/ld', Format('-o %s %s.o -lc -dynamic-linker /lib64/ld-linux-x86-64.so.2 -e _start', [OutputFile, ChangeFileExt(OutputFile, '')]));
+    exitCode := ExecuteProcess('/usr/bin/ld', Format('-o %s %s.o -lc -dynamic-linker /lib64/ld-linux-x86-64.so.2 -e _start%s', [OutputFile, ChangeFileExt(OutputFile, ''), LinkFlag]));
   if exitCode <> 0 then
   begin
     WriteLn(StdErr, 'Link failed with code: ', exitCode);

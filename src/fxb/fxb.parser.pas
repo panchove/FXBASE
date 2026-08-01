@@ -1129,13 +1129,76 @@ end;
 function TParser.ParseMisc: TASTNode;
 var
   kw: TKeyword;
+  dbStmt: TASTDBStmt;
+  fieldName, tableName: string;
+  val: TExpr;
 begin
   kw := FCurrent.Keyword;
   Advance; // consume the keyword
-  // Skip to end of statement (newline or semicolon or EOF)
+
+  // Fase 2: real database statements -> SQLite.
+  if kw = kwUse then
+  begin
+    if Peek = ttIdentifier then
+    begin
+      tableName := FCurrent.StrValue;
+      Advance;
+    end
+    else
+    begin
+      Error(FXB_EXPECTED_IDENT, 'Expected table name after USE');
+      tableName := '__missing__';
+    end;
+    // Optional ALIAS name is ignored in the MVP.
+    if Peek = ttIdentifier then Advance;
+    Result := TASTDBStmt.Create('use', tableName, FCurrent.Line, FCurrent.Col);
+    Exit;
+  end
+  else if kw = kwAppend then
+  begin
+    // APPEND [BLANK] [field = expr, ...]
+    if (Peek = ttIdentifier) and (UpperCase(FCurrent.StrValue) = 'BLANK') then
+      Advance;
+    dbStmt := TASTDBStmt.Create('append', '', FCurrent.Line, FCurrent.Col);
+    // Parse optional field = expr pairs.
+    while Peek = ttIdentifier do
+    begin
+      fieldName := FCurrent.StrValue;
+      Advance;
+      if Peek in [ttEqual, ttAssign] then Advance
+      else Error(FXB_SYNTAX_ERROR, 'Expected = after APPEND field');
+      val := ParseExpression;
+      dbStmt.AddPair(fieldName, val);
+      if Peek = ttComma then Advance else Break;
+    end;
+    Result := dbStmt;
+    Exit;
+  end
+  else if kw = kwReplace then
+  begin
+    if Peek = ttIdentifier then
+    begin
+      fieldName := FCurrent.StrValue;
+      Advance;
+    end
+    else
+    begin
+      Error(FXB_EXPECTED_IDENT, 'Expected field name after REPLACE');
+      fieldName := '__missing__';
+    end;
+    if not MatchKeyword(kwWith) then
+      Error(FXB_SYNTAX_ERROR, 'Expected WITH after REPLACE field');
+    val := ParseExpression;
+    dbStmt := TASTDBStmt.Create('replace', '', FCurrent.Line, FCurrent.Col);
+    dbStmt.SetReplace(fieldName, val);
+    Result := dbStmt;
+    Exit;
+  end;
+
+  // Everything else: skip to end of statement (kept as a stub for not-yet-implemented
+  // misc statements so the compiler does not choke on legacy xBASE).
   while not (Peek in [ttNewline, ttEof, ttSemicolon]) do
     Advance;
-  // Skip the terminating char
   if Peek in [ttNewline, ttSemicolon] then Advance;
   Result := nil;
 end;

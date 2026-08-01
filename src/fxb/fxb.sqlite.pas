@@ -246,4 +246,46 @@ begin
   Result := sqlite3_finalize(Stmt);
 end;
 
+// ---------------------------------------------------------------------------
+// Runtime entry points called by generated code (emitted by the backend as
+// `call fxb_sqlite_open` / `call fxb_sqlite_exec`). A single global connection
+// is kept open for the lifetime of the program; the .db path comes from the
+// compiler's --db-connection flag (embedded in the binary by the backend).
+// ---------------------------------------------------------------------------
+var
+  GFXBDB: TFXBSQLite = nil;
+
+function fxb_sqlite_open(const path: PChar): Integer; cdecl;
+begin
+  if GFXBDB = nil then
+    GFXBDB := TFXBSQLite.Create;
+  if GFXBDB.Open(StrPas(path)) then
+    Result := 0
+  else
+    Result := 1;
+end;
+
+function fxb_sqlite_exec(const sql: PChar): Integer; cdecl;
+begin
+  if GFXBDB = nil then
+  begin
+    Result := 1;
+    Exit;
+  end;
+  if GFXBDB.Exec(StrPas(sql)) = '' then
+    Result := 0
+  else
+    Result := 1;
+end;
+
+procedure fxb_sqlite_close; cdecl;
+begin
+  if GFXBDB <> nil then
+  begin
+    GFXBDB.Close;
+    GFXBDB.Free;
+    GFXBDB := nil;
+  end;
+end;
+
 end.

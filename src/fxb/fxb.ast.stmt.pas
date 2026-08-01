@@ -164,6 +164,31 @@ type
     property Kind: string read FKind;
   end;
 
+  // Fase 2: database statements (USE / APPEND / REPLACE) lowered to SQLite calls.
+  // Op is one of: 'use', 'append', 'replace'.
+  //  - use:     TableName set; opens/creates the table (schema inferred at compile time).
+  //  - append:  FieldNames + Exprs (parallel arrays, the column/value pairs to insert).
+  //  - replace: Field + Expr (single column assignment; MVP emits UPDATE over all rows).
+  TASTDBStmt = class(TStmt)
+  private
+    FOp: string;
+    FTableName: string;
+    FField: string;
+    FFieldNames: TStringArray;
+    FExprs: TExprArray;
+  public
+    constructor Create(const AOp, ATableName: string; ALine, ACol: Integer);
+    destructor Destroy; override;
+    procedure AddPair(const FieldName: string; Expr: TExpr);
+    procedure SetReplace(const FieldName: string; Expr: TExpr);
+    function Dump(Indent: Integer = 0): string; override;
+    property Op: string read FOp;
+    property TableName: string read FTableName;
+    property Field: string read FField;
+    property FieldNames: TStringArray read FFieldNames;
+    property Exprs: TExprArray read FExprs;
+  end;
+
 implementation
 
 constructor TExprStmt.Create(AExpr: TExpr; ALine, ACol: Integer);
@@ -557,6 +582,57 @@ end;
 function TLoopCtrlStmt.Dump(Indent: Integer = 0): string;
 begin
   Result := StringOfChar(' ', Indent * 2) + FKind;
+end;
+
+{ TASTDBStmt }
+
+constructor TASTDBStmt.Create(const AOp, ATableName: string; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FOp := AOp;
+  FTableName := ATableName;
+  FField := '';
+  SetLength(FFieldNames, 0);
+  SetLength(FExprs, 0);
+end;
+
+destructor TASTDBStmt.Destroy;
+var
+  i: Integer;
+begin
+  for i := 0 to High(FExprs) do FExprs[i].Free;
+  inherited;
+end;
+
+procedure TASTDBStmt.AddPair(const FieldName: string; Expr: TExpr);
+begin
+  SetLength(FFieldNames, Length(FFieldNames) + 1);
+  FFieldNames[High(FFieldNames)] := FieldName;
+  SetLength(FExprs, Length(FExprs) + 1);
+  FExprs[High(FExprs)] := Expr;
+end;
+
+procedure TASTDBStmt.SetReplace(const FieldName: string; Expr: TExpr);
+begin
+  FField := FieldName;
+  SetLength(FExprs, 1);
+  FExprs[0] := Expr;
+end;
+
+function TASTDBStmt.Dump(Indent: Integer = 0): string;
+var
+  pad: string;
+  i: Integer;
+begin
+  pad := StringOfChar(' ', Indent * 2);
+  Result := pad + 'DB.' + UpperCase(FOp) + ' ' + FTableName;
+  if FOp = 'append' then
+  begin
+    for i := 0 to High(FFieldNames) do
+      Result := Result + LineEnding + pad + '  ' + FFieldNames[i] + ' = ' + FExprs[i].Dump(0);
+  end
+  else if FOp = 'replace' then
+    Result := Result + LineEnding + pad + '  ' + FField + ' = ' + FExprs[0].Dump(0);
 end;
 
 end.

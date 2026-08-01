@@ -56,6 +56,7 @@ type
     FTypeCache: TStringList;
     FPendingPredicate: string;
     FPrependStmts: array of TASTNode;
+    FCurrentDBTable: string;
 
     function GetIRType(const TypeName: string): TIRType;
     function GetIRTypeFromToken(AToken: TToken): TIRType;
@@ -91,6 +92,7 @@ type
     procedure LowerStatement(Stmt: TASTNode);
     procedure LowerExprStmt(Stmt: TExprStmt);
     procedure LowerPrint(Stmt: TPrintStmt);
+    procedure LowerDBStmt(Stmt: TASTDBStmt);
     procedure LowerVarDecl(Stmt: TVarDeclStmt);
     procedure LowerAssign(Stmt: TAssignStmt);
     procedure LowerIf(Stmt: TIfStmt);
@@ -681,7 +683,8 @@ begin
   else if Stmt is TWhileStmt then LowerWhile(TWhileStmt(Stmt))
   else if Stmt is TReturnStmt then LowerReturn(TReturnStmt(Stmt))
   else if Stmt is TYieldStmt then LowerYield(TYieldStmt(Stmt))
-  else if Stmt is TLoopCtrlStmt then LowerLoopCtrl(TLoopCtrlStmt(Stmt));
+  else if Stmt is TLoopCtrlStmt then LowerLoopCtrl(TLoopCtrlStmt(Stmt))
+  else if Stmt is TASTDBStmt then LowerDBStmt(TASTDBStmt(Stmt));
 end;
 
 procedure TFXBIRGenerator.LowerExprStmt(Stmt: TExprStmt);
@@ -702,6 +705,51 @@ begin
     instr.AddOperand(val);
   end;
   instr.Metadata.Add(Format('newline=%s', [BoolToStr(Stmt.NewLine, '1', '0')]));
+  EmitInstr(instr);
+end;
+
+procedure TFXBIRGenerator.LowerDBStmt(Stmt: TASTDBStmt);
+var
+  instr: TIRInstruction;
+  i: Integer;
+  val: TIRValue;
+  table: string;
+begin
+  instr := TIRInstruction.Create(ikDBOp, TIRType.Void, '');
+  instr.Metadata.Values['op'] := Stmt.Op;
+  if Stmt.Op = 'use' then
+  begin
+    FCurrentDBTable := Stmt.TableName;
+    instr.Metadata.Values['table'] := Stmt.TableName;
+  end
+  else
+  begin
+    // append / replace use the currently-open table.
+    table := FCurrentDBTable;
+    if table = '' then
+      ReportErrorNode(Stmt, FXB_TYPE_MISMATCH, 'DB operation outside of USE')
+    else
+      instr.Metadata.Values['table'] := table;
+    if Stmt.Op = 'append' then
+    begin
+      // Field names travel in metadata; values as operands (folded to constants).
+      table := '';
+      for i := 0 to High(Stmt.FieldNames) do
+      begin
+        if i > 0 then table := table + ',';
+        table := table + Stmt.FieldNames[i];
+      end;
+      instr.Metadata.Values['fields'] := table;
+    end
+    else if Stmt.Op = 'replace' then
+      instr.Metadata.Values['field'] := Stmt.Field;
+    // Lower the value expressions (expected to fold to constants).
+    for i := 0 to High(Stmt.Exprs) do
+    begin
+      val := LowerExpression(Stmt.Exprs[i]);
+      instr.AddOperand(val);
+    end;
+  end;
   EmitInstr(instr);
 end;
 

@@ -50,6 +50,7 @@ type
   TReturnStmt = fxb.ast.stmt.TReturnStmt;
   TYieldStmt = fxb.ast.stmt.TYieldStmt;
   TLoopCtrlStmt = fxb.ast.stmt.TLoopCtrlStmt;
+  TASTDBStmt = fxb.ast.stmt.TASTDBStmt;
 
 implementation
 

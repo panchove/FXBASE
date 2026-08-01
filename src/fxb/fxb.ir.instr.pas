@@ -45,6 +45,7 @@ type
     ikSelect,
     ikPhi,
     ikPrint,
+    ikDBOp,        // Fase 2: USE/APPEND/REPLACE -> SQLite runtime call
     ikYield,
     ikUnreachable,
     ikDbgValue,
