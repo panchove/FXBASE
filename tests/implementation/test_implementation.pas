@@ -4,20 +4,20 @@ program test_implementation;
 
 uses
   SysUtils, Classes,
-  fpx.tokens, fpx.lexer, fpx.parser, fpx.ast, fpx.errors,
-  fpx.test.framework;
+  fxb.tokens, fxb.lexer, fxb.parser, fxb.ast, fxb.errors,
+  fxb.test.framework;
 
 type
   TLoadResult = record
     LexOK: Boolean;
     HasErrors: Boolean;
     Tokens: TTokenArray;
-    Errors: TFPXLexerErrors;
+    Errors: TFXBLexerErrors;
   end;
 
 function LoadAndLex(const APath: string): TLoadResult;
 var
-  lex: TFPXLexer;
+  lex: TFXBLexer;
   src: TStringList;
 begin
   Result.LexOK := False;
@@ -26,7 +26,7 @@ begin
   Result.Errors := nil;
 
   src := TStringList.Create;
-  lex := TFPXLexer.Create;
+  lex := TFXBLexer.Create;
   try
     src.LoadFromFile(APath);
     Result.LexOK := lex.Tokenize(src.Text, APath);
@@ -79,14 +79,14 @@ end;
 
 procedure TestImpl_HelloWorld_ParseAST;
 var
-  lex: TFPXLexer;
+  lex: TFXBLexer;
   par: TParser;
   rep: TErrorReporter;
   src: TStringList;
   unit_: TCompilationUnit;
 begin
   src := TStringList.Create;
-  lex := TFPXLexer.Create;
+  lex := TFXBLexer.Create;
   rep := TErrorReporter.Create('hello.fpg');
   par := TParser.Create(lex, rep);
   try
@@ -104,7 +104,7 @@ begin
 end;
 
 // ----------------------------------------------------------------------
-// Programa FPXBASE completo con generics, INTERFACE, nil-safe
+// Programa FXBASE completo con generics, INTERFACE, nil-safe
 // ----------------------------------------------------------------------
 procedure TestImpl_Program_HasGenerics;
 var
@@ -213,7 +213,7 @@ end;
 // ----------------------------------------------------------------------
 procedure TestImpl_Stress_RepeatClasses;
 var
-  lex: TFPXLexer;
+  lex: TFXBLexer;
   src: string;
   i: Integer;
 begin
@@ -224,7 +224,7 @@ begin
                 '        ? 1' + sLineBreak +
                 '    ENDMETHOD' + sLineBreak +
                 'ENDCLASS' + sLineBreak;
-  lex := TFPXLexer.Create;
+  lex := TFXBLexer.Create;
   try
     AssertTrue(lex.Tokenize(src, 'stress.fpg'), 'Stress lex OK');
     AssertFalse(lex.HasErrors, 'Stress sin errores');

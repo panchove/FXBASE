@@ -36,8 +36,8 @@ echo "[1/3] Unit tests"
 echo "----------------------------------------------------------------"
 fpc $FPC_FLAGS -obin/test_tokens      tests/unit/test_tokens.pas
 fpc $FPC_FLAGS -obin/test_lexer       tests/unit/test_lexer.pas
-run_test bin/test_tokens  "fpx.tokens — unit"
-run_test bin/test_lexer   "fpx.lexer  — unit"
+run_test bin/test_tokens  "fxb.tokens — unit"
+run_test bin/test_lexer   "fxb.lexer  — unit"
 
 echo ""
 echo "[2/3] Integration tests"

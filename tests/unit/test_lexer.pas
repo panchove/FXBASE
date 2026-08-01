@@ -3,13 +3,13 @@ program test_lexer;
 {$mode delphi}{$H+}
 
 uses
-  SysUtils, fpx.tokens, fpx.lexer, fpx.test.framework;
+  SysUtils, fxb.tokens, fxb.lexer, fxb.test.framework;
 
 function LexOne(const ASource: string; AIdx: Integer): TToken;
 var
-  lex: TFPXLexer;
+  lex: TFXBLexer;
 begin
-  lex := TFPXLexer.Create;
+  lex := TFXBLexer.Create;
   try
     lex.Tokenize(ASource, 'test.fpg');
     if AIdx < Length(lex.Tokens) then
@@ -23,9 +23,9 @@ end;
 
 procedure TestLex_EmptySource;
 var
-  lex: TFPXLexer;
+  lex: TFXBLexer;
 begin
-  lex := TFPXLexer.Create;
+  lex := TFXBLexer.Create;
   try
     AssertTrue(lex.Tokenize('', 'empty.fpg'), 'Tokenize empty debe retornar True');
     AssertEqualsI(0, Length(lex.Tokens), 'Sin tokens');
@@ -66,9 +66,9 @@ end;
 
 procedure TestLex_NegativeNumberIsUnary;
 var
-  lex: TFPXLexer;
+  lex: TFXBLexer;
 begin
-  lex := TFPXLexer.Create;
+  lex := TFXBLexer.Create;
   try
     lex.Tokenize('-5', 't.fpg');
     AssertTrue(Length(lex.Tokens) >= 2, 'Debe haber 2 tokens: -, 5');
@@ -108,9 +108,9 @@ end;
 
 procedure TestLex_Operators_Basic;
 var
-  lex: TFPXLexer;
+  lex: TFXBLexer;
 begin
-  lex := TFPXLexer.Create;
+  lex := TFXBLexer.Create;
   try
     lex.Tokenize('+-*/', 't.fpg');
     AssertEqualsI(4, Length(lex.Tokens), '4 operadores');
@@ -125,9 +125,9 @@ end;
 
 procedure TestLex_Operators_TwoChar;
 var
-  lex: TFPXLexer;
+  lex: TFXBLexer;
 begin
-  lex := TFPXLexer.Create;
+  lex := TFXBLexer.Create;
   try
     lex.Tokenize('::?:?.', 't.fpg');
     AssertEqualsI(3, Length(lex.Tokens), '3 operadores de 2 chars');
@@ -151,9 +151,9 @@ end;
 
 procedure TestLex_Operators_Assigns;
 var
-  lex: TFPXLexer;
+  lex: TFXBLexer;
 begin
-  lex := TFPXLexer.Create;
+  lex := TFXBLexer.Create;
   try
     lex.Tokenize('+=-=*=/=', 't.fpg');
     AssertEqualsI(4, Length(lex.Tokens), '4 assigns');
@@ -168,9 +168,9 @@ end;
 
 procedure TestLex_Operators_Logical;
 var
-  lex: TFPXLexer;
+  lex: TFXBLexer;
 begin
-  lex := TFPXLexer.Create;
+  lex := TFXBLexer.Create;
   try
     lex.Tokenize('&&||', 't.fpg');
     AssertTrue(Length(lex.Tokens) >= 1, 'Operadores lógicos');
@@ -184,9 +184,9 @@ end;
 
 procedure TestLex_CommentLine;
 var
-  lex: TFPXLexer;
+  lex: TFXBLexer;
 begin
-  lex := TFPXLexer.Create;
+  lex := TFXBLexer.Create;
   try
     lex.Tokenize('// esto es comentario', 't.fpg');
     // Los comentarios pueden emitir token o no, pero no deben causar errores
@@ -198,9 +198,9 @@ end;
 
 procedure TestLex_CommentStar;
 var
-  lex: TFPXLexer;
+  lex: TFXBLexer;
 begin
-  lex := TFPXLexer.Create;
+  lex := TFXBLexer.Create;
   try
     lex.Tokenize('* otro comentario', 't.fpg');
     AssertFalse(lex.HasErrors, 'Sin errores con comentario *');
@@ -211,9 +211,9 @@ end;
 
 procedure TestLex_BlockComment;
 var
-  lex: TFPXLexer;
+  lex: TFXBLexer;
 begin
-  lex := TFPXLexer.Create;
+  lex := TFXBLexer.Create;
   try
     lex.Tokenize('/* block comment */', 't.fpg');
     AssertFalse(lex.HasErrors, 'Sin errores con block comment');
@@ -243,9 +243,9 @@ end;
 
 procedure TestLex_PreprocessorDirectives;
 var
-  lex: TFPXLexer;
+  lex: TFXBLexer;
 begin
-  lex := TFPXLexer.Create;
+  lex := TFXBLexer.Create;
   try
     lex.Tokenize('#include "foo.fph"', 't.fpg');
     AssertFalse(lex.HasErrors, 'Sin errores en #include');
@@ -259,11 +259,11 @@ end;
 
 procedure TestLex_MultiLinePositions;
 var
-  lex: TFPXLexer;
+  lex: TFXBLexer;
   i: Integer;
   tokLine2: Integer;
 begin
-  lex := TFPXLexer.Create;
+  lex := TFXBLexer.Create;
   try
     lex.Tokenize('foo' + sLineBreak + 'bar' + sLineBreak + 'baz', 't.fpg');
     tokLine2 := -1;
@@ -282,11 +282,11 @@ end;
 
 procedure TestLex_StreamInterface_NextToken;
 var
-  lex: TFPXLexer;
+  lex: TFXBLexer;
   tok: TToken;
   count: Integer;
 begin
-  lex := TFPXLexer.Create;
+  lex := TFXBLexer.Create;
   try
     lex.Tokenize('a b c', 't.fpg');
     count := 0;
@@ -304,9 +304,9 @@ end;
 
 procedure TestLex_LegacyMode;
 var
-  lex: TFPXLexer;
+  lex: TFXBLexer;
 begin
-  lex := TFPXLexer.Create;
+  lex := TFXBLexer.Create;
   try
     lex.LegacyMode := True;
     lex.Tokenize('FUNCTION Test()', 'legacy.fpg');
@@ -318,9 +318,9 @@ end;
 
 procedure TestLex_StrictMode;
 var
-  lex: TFPXLexer;
+  lex: TFXBLexer;
 begin
-  lex := TFPXLexer.Create;
+  lex := TFXBLexer.Create;
   try
     lex.StrictMode := True;
     lex.Tokenize('myVar := 42', 'strict.fpg');
@@ -353,5 +353,5 @@ begin
   RegisterTest('Lex: NextToken stream interface',  @TestLex_StreamInterface_NextToken);
   RegisterTest('Lex: LegacyMode flag',             @TestLex_LegacyMode);
   RegisterTest('Lex: StrictMode flag',             @TestLex_StrictMode);
-  RunAllTests('UNIT TESTS — fpx.lexer');
+  RunAllTests('UNIT TESTS — fxb.lexer');
 end.

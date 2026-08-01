@@ -1,20 +1,25 @@
-# FPXBASE - Free Pascal xBASE Compiler
+# FXBASE - Fast xBASE Compiler
 # Makefile for building the compiler and tools
+
+SHELL := /bin/bash
 
 FPC := fpc
 SRC_DIR := src
-FPCFLAGS := -n -Mobjfpc -O2 -gl -vewnhi -Fu/usr/lib/x86_64-linux-gnu/fpc/3.2.2/units/x86_64-linux/rtl -Fu/usr/lib/x86_64-linux-gnu/fpc/3.2.2/units/x86_64-linux/rtl-objpas -Fu$(SRC_DIR)/fpx -Fu/usr/share/fpcsrc/3.2.2/packages/rtl-generics/src -FEbin -FUbuild
+FPCFLAGS := -n -Mobjfpc -O2 -gl -vewnhi -Fu/usr/lib/x86_64-linux-gnu/fpc/3.2.2/units/x86_64-linux/rtl -Fu/usr/lib/x86_64-linux-gnu/fpc/3.2.2/units/x86_64-linux/rtl-objpas -Fu$(SRC_DIR)/fxb -Fu/usr/share/fpcsrc/3.2.2/packages/rtl-generics/src -FEbin -FUbuild
 BUILD_DIR := build
 BIN_DIR := bin
 
-# Main targets
-.PHONY: all clean test fpx install
+# Semantic version
+VERSION := $(shell cat VERSION 2>/dev/null || echo 0.0.0)
 
-all: fpx
+# Main targets
+.PHONY: all clean test fxbc install fxbc
+
+all: fxbc
 
 # Main compiler
-fpx: $(BUILD_DIR) $(BIN_DIR)
-	$(FPC) $(FPCFLAGS) -o$(BIN_DIR)/fpx $(SRC_DIR)/fpx/fpx.lpr
+fxbc: $(BUILD_DIR) $(BIN_DIR)
+	$(FPC) $(FPCFLAGS) -o$(BIN_DIR)/fxbc $(SRC_DIR)/fxb/fxb.lpr
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -26,19 +31,19 @@ $(BIN_DIR):
 test: test-unit test-integration test-implementation test-ir
 	@echo "All test suites passed."
 
-test-unit: fpx
+test-unit: fxbc
 	@bash tests/run_unit.sh
 
-test-integration: fpx
+test-integration: fxbc
 	@bash tests/run_integration.sh
 
-test-implementation: fpx
+test-implementation: fxbc
 	@bash tests/run_implementation.sh
 
-test-ir: fpx
+test-ir: fxbc
 	@bash tests/run_ir.sh
 
-test-all: fpx
+test-all: fxbc
 	@bash tests/run_all_tests.sh
 
 test-coverage:
@@ -49,17 +54,17 @@ test-quality:
 
 # Clean
 clean:
-	rm -rf $(BUILD_DIR) $(BIN_DIR)/fpx*
+	rm -rf $(BUILD_DIR) $(BIN_DIR)/fxbc*
 
 # Install
 install: all
 	install -d /usr/local/bin
-	install $(BIN_DIR)/fpx /usr/local/bin/fpx
+	install $(BIN_DIR)/fxbc /usr/local/bin/fxbc
 	@echo "Installed to /usr/local/bin"
 
 # Development
-dev: fpx
-	@echo "Build complete. Run ./bin/fpx --help"
+dev: fxbc
+	@echo "Build complete. Run ./bin/fxbc --help"
 
 # Documentation
 docs:
@@ -68,13 +73,32 @@ docs:
 
 # Package
 dist: clean all
-	tar -czf fpxbase-$(VERSION).tar.gz --exclude=.git --exclude=build --exclude=bin/fpx* .
+	tar -czf fxbase-$(VERSION).tar.gz --exclude=.git --exclude=build --exclude=bin/fxbc* .
+
+# Real coverage (gcov/lcov via FPC -Fpg)
+test-coverage-real:
+	$(MAKE) clean
+	$(MAKE) FPCFLAGS="$(FPCFLAGS) -pg -Fpg" all
+	$(MAKE) test
+	lcov --capture --directory $(BUILD_DIR) --output-file coverage.info
+	genhtml coverage.info --output-directory coverage_html
+
+# Strict heuristic coverage gate
+test-coverage-strict:
+	@bash tests/metrics/coverage.sh | tee /tmp/cov.txt; \
+	LINE_RATIO=$$(grep "Test:Source line ratio" /tmp/cov.txt | awk '{print $$3}' | sed 's/:1//'); \
+	UNIT_PCT=$$(grep "Unit usage coverage" /tmp/cov.txt | awk '{print $$3}' | sed 's/%//'); \
+	FUNC_PCT=$$(grep "Estimated function coverage" /tmp/cov.txt | awk '{print $$3}' | sed 's/%//'); \
+	echo "Ratios: line=$$LINE_RATIO unit=$$UNIT_PCT% func=$$FUNC_PCT%"; \
+	if [ $$(echo "$$LINE_RATIO < 0.5" | bc -l) -eq 1 ]; then echo "Line ratio too low"; exit 1; fi; \
+	if [ $$(echo "$$UNIT_PCT < 50" | bc -l) -eq 1 ]; then echo "Unit coverage too low"; exit 1; fi; \
+	if [ $$(echo "$$FUNC_PCT < 10" | bc -l) -eq 1 ]; then echo "Function coverage too low"; exit 1; fi
 
 # Help
 help:
-	@echo "FPXBASE Makefile targets:"
+	@echo "FXBASE Makefile targets:"
 	@echo "  all                 - Build main compiler (default)"
-	@echo "  fpx                 - Build main compiler"
+	@echo "  fxbc                - Build main compiler"
 	@echo "  test                - Run all unit/integration/impl/IR tests"
 	@echo "  test-unit           - Run unit tests only"
 	@echo "  test-integration    - Run integration tests only"
@@ -83,9 +107,42 @@ help:
 	@echo "  test-all            - Run full suite (verbose)"
 	@echo "  test-coverage       - Generate coverage report"
 	@echo "  test-quality        - Generate quality metrics"
+	@echo "  test-coverage-real  - Real gcov/lcov coverage"
+	@echo "  test-coverage-strict- Strict heuristic coverage gate"
 	@echo "  clean               - Clean build artifacts"
 	@echo "  install             - Install to /usr/local/bin"
 	@echo "  dev                 - Quick dev build"
 	@echo "  docs                - Generate documentation"
 	@echo "  dist                - Create distribution tarball"
 	@echo "  help                - Show this help"
+
+# Version management
+bump-patch:
+	@V=$$(cat VERSION); \
+	IFS=. read -r major minor patch <<< "$$V"; \
+	patch=$$((patch+1)); \
+	echo "$$major.$$minor.$$patch" > VERSION; \
+	echo "Bumped to $$(cat VERSION)"
+
+bump-minor:
+	@V=$$(cat VERSION); \
+	IFS=. read -r major minor patch <<< "$$V"; \
+	minor=$$((minor+1)); \
+	patch=0; \
+	echo "$$major.$$minor.$$patch" > VERSION; \
+	echo "Bumped to $$(cat VERSION)"
+
+bump-major:
+	@V=$$(cat VERSION); \
+	IFS=. read -r major minor patch <<< "$$V"; \
+	major=$$((major+1)); \
+	minor=0; \
+	patch=0; \
+	echo "$$major.$$minor.$$patch" > VERSION; \
+	echo "Bumped to $$(cat VERSION)"
+
+release: bump-patch
+	@git add VERSION
+	@git commit -m "chore: release $$(cat VERSION)"
+	@git tag -a v$$(cat VERSION) -m "Release $$(cat VERSION)"
+	@echo "Released version $$(cat VERSION). Push with: git push && git push --tags"

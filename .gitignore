@@ -15,7 +15,7 @@
 
 # FPXBASE intermediates
 *.ppo
-*.fpxmap
+*.fxmap
 
 # IDE
 *.idea/

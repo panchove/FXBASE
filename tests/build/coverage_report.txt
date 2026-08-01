@@ -1,0 +1,14 @@
+Source code (src/fxb/):
+  Total lines:           
+  Procedures+functions:  0
+  Units:                 0
+
+Test code:
+  Test files:            0
+  Test code lines:       0
+  Units used in tests:   0/0
+  Symbols exercised:     0
+
+No functions found in source
+
+Report: build/coverage_report.txt

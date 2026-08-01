@@ -4,8 +4,8 @@ program test_ir;
 
 uses
   SysUtils, Classes,
-  fpx.tokens, fpx.lexer, fpx.parser, fpx.ast, fpx.errors, fpx.ir,
-  fpx.test.framework;
+  fxb.tokens, fxb.lexer, fxb.parser, fxb.ast, fxb.errors, fxb.ir,
+  fxb.test.framework;
 
 function LoadSource(const APath: string): string;
 var
@@ -21,9 +21,9 @@ begin
 end;
 
 function Compile(const ASource, AName: string; out IR: TIRModule;
-  out LexErrCount, ParseErrCount: Integer): TFPXIRGenerator;
+  out LexErrCount, ParseErrCount: Integer): TFXBIRGenerator;
 var
-  lex: TFPXLexer;
+  lex: TFXBLexer;
   par: TParser;
   rep: TErrorReporter;
   ast: TCompilationUnit;
@@ -32,11 +32,11 @@ begin
   ParseErrCount := 0;
   IR := nil;
 
-  lex := TFPXLexer.Create;
+  lex := TFXBLexer.Create;
   rep := TErrorReporter.Create(AName);
   par := TParser.Create(lex, rep);
   ast := nil;
-  Result := TFPXIRGenerator.Create;
+  Result := TFXBIRGenerator.Create;
   try
     lex.Tokenize(ASource, AName);
     if lex.HasErrors then LexErrCount := 1;
@@ -55,7 +55,7 @@ end;
 procedure TestIR_EmptyFunction;
 var
   src, fnName: string;
-  irGen: TFPXIRGenerator;
+  irGen: TFXBIRGenerator;
   ir: TIRModule;
   lexErr, parseErr: Integer;
 begin
@@ -81,7 +81,7 @@ end;
 procedure TestIR_FunctionWithLocals;
 var
   src: string;
-  irGen: TFPXIRGenerator;
+  irGen: TFXBIRGenerator;
   ir: TIRModule;
   fn: TIRFunction;
   dump: string;
@@ -113,7 +113,7 @@ end;
 procedure TestIR_Assignment;
 var
   src, dump: string;
-  irGen: TFPXIRGenerator;
+  irGen: TFXBIRGenerator;
   ir: TIRModule;
   lexErr, parseErr: Integer;
 begin
@@ -139,7 +139,7 @@ end;
 procedure TestIR_IfElseBlocks;
 var
   src, dump: string;
-  irGen: TFPXIRGenerator;
+  irGen: TFXBIRGenerator;
   ir: TIRModule;
   fn: TIRFunction;
   lexErr, parseErr: Integer;
@@ -175,7 +175,7 @@ end;
 procedure TestIR_WhileBlocks;
 var
   src, dump: string;
-  irGen: TFPXIRGenerator;
+  irGen: TFXBIRGenerator;
   ir: TIRModule;
   lexErr, parseErr: Integer;
 begin
@@ -204,7 +204,7 @@ end;
 procedure TestIR_ForBlocks;
 var
   src, dump: string;
-  irGen: TFPXIRGenerator;
+  irGen: TFXBIRGenerator;
   ir: TIRModule;
   lexErr, parseErr: Integer;
 begin
@@ -236,7 +236,7 @@ end;
 procedure TestIR_Return;
 var
   src, dump: string;
-  irGen: TFPXIRGenerator;
+  irGen: TFXBIRGenerator;
   ir: TIRModule;
   lexErr, parseErr: Integer;
 begin
@@ -260,7 +260,7 @@ end;
 procedure TestIR_BinOpTypes;
 var
   src, dump: string;
-  irGen: TFPXIRGenerator;
+  irGen: TFXBIRGenerator;
   ir: TIRModule;
   lexErr, parseErr: Integer;
 begin
@@ -286,7 +286,7 @@ end;
 procedure TestIR_TargetTriple;
 var
   src: string;
-  irGen: TFPXIRGenerator;
+  irGen: TFXBIRGenerator;
   ir: TIRModule;
   lexErr, parseErr: Integer;
 begin

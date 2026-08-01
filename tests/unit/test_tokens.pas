@@ -3,7 +3,7 @@ program test_tokens;
 {$mode delphi}{$H+}
 
 uses
-  SysUtils, fpx.tokens, fpx.test.framework;
+  SysUtils, fxb.tokens, fxb.test.framework;
 
 procedure TestKeywordFromString_Class;
 begin
@@ -147,5 +147,5 @@ begin
   RegisterTest('DumpToken: string',                  @TestDumpToken_String);
   RegisterTest('TokenFlags: empty set',              @TestTokenFlags_Empty);
   RegisterTest('TokenFlags: set members',            @TestTokenFlags_Set);
-  RunAllTests('UNIT TESTS — fpx.tokens');
+  RunAllTests('UNIT TESTS — fxb.tokens');
 end.

@@ -1,0 +1,6 @@
+// hello.fpg — Smoke test mínimo (FPXBASE moderno)
+CLASS Hello
+    METHOD Run()
+        ? "Hello, World!"
+    ENDMETHOD
+ENDCLASS

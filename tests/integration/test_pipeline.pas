@@ -4,17 +4,17 @@ program test_pipeline;
 
 uses
   SysUtils, Classes,
-  fpx.tokens, fpx.lexer, fpx.parser, fpx.ast, fpx.errors,
-  fpx.test.framework;
+  fxb.tokens, fxb.lexer, fxb.parser, fxb.ast, fxb.errors,
+  fxb.test.framework;
 
 procedure TestPipeline_Empty;
 var
-  lex: TFPXLexer;
+  lex: TFXBLexer;
   par: TParser;
   rep: TErrorReporter;
   unit_: TCompilationUnit;
 begin
-  lex := TFPXLexer.Create;
+  lex := TFXBLexer.Create;
   rep := TErrorReporter.Create('empty.fpg');
   par := TParser.Create(lex, rep);
   try
@@ -31,7 +31,7 @@ end;
 
 procedure TestPipeline_HelloWorldTokens;
 var
-  lex: TFPXLexer;
+  lex: TFXBLexer;
   src: string;
   hasClass: Boolean;
   hasEndClass: Boolean;
@@ -45,7 +45,7 @@ begin
     '    ENDMETHOD' + sLineBreak +
     'ENDCLASS';
 
-  lex := TFPXLexer.Create;
+  lex := TFXBLexer.Create;
   try
     AssertTrue(lex.Tokenize(src, 'hello.fpg'), 'Lex hello OK');
     hasClass := False; hasEndClass := False; hasMethod := False;
@@ -68,7 +68,7 @@ end;
 
 procedure TestPipeline_ReadFixture;
 var
-  lex: TFPXLexer;
+  lex: TFXBLexer;
   par: TParser;
   rep: TErrorReporter;
   src: TStringList;
@@ -76,7 +76,7 @@ var
 begin
   AssertTrue(FileExists('tests/fixtures/hello.fpg'), 'Fixture hello.fpg existe');
   src := TStringList.Create;
-  lex := TFPXLexer.Create;
+  lex := TFXBLexer.Create;
   rep := TErrorReporter.Create('hello.fpg');
   par := TParser.Create(lex, rep);
   try
@@ -96,13 +96,13 @@ end;
 
 procedure TestPipeline_OperatorPreservation;
 var
-  lex: TFPXLexer;
+  lex: TFXBLexer;
   src: string;
   hasDoubleColon, hasQColon, hasQDot: Boolean;
   i: Integer;
 begin
   src := 'obj ?: default ; obj ?.field ; SUPER::method()';
-  lex := TFPXLexer.Create;
+  lex := TFXBLexer.Create;
   try
     AssertTrue(lex.Tokenize(src, 'ops.fpg'), 'Lex ops OK');
     hasDoubleColon := False; hasQColon := False; hasQDot := False;
@@ -124,7 +124,7 @@ end;
 
 procedure TestPipeline_EndToEndFile;
 var
-  lex: TFPXLexer;
+  lex: TFXBLexer;
   par: TParser;
   rep: TErrorReporter;
   src: TStringList;
@@ -132,7 +132,7 @@ var
 begin
   AssertTrue(FileExists('tests/fixtures/program.fpg'), 'Fixture program.fpg existe');
   src := TStringList.Create;
-  lex := TFPXLexer.Create;
+  lex := TFXBLexer.Create;
   rep := TErrorReporter.Create('program.fpg');
   par := TParser.Create(lex, rep);
   try
@@ -152,7 +152,7 @@ end;
 
 procedure TestPipeline_LegacyFixture;
 var
-  lex: TFPXLexer;
+  lex: TFXBLexer;
   par: TParser;
   rep: TErrorReporter;
   src: TStringList;
@@ -160,7 +160,7 @@ var
 begin
   AssertTrue(FileExists('tests/fixtures/legacy.prg'), 'Fixture legacy.prg existe');
   src := TStringList.Create;
-  lex := TFPXLexer.Create;
+  lex := TFXBLexer.Create;
   rep := TErrorReporter.Create('legacy.prg');
   par := TParser.Create(lex, rep);
   try

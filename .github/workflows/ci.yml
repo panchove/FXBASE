@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fpc fpc-source lcov bc
+      - name: Build
+        run: make all
+      - name: Run tests
+        run: make test
+      - name: Coverage (heuristic)
+        run: make test-coverage
+      - name: Coverage (real) with threshold
+        run: |
+          make test-coverage-real
+          LINE_COV=$(lcov --summary coverage.info 2>&1 | grep "lines" | awk '{print $2}' | sed 's/%//')
+          echo "Line coverage: $LINE_COV%"
+          if (( $(echo "$LINE_COV < 85" | bc -l) )); then
+            echo "Coverage $LINE_COV% is below 85% threshold"
+            exit 1
+          fi
+      - name: Quality
+        run: make test-quality
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fpc fpc-source gh
+      - name: Build release binary
+        run: make all
+      - name: Create tarball
+        run: make dist
+      - name: Upload release asset
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ github.ref_name }} fxbase-$(cat VERSION).tar.gz --title "Release $(cat VERSION)" --notes "Release $(cat VERSION)"
