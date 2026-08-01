@@ -598,6 +598,122 @@ begin
   ExitCode := SysUtils.ExecuteProcess('/bin/sh', '-c "' + Cmd + ' > /dev/null 2>&1"');
 end;
 
+// Same, but run the binary under Wine (for Windows PE targets built on Linux).
+function CaptureProgramOutputWine(const BinPath: string; out ExitCode: Integer): string;
+begin
+  Result := CaptureProgramOutput('wine ' + BinPath, ExitCode);
+end;
+
+function WineAvailable: Boolean;
+begin
+  // wine is required to execute PE binaries on Linux.
+  Result := (SysUtils.ExecuteProcess('/bin/sh', '-c "which wine > /dev/null 2>&1"') = 0);
+end;
+
+// ----------------------------------------------------------------------
+// Backend: Windows PE/COFF (x86_64 + i386) via MinGW
+// ----------------------------------------------------------------------
+procedure TestImpl_Backend_Win64_Asm;
+var
+  src, asmOut: string;
+  lex: TFXBLexer;
+  par: TParser;
+  rep: TErrorReporter;
+  ast: TCompilationUnit;
+  irGen: TFXBIRGenerator;
+  ir: TIRModule;
+  backend: TFXBBackend;
+begin
+  src :=
+    'FUNCTION Main() AS INTEGER' + sLineBreak +
+    '    ? "hi"' + sLineBreak +
+    '    ? 1 + 2' + sLineBreak +
+    '    ? 7 / 2' + sLineBreak +
+    '    ? 1.5 + 2.5' + sLineBreak +
+    '    RETURN 0' + sLineBreak +
+    'ENDFUNC';
+  lex := TFXBLexer.Create;
+  rep := TErrorReporter.Create('win64.fpg');
+  par := TParser.Create(lex, rep);
+  irGen := TFXBIRGenerator.Create;
+  ir := nil;
+  ast := nil;
+  backend := TFXBBackend.Create;
+  backend.TargetOS := 'windows';
+  backend.TargetCPU := 'x86_64';
+  try
+    lex.Tokenize(src, 'win64.fpg');
+    ast := par.ParseProgram;
+    AssertFalse(rep.HasErrors, 'parse sin errores');
+    ir := irGen.Generate(ast);
+    AssertTrue(backend.Generate(ir, 'win64_test.s'), 'backend win64 generate OK');
+    asmOut := backend.LastASM;
+    AssertTrue(Pos('main:', asmOut) > 0, 'entry es main (no _start) en Windows');
+    AssertTrue(Pos('_start', asmOut) = 0, 'no _start en Windows');
+    AssertTrue(Pos('subq $32, %rsp', asmOut) > 0, 'shadow space MS x64');
+    AssertTrue(Pos('%rcx', asmOut) > 0, 'formato en %rcx (MS ABI)');
+    AssertTrue(Pos('syscall', asmOut) = 0, 'no syscall en Windows');
+    AssertTrue(Pos('.section .rdata', asmOut) > 0, 'seccion .rdata en COFF');
+  finally
+    DeleteFile('win64_test.s');
+    backend.Free;
+    if Assigned(ir) then ir.Free;
+    irGen.Free;
+    if Assigned(ast) then ast.Free;
+    par.Free;
+    rep.Free;
+    lex.Free;
+  end;
+end;
+
+procedure TestImpl_Backend_Win64_Executes;
+var
+  fxbcPath, exePath, outp: string;
+  code: Integer;
+begin
+  if not WineAvailable then
+  begin
+    WriteLn('  [SKIP] backend win64 executes: wine no disponible en este entorno');
+    Exit;
+  end;
+  fxbcPath := 'bin/fxbc';
+  exePath := 'win64_exec_test_bin.exe';
+  if SysUtils.ExecuteProcess('/bin/sh', '-c "' + fxbcPath + ' --target-os windows --target-cpu x86_64 tests/fixtures/hello32.fbg -o ' + exePath + '"') <> 0 then
+  begin
+    WriteLn('  [SKIP] backend win64 executes: fallo la compilacion PE');
+    Exit;
+  end;
+  try
+    outp := CaptureProgramOutputWine('./' + exePath, code);
+    AssertEqualsI(0, code, 'ejecucion PE64 retorna 0');
+    AssertTrue(Pos('hi', outp) > 0, 'imprime hi');
+    AssertTrue(Pos('3', outp) > 0, 'imprime 3 (1+2 y 7/2)');
+    AssertTrue(Pos('4', outp) > 0, 'imprime 4.0 (1.5+2.5)');
+  finally
+    DeleteFile(exePath);
+  end;
+end;
+
+procedure TestImpl_Backend_Win32_LinkCheck;
+var
+  fxbcPath, exePath: string;
+begin
+  // PE32 (i386) link check: ensures COFF decoration + MinGW link succeed.
+  // Execution is skipped if wine32 is absent (wine64 cannot run 32-bit PE).
+  fxbcPath := 'bin/fxbc';
+  exePath := 'win32_exec_test_bin.exe';
+  if SysUtils.ExecuteProcess('/bin/sh', '-c "' + fxbcPath + ' --target-os windows --target-cpu x86 tests/fixtures/hello32.fbg -o ' + exePath + '"') <> 0 then
+  begin
+    WriteLn('  [SKIP] backend win32 link: fallo la compilacion PE32');
+    Exit;
+  end;
+  try
+    AssertTrue(FileExists(exePath), 'binario PE32 generado');
+  finally
+    DeleteFile(exePath);
+  end;
+end;
+
 begin
   RegisterTest('Impl: hello.fpg lex',                @TestImpl_HelloWorld_Lexes);
   RegisterTest('Impl: hello.fpg AST',                @TestImpl_HelloWorld_ParseAST);
@@ -618,5 +734,8 @@ begin
   RegisterTest('Impl: backend float cmp executes',     @TestImpl_Backend_FloatCmpExecutes);
   RegisterTest('Impl: backend x86_32 asm',             @TestImpl_Backend_x86_32_Asm);
   RegisterTest('Impl: backend x86_32 executes',         @TestImpl_Backend_x86_32_Executes);
+  RegisterTest('Impl: backend win64 asm',              @TestImpl_Backend_Win64_Asm);
+  RegisterTest('Impl: backend win64 executes',         @TestImpl_Backend_Win64_Executes);
+  RegisterTest('Impl: backend win32 link',             @TestImpl_Backend_Win32_LinkCheck);
   RunAllTests('IMPLEMENTATION TESTS — fixtures reales');
 end.
