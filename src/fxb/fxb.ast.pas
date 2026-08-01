@@ -41,6 +41,7 @@ type
   TCodeBlockExpr = fxb.ast.expr.TCodeBlockExpr;
   // Statement types
   TExprStmt = fxb.ast.stmt.TExprStmt;
+  TPrintStmt = fxb.ast.stmt.TPrintStmt;
   TVarDeclStmt = fxb.ast.stmt.TVarDeclStmt;
   TAssignStmt = fxb.ast.stmt.TAssignStmt;
   TIfStmt = fxb.ast.stmt.TIfStmt;

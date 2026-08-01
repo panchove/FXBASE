@@ -150,6 +150,7 @@ end;
 
 procedure TFunctionDef.AddStmt(Stmt: TASTNode);
 begin
+  if Stmt = nil then Exit;
   SetLength(FBody, Length(FBody) + 1);
   FBody[High(FBody)] := Stmt;
 end;
@@ -240,6 +241,7 @@ end;
 
 procedure TProcedureDef.AddStmt(Stmt: TASTNode);
 begin
+  if Stmt = nil then Exit;
   SetLength(FBody, Length(FBody) + 1);
   FBody[High(FBody)] := Stmt;
 end;

@@ -44,6 +44,7 @@ type
     ikICmp, ikFCmp,
     ikSelect,
     ikPhi,
+    ikPrint,
     ikYield,
     ikUnreachable,
     ikDbgValue,
@@ -533,6 +534,8 @@ begin
     end;
   end;
   Result := '  %' + FName + ' = ' + GetEnumName(TypeInfo(TIRInstructionKind), Ord(FInstrKind)) + ' ' + FType.ToString + ' ' + opStr;
+  if FMetadata.Count > 0 then
+    Result := Result + ' { ' + FMetadata.CommaText + ' }';
   if FDebugLoc <> '' then
     Result := Result + ' ; ' + FDebugLoc;
 end;

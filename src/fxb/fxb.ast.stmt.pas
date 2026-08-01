@@ -21,6 +21,19 @@ type
     property Expr: TExpr read FExpr;
   end;
 
+  TPrintStmt = class(TStmt)
+  private
+    FExpressions: TExprArray;
+    FNewLine: Boolean;
+  public
+    constructor Create(ALine, ACol: Integer; ANewLine: Boolean = True);
+    destructor Destroy; override;
+    procedure AddExpr(Expr: TExpr);
+    function Dump(Indent: Integer = 0): string; override;
+    property Expressions: TExprArray read FExpressions;
+    property NewLine: Boolean read FNewLine;
+  end;
+
   TVarDeclStmt = class(TStmt)
   private
     FScope: string; // LOCAL, PRIVATE, PUBLIC, STATIC
@@ -171,6 +184,40 @@ begin
   Result := Result + FExpr.Dump(Indent + 1);
 end;
 
+constructor TPrintStmt.Create(ALine, ACol: Integer; ANewLine: Boolean = True);
+begin
+  inherited Create(ALine, ACol);
+  FNewLine := ANewLine;
+end;
+
+destructor TPrintStmt.Destroy;
+var
+  e: TExpr;
+begin
+  for e in FExpressions do e.Free;
+  inherited;
+end;
+
+procedure TPrintStmt.AddExpr(Expr: TExpr);
+begin
+  SetLength(FExpressions, Length(FExpressions) + 1);
+  FExpressions[High(FExpressions)] := Expr;
+end;
+
+function TPrintStmt.Dump(Indent: Integer = 0): string;
+var
+  pad: string;
+  e: TExpr;
+begin
+  pad := StringOfChar(' ', Indent * 2);
+  Result := pad + 'PRINT';
+  if FNewLine then Result := Result + ' ?'
+  else Result := Result + ' ??';
+  Result := Result + LineEnding;
+  for e in FExpressions do
+    Result := Result + e.Dump(Indent + 1) + LineEnding;
+end;
+
 constructor TVarDeclStmt.Create(const AScope: string; ALine, ACol: Integer);
 begin
   inherited Create(ALine, ACol);
@@ -284,6 +331,7 @@ end;
 
 procedure TIfStmt.AddThenStmt(Stmt: TASTNode);
 begin
+  if Stmt = nil then Exit;
   SetLength(FThenBody, Length(FThenBody) + 1);
   FThenBody[High(FThenBody)] := Stmt;
 end;
@@ -301,6 +349,7 @@ var
   arr: array of TASTNode;
 begin
   if Length(FElseIfBodies) = 0 then Exit;
+  if Stmt = nil then Exit;
   arr := FElseIfBodies[High(FElseIfBodies)];
   SetLength(arr, Length(arr) + 1);
   arr[High(arr)] := Stmt;
@@ -309,6 +358,7 @@ end;
 
 procedure TIfStmt.AddElseStmt(Stmt: TASTNode);
 begin
+  if Stmt = nil then Exit;
   FHasElse := True;
   SetLength(FElseBody, Length(FElseBody) + 1);
   FElseBody[High(FElseBody)] := Stmt;
@@ -372,6 +422,7 @@ end;
 
 procedure TForStmt.AddStmt(Stmt: TASTNode);
 begin
+  if Stmt = nil then Exit;
   SetLength(FBody, Length(FBody) + 1);
   FBody[High(FBody)] := Stmt;
 end;
@@ -412,12 +463,14 @@ end;
 
 procedure TWhileStmt.AddStmt(Stmt: TASTNode);
 begin
+  if Stmt = nil then Exit;
   SetLength(FBody, Length(FBody) + 1);
   FBody[High(FBody)] := Stmt;
 end;
 
 procedure TWhileStmt.AddElseStmt(Stmt: TASTNode);
 begin
+  if Stmt = nil then Exit;
   FHasElse := True;
   SetLength(FElseBody, Length(FElseBody) + 1);
   FElseBody[High(FElseBody)] := Stmt;

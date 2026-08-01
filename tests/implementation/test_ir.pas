@@ -129,7 +129,7 @@ begin
     AssertNotNil(ir, 'IR produced');
     dump := ir.Dump;
     AssertTrue(Pos('ikStore', dump) > 0, 'store present in dump');
-    AssertTrue(Pos('ikLoad', dump) > 0, 'load present in dump');
+    AssertTrue(Pos('ikLoad', dump) = 0, 'no spurious load for direct store');
   finally
     ir.Free;
     irGen.Free;
@@ -283,6 +283,33 @@ begin
   end;
 end;
 
+procedure TestIR_Print;
+var
+  src, dump: string;
+  irGen: TFXBIRGenerator;
+  ir: TIRModule;
+  lexErr, parseErr: Integer;
+begin
+  src :=
+    'FUNCTION Main()' + sLineBreak +
+    '    ? 1 + 2' + sLineBreak +
+    '    ?? "hi"' + sLineBreak +
+    'ENDFUNC';
+  irGen := Compile(src, 'print.fpg', ir, lexErr, parseErr);
+  try
+    AssertEqualsI(0, lexErr, 'no lexer errors');
+    AssertEqualsI(0, parseErr, 'no parser errors');
+    AssertNotNil(ir, 'IR produced');
+    dump := ir.Dump;
+    AssertTrue(Pos('ikPrint', dump) > 0, 'ikPrint present in dump');
+    AssertTrue(Pos('newline=1', dump) > 0, 'newline metadata for ?');
+    AssertTrue(Pos('newline=0', dump) > 0, 'no-newline metadata for ??');
+  finally
+    ir.Free;
+    irGen.Free;
+  end;
+end;
+
 procedure TestIR_TargetTriple;
 var
   src: string;
@@ -313,6 +340,7 @@ begin
   RegisterTest('IR: FOR produces init/cond/body/step/exit blocks', @TestIR_ForBlocks);
   RegisterTest('IR: RETURN emits ikRet', @TestIR_Return);
   RegisterTest('IR: binary op emits corresponding instruction', @TestIR_BinOpTypes);
+  RegisterTest('IR: ?/?? emit ikPrint with newline metadata', @TestIR_Print);
   RegisterTest('IR: target triple reflects TargetOS/TargetCPU', @TestIR_TargetTriple);
   RunAllTests('IR TESTS — AST-driven lowering');
 end.

@@ -46,6 +46,7 @@ type
     ttDotOr,
     ttDoubleColon,
     ttDoublePipe,
+    ttDoubleQuestion,
     ttDoubleSlash,
     ttElif,
     ttEllipsis,
@@ -94,6 +95,7 @@ type
     ttPlusAssign,
     ttPPDirective,
     ttPragma,
+    ttQuestion,
     ttQuestionColon,
     ttQuestionDot,
     ttRange,
@@ -467,6 +469,7 @@ begin
     ttDotOr: Result := '''.OR.''';
     ttDoubleColon: Result := '::';
     ttDoublePipe: Result := '''||''';
+    ttDoubleQuestion: Result := '''??''';
     ttDoubleSlash: Result := '''//''';
     ttElif: Result := '#ELIF';
     ttEllipsis: Result := '...';
@@ -515,6 +518,7 @@ begin
     ttPlusAssign: Result := '+=';
     ttPPDirective: Result := 'PPDIRECTIVE';
     ttPragma: Result := '#PRAGMA';
+    ttQuestion: Result := '''?''';
     ttQuestionColon: Result := '?:';
     ttQuestionDot: Result := '?.';
     ttRange: Result := '..';

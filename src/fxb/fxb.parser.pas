@@ -66,6 +66,7 @@ type
     function ParseReturn: TASTNode;
     function ParseYield: TASTNode;
     function ParseLoopCtrl: TASTNode;
+    function ParsePrint: TASTNode;
     function ParseMisc: TASTNode;
 
     // Top-level parsing
@@ -110,6 +111,7 @@ begin
     ttLBrace, ttRBrace, ttPipe,
     ttAt, ttBitAnd, ttNot, ttHash,
     ttDotAnd, ttDotOr, ttDotNot,
+    ttQuestion, ttDoubleQuestion, ttQuestionColon, ttQuestionDot,
     ttInvalid, ttComment];
 end;
 
@@ -789,6 +791,11 @@ begin
         Result := ParseAssignment(nil);
       end;
 
+    ttQuestion, ttDoubleQuestion:
+      begin
+        Result := ParsePrint;
+      end;
+
     ttNewline, ttSemicolon:
       begin
         Result := nil; // empty statement
@@ -1095,6 +1102,23 @@ begin
     if FLoopDepth = 0 then
       FReporter.WarningFPW(FPW_LEGACY_COMMAND, kind + ' outside a loop', FCurrent.Line, FCurrent.Col);
   Result := TLoopCtrlStmt.Create(kind, FCurrent.Line, FCurrent.Col);
+end;
+
+function TParser.ParsePrint: TASTNode;
+var
+  newLine: Boolean;
+  stmt: TPrintStmt;
+begin
+  newLine := (FCurrent.TokenType = ttQuestion);
+  stmt := TPrintStmt.Create(FCurrent.Line, FCurrent.Col, newLine);
+  Advance; // consume ? or ??
+  while True do
+  begin
+    stmt.AddExpr(ParseExpression);
+    if Peek <> ttComma then Break;
+    Advance; // consume ','
+  end;
+  Result := stmt;
 end;
 
 function TParser.ParseMisc: TASTNode;

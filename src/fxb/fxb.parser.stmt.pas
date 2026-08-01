@@ -40,6 +40,7 @@ type
     function ParseReturn        : TASTNode;
     function ParseYield         : TASTNode;
     function ParseLoopCtrl      : TASTNode;
+    function ParsePrint         : TASTNode;
     function ParseMisc          : TASTNode;
   end;
 
@@ -109,6 +110,11 @@ begin
     ttBitAnd, ttAt, ttCaret:
       begin
         Result := ParseAssignment(nil);
+      end;
+
+    ttQuestion, ttDoubleQuestion:
+      begin
+        Result := ParsePrint;
       end;
 
     ttNewline, ttSemicolon:
@@ -421,6 +427,23 @@ begin
     TParser(FParser).FReporter.WarningFPW(FPW_LEGACY_COMMAND,
       kind + ' outside a loop', CurrentToken.Line, CurrentToken.Col);
   Result := TLoopCtrlStmt.Create(kind, CurrentToken.Line, CurrentToken.Col);
+end;
+
+function TStmtParser.ParsePrint: TASTNode;
+var
+  newLine: Boolean;
+  stmt: TPrintStmt;
+begin
+  newLine := (CurrentToken.TokenType = ttQuestion);
+  stmt := TPrintStmt.Create(CurrentToken.Line, CurrentToken.Col, newLine);
+  Advance; // consume ? or ??
+  while True do
+  begin
+    stmt.AddExpr(TParser(FParser).ParseExpression);
+    if Peek <> ttComma then Break;
+    Advance; // consume ','
+  end;
+  Result := stmt;
 end;
 
 function TStmtParser.ParseMisc: TASTNode;

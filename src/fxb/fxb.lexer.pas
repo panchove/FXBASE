@@ -1065,6 +1065,11 @@ begin
     value := ':='; Advance; Advance;
     Result.TokenType := ttAssign;
   end
+  else if (c = '?') and (next = '?') then
+  begin
+    value := '??'; Advance; Advance;
+    Result.TokenType := ttDoubleQuestion;
+  end
   else if (c = '?') and (next = '.') then
   begin
     value := '?.'; Advance; Advance;
@@ -1221,7 +1226,7 @@ begin
       ']': Result.TokenType := ttRBracket;
       '{': Result.TokenType := ttLBrace;
       '}': Result.TokenType := ttRBrace;
-      '?': begin Result.TokenType := ttIdentifier; value := '?'; end;
+      '?': begin Result.TokenType := ttQuestion; value := '?'; end;
       '@': Result.TokenType := ttAt;
       '#': Result.TokenType := ttHash;
       '$': begin Result.TokenType := ttIdentifier; value := '$'; end;

@@ -54,6 +54,7 @@ type
     FNextValueId: Integer;
     FNextBlockId: Integer;
     FTypeCache: TStringList;
+    FPendingPredicate: string;
 
     function GetIRType(const TypeName: string): TIRType;
     function GetIRTypeFromToken(AToken: TToken): TIRType;
@@ -88,6 +89,7 @@ type
     procedure LowerNewTypeDef(NewTypeDef: TNewTypeDef);
     procedure LowerStatement(Stmt: TASTNode);
     procedure LowerExprStmt(Stmt: TExprStmt);
+    procedure LowerPrint(Stmt: TPrintStmt);
     procedure LowerVarDecl(Stmt: TVarDeclStmt);
     procedure LowerAssign(Stmt: TAssignStmt);
     procedure LowerIf(Stmt: TIfStmt);
@@ -433,6 +435,7 @@ begin
   instr := TIRInstruction.Create(OpKind, TIRType.Bool, Name);
   instr.AddOperand(Left);
   instr.AddOperand(Right);
+  instr.Metadata.Values['pred'] := FPendingPredicate;
   EmitInstr(instr);
   Result := instr;
 end;
@@ -464,7 +467,9 @@ var
   instr: TIRInstruction;
   elemType: TIRType;
 begin
-  if (Ptr.Type_.Kind = tkPointer) and Assigned(Ptr.Type_.ElementType) then
+  if Ptr is TIRLocal then
+    elemType := TIRLocal(Ptr).Type_
+  else if (Ptr.Type_.Kind = tkPointer) and Assigned(Ptr.Type_.ElementType) then
     elemType := Ptr.Type_.ElementType^
   else
     elemType := TIRType.AnyType;
@@ -615,6 +620,7 @@ end;
 procedure TFXBIRGenerator.LowerStatement(Stmt: TASTNode);
 begin
   if Stmt is TExprStmt then LowerExprStmt(TExprStmt(Stmt))
+  else if Stmt is TPrintStmt then LowerPrint(TPrintStmt(Stmt))
   else if Stmt is TVarDeclStmt then LowerVarDecl(TVarDeclStmt(Stmt))
   else if Stmt is TAssignStmt then LowerAssign(TAssignStmt(Stmt))
   else if Stmt is TIfStmt then LowerIf(TIfStmt(Stmt))
@@ -628,6 +634,22 @@ end;
 procedure TFXBIRGenerator.LowerExprStmt(Stmt: TExprStmt);
 begin
   LowerExpression(Stmt.Expr);
+end;
+
+procedure TFXBIRGenerator.LowerPrint(Stmt: TPrintStmt);
+var
+  instr: TIRInstruction;
+  i: Integer;
+  val: TIRValue;
+begin
+  instr := TIRInstruction.Create(ikPrint, TIRType.Void, '');
+  for i := 0 to High(Stmt.Expressions) do
+  begin
+    val := LowerExpression(Stmt.Expressions[i]);
+    instr.AddOperand(val);
+  end;
+  instr.Metadata.Add(Format('newline=%s', [BoolToStr(Stmt.NewLine, '1', '0')]));
+  EmitInstr(instr);
 end;
 
 procedure TFXBIRGenerator.LowerVarDecl(Stmt: TVarDeclStmt);
@@ -647,12 +669,23 @@ begin
     if varType <> '' then
       irType := GetIRType(varType)
     else
+    begin
       irType := TIRType.AnyType;
+      if Assigned(initVal) then
+      begin
+        val := LowerExpression(initVal);
+        if val.Type_.Kind <> tkAny then
+          irType := val.Type_;
+      end
+      else
+        val := TIRValue(nil);
+    end;
     local := FCurrentFunction.AddLocal(irType, varName);
     FLocalVarMap.AddObject(varName, local);
     if Assigned(initVal) then
     begin
-      val := LowerExpression(initVal);
+      if not Assigned(val) then
+        val := LowerExpression(initVal);
       CreateStore(val, local);
     end;
   end;
@@ -661,8 +694,17 @@ end;
 procedure TFXBIRGenerator.LowerAssign(Stmt: TAssignStmt);
 var
   target, value: TIRValue;
+  nm: string;
+  idx: Integer;
 begin
-  target := LowerExpression(Stmt.Target);
+  if (Stmt.Target is TIdentifierExpr) and (FLocalVarMap.IndexOf(TIdentifierExpr(Stmt.Target).Name) >= 0) then
+  begin
+    nm := TIdentifierExpr(Stmt.Target).Name;
+    idx := FLocalVarMap.IndexOf(nm);
+    target := TIRValue(FLocalVarMap.Objects[idx]);
+  end
+  else
+    target := LowerExpression(Stmt.Target);
   value := LowerExpression(Stmt.Value);
   CreateStore(value, target);
 end;
@@ -1080,7 +1122,17 @@ begin
   begin
     opKind := MapTokenTypeToCmpOp(Expr.Op);
     if opKind <> ikInvalid then
+    begin
+      case Expr.Op of
+        ttEq, ttEqual: FPendingPredicate := 'eq';
+        ttNeq, ttNeq2: FPendingPredicate := 'ne';
+        ttLt: FPendingPredicate := 'lt';
+        ttGt: FPendingPredicate := 'gt';
+        ttLe: FPendingPredicate := 'le';
+        ttGe: FPendingPredicate := 'ge';
+      end;
       Result := EmitCmpOp(opKind, left, right, CreateTempName('cmp'))
+    end
     else
     begin
       ReportErrorNode(Expr, FXB_UNSUPPORTED_FEATURE, 'Binary operator not supported: ' + TokenTypeName(Expr.Op));
