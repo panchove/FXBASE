@@ -1,4 +1,4 @@
-# FPXBASE Roadmap
+# FXBASE Roadmap
 
 **Norma de Referencia:** ISO/IEC/IEEE 29148:2018 / ISO/IEC 12207:2017
 
@@ -20,7 +20,7 @@
 | 0.5     | Grammar features         | Genéricos, `STRUCT`, `NEWTYPE`, smart pointers, `CAST`, `YIELD`, variádicos, kwargs, closures multi-statement   |
 | 0.6     | Error reporting          | Códigos FPX-nnnn, FPW-nnnn, directivas `#line`                                                                  |
 
-**Verificación:** Test suite con 100+ snippets xBASE + 50+ extensiones FPXBASE.
+**Verificación:** Test suite con 100+ snippets xBASE + 50+ extensiones FXBASE.
 
 ---
 
@@ -114,7 +114,7 @@
 | 5.7     | Std library (`std.fph`)         | All built-in commands, network, crypto, OS, tasks, serial, etc. |
 | 5.8     | Licensing                       | MIT license file, contribution guide                            |
 
-**Verificación:** Migrar proyecto Harbour real (10k+ LOC) a FPXBASE sin cambios manuales.
+**Verificación:** Migrar proyecto Harbour real (10k+ LOC) a FXBASE sin cambios manuales.
 
 ---
 

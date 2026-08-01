@@ -1,4 +1,4 @@
-# Gramática FPXBASE
+# Gramática FXBASE
 
 **Norma de Referencia:** ISO/IEC/IEEE 29148:2018 / ISO/IEC 14977
 
@@ -77,7 +77,7 @@ ReservedWord ::=
     'VIRTUAL' | 'OVERRIDE' | 'ABSTRACT' | 'FINAL' | 'SEALED' |
     'WITH' | 'OBJECT' | 'ENDWITH' |
     'YIELD' |
-    -- Concurrencia / Tasks (FPXBASE)
+    -- Concurrencia / Tasks (FXBASE)
     'CHANNEL' | 'SEND' | 'RECEIVE' | 'SELECT' |
     'LOCK' | 'UNLOCK' | 'TRYLOCK' |
     'MUTEX' | 'SEMAPHORE' | 'ATOMIC' | 'THREAD_LOCAL' |
@@ -106,7 +106,7 @@ RealLiteral     ::= Digit {Digit} '.' Digit {Digit} [('E'|'e') ['+'|'-'] Digit {
 StringLiteral   ::= '"' {any_character_except_quote} '"'
                   | "'" {any_character_except_apostrophe} "'"
                   | '[' {any_character_except_bracket} ']'
-                  -- UTF-8 explicit (FPXBASE)
+                  -- UTF-8 explicit (FXBASE)
                   | 'u' '"' {any_character_except_quote} '"'
                   | 'u8' '"' {any_character_except_quote} '"'
                   | 'U' '"' {any_character_except_quote} '"'
@@ -156,13 +156,13 @@ GenericParamList ::= '<' GenericParam {',' GenericParam} '>'
 GenericParam     ::= Identifier [':' DataType]
 ```
 
-### 2.2 Declaración con Tipo (FPXBASE)
+### 2.2 Declaración con Tipo (FXBASE)
 
 ```ebnf
 VarDecl ::= Identifier [':' DataType]
 ```
 
-### 2.3 Operadores (FPXBASE)
+### 2.3 Operadores (FXBASE)
 
 ```ebnf
 -- Resolución de scope (OOP)
@@ -233,7 +233,7 @@ VariadicParam   ::= '...' Identifier [':' DataType]
 Body ::= {Statement}
 ```
 
-### 3.2 Clases (OOP xBASE + FPXBASE)
+### 3.2 Clases (OOP xBASE + FXBASE)
 
 ```ebnf
 ClassDef ::=
@@ -286,7 +286,7 @@ SuperCall ::= 'SUPER' '::' Identifier ['(' [ArgumentList] ')']
 SelfRef   ::= 'SELF' | 'THIS'
 ```
 
-**Acceso nil-safe** (FPXBASE moderno):
+**Acceso nil-safe** (FXBASE moderno):
 
 ```ebnf
 NilSafeMember ::= Expression '?.' Identifier ['(' [ArgumentList] ')']
@@ -304,7 +304,7 @@ NilCoalesce   ::= Expression '?:' Expression
 
 ---
 
-### 3.2.1 Interfaces (FPXBASE)
+### 3.2.1 Interfaces (FXBASE)
 
 ```ebnf
 InterfaceDef ::=
@@ -347,7 +347,7 @@ CLASS MyClass IMPLEMENTS ISerializable
 ENDCLASS
 ```
 
-### 3.3 Structs (FPXBASE)
+### 3.3 Structs (FXBASE)
 
 ```ebnf
 StructDef ::=
@@ -372,7 +372,7 @@ Acceso a miembros: `Expression '.' Identifier`
 
 Inicialización: `StructType '(' [ExpressionList] ')'`
 
-### 3.4 Tipos Personalizados (FPXBASE)
+### 3.4 Tipos Personalizados (FXBASE)
 
 `NEWTYPE` crea un tipo distinto (wrapping) sobre un tipo base — no intercambiable con este en asignaciones. Ideal para identificadores fuertes (`UserId`, `OrderId`, etc.).
 
@@ -417,7 +417,7 @@ AssignmentStatement ::=
 Variable ::= Identifier [AliasAccess]
 ```
 
-### 4.3 Control de Flujo (incluye extensiones modernas FPXBASE)
+### 4.3 Control de Flujo (incluye extensiones modernas FXBASE)
 
 ```ebnf
 IfStatement ::=
@@ -450,10 +450,10 @@ WhileStatement ::=
         {Statement}
       'END'
 
-DoUntilStatement ::=            -- FPXBASE: post-condition loop
+DoUntilStatement ::=            -- FXBASE: post-condition loop
     'DO' {Statement} 'UNTIL' Expression
 
-InfiniteLoopStatement ::=       -- FPXBASE: bucle infinito
+InfiniteLoopStatement ::=       -- FXBASE: bucle infinito
     'LOOP'
         {Statement}
         ['BREAK']
@@ -534,7 +534,7 @@ TryStatement ::=
     'ENDTRY'
 ```
 
-### 4.5 Database Commands (FPXBASE)
+### 4.5 Database Commands (FXBASE)
 
 ```ebnf
 DatabaseStatement ::=
@@ -803,7 +803,7 @@ ActivateWindowCommand ::=
     | 'SHOW' 'WINDOW' Identifier
 ```
 
-### 4.10 Concurrencia y Tasks (FPXBASE)
+### 4.10 Concurrencia y Tasks (FXBASE)
 
 ```ebnf
 ConcurrencyStatement ::=
@@ -948,7 +948,7 @@ PrimaryExpr ::=
     IIFExpression |
     'SELF' |
     'SUPER' |
-    -- FPXBASE: Concurrencia
+    -- FXBASE: Concurrencia
     'AWAIT' Expression |
     'SPAWN' Expression |
     'SEND' '(' Expression ',' Expression ')' |
@@ -1059,7 +1059,7 @@ TextBlock ::= {any_character}
 
 ---
 
-## 7. Sentencias SQL Embebido (FPXBASE)
+## 7. Sentencias SQL Embebido (FXBASE)
 
 ```ebnf
 SQLStatement ::=
@@ -1092,7 +1092,7 @@ SQLCloseStatement ::=
 
 ---
 
-## 8. Expresiones DB (FPXBASE)
+## 8. Expresiones DB (FXBASE)
 
 ```ebnf
 DBExpression ::=
@@ -1198,7 +1198,7 @@ LegacyCommand ::=
 
 ## 11. Roadmap — Tipado Gradual y Smart Pointers
 
-> **Estado:** Roadmap — pendiente de implementación. Los tokens léxicos (`kwStruct`, `kwClass`, `kwUnique_ptr`, `kwShared_ptr`, `kwWeak_ptr`) **existen en** `src/fx/fx.tokens.pas`/`fx.lexer.pas`, pero el parser no los trata como modificadores semánticos: no hay distinción stack/heap en el IR, ni ownership tracking, ni verificación de `#pragma strict`. El detalle estratégico (tiers, prefetching, ejemplos) está en `docs/COMPATIBILITY-STRATEGY.md` y `docs/PRD-FPXBASE.md` §5.A–5.C.
+> **Estado:** Roadmap — pendiente de implementación. Los tokens léxicos (`kwStruct`, `kwClass`, `kwUnique_ptr`, `kwShared_ptr`, `kwWeak_ptr`) **existen en** `src/fxb/fxb.tokens.pas`/`fxb.lexer.pas`, pero el parser no los trata como modificadores semánticos: no hay distinción stack/heap en el IR, ni ownership tracking, ni verificación de `#pragma strict`. El detalle estratégico (tiers, prefetching, ejemplos) está en `docs/COMPATIBILITY-STRATEGY.md` y `docs/PRD-FXBASE.md` §5.A–5.C.
 
 ### 11.1 Directivas de Estrictez y Tipado Gradual
 
@@ -1210,7 +1210,7 @@ StrictDirective ::=
     | '#strict' '(' ('on' | 'off') ')'
 
 TypeAnnotation ::=
-      Identifier ':' DataType                       (* forma canónica FPXBASE *)
+      Identifier ':' DataType                       (* forma canónica FXBASE *)
     | Identifier 'AS' DataType                      (* forma xBASE heredada *)
 ```
 
@@ -1322,9 +1322,9 @@ file := NIL                                       (* tras MOVE, source queda NIL
 | `UNIQUE_PTR<T>` / `SHARED_PTR<T>` / `WEAK_PTR<T>` | Tokens en `fx.tokens.pas`; ningún uso semántico aún           |
 | `#pragma strict` / `#strict`                      | Directiva léxica documentada; sin efecto en preprocesador      |
 | `Identifier AS DataType` (forma legacy xBASE)     | Soportado en `fx.parser.pas` desde Phase 1.1                  |
-| `Identifier : DataType` (forma FPXBASE canónica)  | Soportado en `fx.parser.pas` desde Phase 1.1                  |
+| `Identifier : DataType` (forma FXBASE canónica)  | Soportado en `fx.parser.pas` desde Phase 1.1                  |
 | Validación strict en IR                           | **Pendiente** (Fase 2.5)                                       |
 
 ---
 
-> **Nota:** Esta gramática cubre el subconjunto completo del lenguaje xBASE (Clipper 5.x, Harbour, FoxPro) necesario para la compatibilidad con FPXBASE. Las extensiones modernas (tipado, SQL embebido, OOP) son específicas de FPXBASE. Todos los comandos xBASE tradicionales que operaban sobre .dbf e índices nativos se traducen a SQL en tiempo de compilación según la especificación del PRD.
+> **Nota:** Esta gramática cubre el subconjunto completo del lenguaje xBASE (Clipper 5.x, Harbour, FoxPro) necesario para la compatibilidad con FXBASE. Las extensiones modernas (tipado, SQL embebido, OOP) son específicas de FXBASE. Todos los comandos xBASE tradicionales que operaban sobre .dbf e índices nativos se traducen a SQL en tiempo de compilación según la especificación del PRD.

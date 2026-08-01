@@ -81,7 +81,7 @@ FXBASE **NO abre `.dbf/.cdx/.ntx/.fpt` como estado runtime**. Solo `fx-dbf` (her
 
 ### 3.3 Estado de implementación
 
-- **Estado actual:** `fx.rtl.pas` es un **stub vacío** (`src/fx/fx.rtl.pas`). Las definiciones de tipos que `fx.cli.pas` espera existen; la implementación no.
+- **Estado actual:** `fx.rtl.pas` es un **stub vacío** (`src/fxb/fxb.rtl.pas`). Las definiciones de tipos que `fx.cli.pas` espera existen; la implementación no.
 - **Trabajo previo:** los tokens (`kwUse`, `kwSkip`, `kwSeek`, `kwEof`, `kwBof`, etc.) **sí están en `fx.tokens.pas`** y el parser reconoce los comandos a nivel sintáctico. Falta el lowering IR → RTL call.
 - **Plan de implementación:** Fase 2.3 del roadmap (RTL + RDD virtual sobre SQLite).
 

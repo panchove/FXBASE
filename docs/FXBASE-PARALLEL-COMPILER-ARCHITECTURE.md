@@ -391,7 +391,7 @@ Flag del compilador: `--jobs N` para permitir al usuario ajustar manualmente.
 
 ## 🧬 Roadmap — Gestión de Memoria en el Runtime (RTL)
 
-> **Estado:** Roadmap — pendiente de implementación. `src/fx/fx.rtl.pas` es actualmente un **stub vacío**: define las firmas que `fx.cli.pas` espera, pero ninguna función tiene cuerpo. La estrategia multi-modelo que se documenta aquí es la dirección arquitectónica que se implementará en Fase 3.
+> **Estado:** Roadmap — pendiente de implementación. `src/fxb/fxb.rtl.pas` es actualmente un **stub vacío**: define las firmas que `fx.cli.pas` espera, pero ninguna función tiene cuerpo. La estrategia multi-modelo que se documenta aquí es la dirección arquitectónica que se implementará en Fase 3.
 
 FXBASE adoptará una **estrategia multimodelo** para el Memory Manager del RTL, eligiendo el modelo apropiado según el tipo declarado y el contexto de uso:
 
@@ -425,7 +425,7 @@ LOCAL up : UNIQUE_PTR<NativeBuffer>  // RAII + MOVE()
 
 ## 🧪 Roadmap — Desafío del Preprocesador Paralelo: Caché con Estado Global
 
-> **Estado:** Roadmap — pendiente de implementación. Hoy el preprocesador (`src/fx/fx.preprocessor.pas`) es un stub funcional mínimo; `fx.ppo.pas` (caché) es un stub vacío. La estrategia de clave compuesta que se documenta aquí se implementará cuando se active el procesamiento paralelo (Fase 0.5+ del `ROADMAP.md`).
+> **Estado:** Roadmap — pendiente de implementación. Hoy el preprocesador (`src/fxb/fxb.preprocessor.pas`) es un stub funcional mínimo; `fxb.ppo.pas` (caché) es un stub vacío. La estrategia de clave compuesta que se documenta aquí se implementará cuando se active el procesamiento paralelo (Fase 0.5+ del `ROADMAP.md`).
 
 **Desafío:** En xBASE, los comandos de preprocesador (`#command`, `#translate`, `#define`) tienen efecto **global** y dependen del **orden de inclusión** de archivos. Si un `.fph` define un `#command` que afecta a archivos posteriores, el contenido expandido de un archivo depende **no solo** del archivo en sí y de sus `#include`, sino también del estado del preprocesador en el momento en que se incluye.
 

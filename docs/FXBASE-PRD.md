@@ -1,4 +1,4 @@
-# PRD - FPXBASE
+# PRD - FXBASE
 
 **Norma de Referencia:** ISO/IEC/IEEE 29148:2018 (Systems and software engineering — Life cycle processes — Requirements engineering) / ISO/IEC 12207:2017
 
@@ -12,7 +12,7 @@
 
 ## 1. Resumen Ejecutivo
 
-FPXBASE es un **compilador moderno** compatible con la sintaxis y semántica del lenguaje **xBases** (Clipper, Harbour, FoxPro), pero desacoplado por completo del motor de bases de datos tradicional (.dbf, archivos índice NTX/CDX/IDX). En su lugar, el compilador se integra con **bases de datos relacionales modernas** mediante un driver nativo o un ORM embebido, usando **SQLite** como motor de persistencia predeterminado, y **PostgreSQL** / **Microsoft SQL Server** como motores opcionales para entornos de producción.
+FXBASE es un **compilador moderno** compatible con la sintaxis y semántica del lenguaje **xBases** (Clipper, Harbour, FoxPro), pero desacoplado por completo del motor de bases de datos tradicional (.dbf, archivos índice NTX/CDX/IDX). En su lugar, el compilador se integra con **bases de datos relacionales modernas** mediante un driver nativo o un ORM embebido, usando **SQLite** como motor de persistencia predeterminado, y **PostgreSQL** / **Microsoft SQL Server** como motores opcionales para entornos de producción.
 
 El objetivo es permitir que equipos con décadas de código xBase puedan **migrar progresivamente** a una plataforma moderna, con tipado opcional, tooling estándar (LSP, formateador, gestor de paquetes) y despliegue nativo en **Windows y Linux**, generando binarios tanto para **arquitecturas de 32 bits como de 64 bits**.
 
@@ -72,7 +72,7 @@ El objetivo es permitir que equipos con décadas de código xBase puedan **migra
 
 **Variables de memoria (MEMVAR):**
 
-FPXBASE hereda el sistema de scoping dinámico de Clipper/Harbour pero ofrece alternativas modernas:
+FXBASE hereda el sistema de scoping dinámico de Clipper/Harbour pero ofrece alternativas modernas:
 
 | Declaración | Ámbito                                                       | Acceso desde funciones hijas | Recomendado                        |
 |-------------|--------------------------------------------------------------|------------------------------|------------------------------------|
@@ -83,7 +83,7 @@ FPXBASE hereda el sistema de scoping dinámico de Clipper/Harbour pero ofrece al
 | `MEMVAR x`  | Declara que `x` se resuelva como variable memoria (no campo) | —                            | Solo para desambiguar con FIELD    |
 | `FIELD x`   | Declara que `x` se resuelva como campo de DB                 | —                            | Solo cuando hay ambigüedad         |
 
-**Comportamiento FPXBASE por defecto (modo normal):**
+**Comportamiento FXBASE por defecto (modo normal):**
 
 - `LOCAL` y `STATIC` tienen ámbito **léxico** (resuelto en compilación), como cualquier lenguaje moderno.
 - `PRIVATE` y `PUBLIC` tienen ámbito **dinámico** (resuelto en runtime), manteniendo compatibilidad Clipper.
@@ -104,7 +104,7 @@ FUNCTION calc
    PRIVATE x := 10
    RETURN x * 2
 
-// FPXBASE moderno
+// FXBASE moderno
 FUNCTION calc(n : INTEGER) : INTEGER
    LOCAL x := n
    RETURN x * 2
@@ -128,7 +128,7 @@ FUNCTION calc(n : INTEGER) : INTEGER
 **Funciones de array (compatibles con xBASE):**
 `AAdd()`, `AClone()`, `ACopy()`, `ADel()`, `AIns()`, `ASize()`, `ASort()`, `AEval()`, `AScan()`, `ATail()`, `Array()`, `Len()`, `hb_ATail()`, `hb_AReverse()`.
 
-**Extensiones FPXBASE:**
+**Extensiones FXBASE:**
 
 - `a:MAP(func)` → `ARRAY` (transforma cada elemento)
 - `a:FILTER(func)` → `ARRAY` (filtra elementos)
@@ -139,9 +139,9 @@ FUNCTION calc(n : INTEGER) : INTEGER
 - `h:KEYS()` → `ARRAY` de claves
 - `h:VALUES()` → `ARRAY` de valores
 
-**Tipos de datos nativos FPXBASE:**
+**Tipos de datos nativos FXBASE:**
 
-| Tipo xBASE             | Tipo FPXBASE                            | Descripción                              |
+| Tipo xBASE             | Tipo FXBASE                            | Descripción                              |
 |------------------------|-----------------------------------------|------------------------------------------|
 | `Character` / `String` | `STRING`                                | Cadena de caracteres (UTF-8)             |
 | `Numeric`              | `NUMERIC`, `INTEGER`, `FLOAT`, `DOUBLE` | Numérico con precisión arbitraria o fija |
@@ -183,7 +183,7 @@ FUNCTION calc(n : INTEGER) : INTEGER
 | —                   | `BYTES`                         | Secuencia de bytes (compatible con `BLOB`)             |
 | —                   | `ENUM`                          | Tipo enumerado                                         |
 
-**Structs (FPXBASE):**
+**Structs (FXBASE):**
 
 `STRUCT` es un tipo valor compuesto, similar a `struct` en C, Record en Pascal o `struct` en Go:
 
@@ -208,7 +208,7 @@ LOCAL p : Point := Point(10, 20, 0xFF0000)
 p.x := 30
 ```
 
-**Smart Pointers (FPXBASE):**
+**Smart Pointers (FXBASE):**
 
 | Tipo            | Descripción                                                                      |
 |-----------------|----------------------------------------------------------------------------------|
@@ -233,9 +233,9 @@ IF p.IsNull() ...    -- chequeo de nulidad
 En modo `--gc:refcount`, `SHARED_PTR` es explícito pero semánticamente equivalente al refcount default.
 En modo `--gc:none`, los smart pointers son el mecanismo principal de gestión de memoria segura.
 
-**Genéricos (FPXBASE):**
+**Genéricos (FXBASE):**
 
-FPXBASE soporta tipos, funciones, clases y structs paramétricos con **monomorfización** en compilación (sin runtime overhead, como C++/Rust).
+FXBASE soporta tipos, funciones, clases y structs paramétricos con **monomorfización** en compilación (sin runtime overhead, como C++/Rust).
 
 ```xbase
 // Función genérica
@@ -288,7 +288,7 @@ raw := CAST<INTEGER>(uid)     // OK: extraer base
 
 **Closures y codeblocks:**
 
-FPXBASE soporta codeblocks estilo xBASE (`{|x| x * 2}`) y closures multi-statement:
+FXBASE soporta codeblocks estilo xBASE (`{|x| x * 2}`) y closures multi-statement:
 
 ```xbase
 LOCAL double : BLOCK := { |n| n * 2 }
@@ -404,8 +404,8 @@ FUNCTION Main AS INTEGER
 | Extensión      | Tipo         | Descripción                                               |
 |----------------|--------------|-----------------------------------------------------------|
 | `.prg`         | Fuente       | Código fuente principal xBASE                             |
-| `.fpg`         | Fuente       | Código fuente FPXBASE (permite extensiones modernas)      |
-| `.fph`         | Header       | Archivos de cabecera FPXBASE (compatibles con `#include`) |
+| `.fpg`         | Fuente       | Código fuente FXBASE (permite extensiones modernas)      |
+| `.fph`         | Header       | Archivos de cabecera FXBASE (compatibles con `#include`) |
 | `.ppo`         | Preprocesado | Salida del preprocesador (generado con `-p`)              |
 | `.obj`         | Objeto       | Archivo objeto (compilación intermedia)                   |
 | `.lib` / `.a`  | Librería     | Librería estática                                         |
@@ -415,7 +415,7 @@ FUNCTION Main AS INTEGER
 **Preprocesador y comandos personalizados:**
 
 - Compatibilidad total con `#command` y `#translate` de Clipper/Harbour.
-- `#command <patrón> => <traducción>` — define un comando personalizado que el preprocesador traduce a código xBASE/FPXBASE antes de compilar.
+- `#command <patrón> => <traducción>` — define un comando personalizado que el preprocesador traduce a código xBASE/FXBASE antes de compilar.
 - `#translate <patrón> => <traducción>` — similar pero sin necesidad de coincidencia exacta de comando.
 - `#xcommand` / `#xtranslate` — variantes que respetan mayúsculas del original.
 - Patrones con marcadores `<...>`, partes opcionales `[...]`, repetición `...`, y comodines `<*...*>`.
@@ -431,7 +431,7 @@ FUNCTION Main AS INTEGER
 - Los comandos personalizados se definen en `.fph` y se incluyen con `#include`.
 
 **Comandos predefinidos de serie (built-in):**
-FPXBASE incluye un archivo `std.fph` (incluido automáticamente) que define wrappers `#command` para todas las funciones estándar del runtime, permitiendo usar sintaxis de comando xBASE clásica:
+FXBASE incluye un archivo `std.fph` (incluido automáticamente) que define wrappers `#command` para todas las funciones estándar del runtime, permitiendo usar sintaxis de comando xBASE clásica:
 
 | Comando                   | Traducción                |
 |---------------------------|---------------------------|
@@ -525,7 +525,7 @@ El `PICTURE` en `SAY`/`GET` acepta **function codes** y **templates**, igual que
 
 **Controles extendidos (GET avanzado):**
 
-FPXBASE hereda y extiende los controles de Clipper 5.3:
+FXBASE hereda y extiende los controles de Clipper 5.3:
 
 | Comando                                   | Descripción                                                       |
 |-------------------------------------------|-------------------------------------------------------------------|
@@ -545,7 +545,7 @@ En **modo consola**, estos controles se renderizan con caracteres ASCII/Unicode:
 
 En **modo GUI** (futuro): se renderizan como widgets nativos del sistema.
 
-**Nota:** FPXBASE extiende los templates clásicos con formatos adicionales:
+**Nota:** FXBASE extiende los templates clásicos con formatos adicionales:
 
 - `PICTURE "@UTF-8"` — fuerza codificación UTF-8 en el campo
 - `PICTURE "@REGEX /patrón/"` — valida contra expresión regular
@@ -578,8 +578,8 @@ En **modo GUI** (futuro): se renderizan como widgets nativos del sistema.
 - `@ ... GET` en un campo de entrada de texto
 - El posicionamiento será relativo al layout del formulario
 
-**Estructuras de control modernas (FPXBASE):**
-Además de los clásicos `DO WHILE`/`FOR`/`IF`, FPXBASE incorpora:
+**Estructuras de control modernas (FXBASE):**
+Además de los clásicos `DO WHILE`/`FOR`/`IF`, FXBASE incorpora:
 
 | Construcción           | Descripción                                                | Ejemplo                                    |
 |------------------------|------------------------------------------------------------|--------------------------------------------|
@@ -724,7 +724,7 @@ El runtime incluye un módulo de red con API síncrona y asíncrona:
 
 **Serialización de datos:**
 
-| Tipo nativo FPXBASE    | Serialización                                           |
+| Tipo nativo FXBASE    | Serialización                                           |
 |------------------------|---------------------------------------------------------|
 | `ARRAY`                | `JsonSerialize(arr)`, `CsvSerialize(arr)`               |
 | `HASH`                 | `JsonSerialize(hash)`                                   |
@@ -767,7 +767,7 @@ El runtime incluye un módulo de red con API síncrona y asíncrona:
 
 ### 5.10 Sistema de Tareas (Task / Job)
 
-FPXBASE incorpora un sistema de tareas para ejecución en background, scheduler y paralelismo:
+FXBASE incorpora un sistema de tareas para ejecución en background, scheduler y paralelismo:
 
 **Task API básica:**
 
@@ -818,7 +818,7 @@ ENDIF
 
 ### 5.9 Llamadas al Sistema Operativo
 
-FPXBASE extiende significativamente lo que xBASE clásico ofrecía:
+FXBASE extiende significativamente lo que xBASE clásico ofrecía:
 
 **Procesos externos:**
 
@@ -849,7 +849,7 @@ FPXBASE extiende significativamente lo que xBASE clásico ofrecía:
 **Archivos y sistema de archivos:**
 
 - Compatibilidad total con funciones xBASE: `File()`, `FOpen()`, `FClose()`, `FRead()`, `FWrite()`, `FSeek()`, `FCreate()`, `FErase()`, `FRename()`, `Directory()`, `CurDir()`, `DirChange()`, `DirMake()`, `DirRemove()`, `DiskSpace()`, `DiskName()`
-- Extensiones FPXBASE:
+- Extensiones FXBASE:
   - `FileCopy(src, dst [, overwrite])`
   - `FileMove(src, dst)`
   - `FileSize(path)` → bytes
@@ -907,7 +907,7 @@ ENV:
   - `--gc:refcount` — conteo de referencias (default, determista, sin pausas)
   - `--gc:generational` — GC generacional con compactación (mejor para apps con mucha creación de objetos)
   - `--gc:none` — sin GC, gestión manual con `ALLOCATE()` / `DEALLOCATE()` o smart pointers (`UNIQUE_PTR`, `SHARED_PTR`, `WEAK_PTR`)
-- Coexistencia: los objetos nativos FPXBASE (arrays, hashes, strings) usan refcount automático; los objetos `CLASS` pueden elegirse entre refcount o manual; los `STRUCT` siempre son sin GC (tipo valor).
+- Coexistencia: los objetos nativos FXBASE (arrays, hashes, strings) usan refcount automático; los objetos `CLASS` pueden elegirse entre refcount o manual; los `STRUCT` siempre son sin GC (tipo valor).
 - El runtime libera automáticamente al salir del ámbito (como Harbour).
 - `GcCollect()` → forzar recolección
 - `GcStats()` → `{totalMem, usedMem, objects, cycles}`
@@ -949,7 +949,7 @@ ENV:
 ### 5.12 Reportes e Informes
 
 - Compatibilidad con `REPORT FORM` / `LABEL FORM` (modo legacy).
-- **Nuevo motor de informes FPXBASE:**
+- **Nuevo motor de informes FXBASE:**
   - `ReportCreate(template)` → objeto Report desde string XML/JSON
   - `ReportLoad(file)` → carga plantilla desde archivo
   - `report:SetDataSource(cursor)` → vincula a consulta SQL o array
@@ -1158,7 +1158,7 @@ ENV:
 
 ### 5.21 Sistema de Eventos (Pub-Sub)
 
-FPXBASE incluye un bus de eventos desacoplado para comunicación entre componentes:
+FXBASE incluye un bus de eventos desacoplado para comunicación entre componentes:
 
 - `EventBusCreate([name])` → bus de eventos
 - `EventBusDefault()` → bus global por defecto
@@ -1270,9 +1270,9 @@ Los warnings siguen el formato `FPW-nnnn` y se emiten en modo normal; en `--lega
 | `FPW-0017` | Modo `--legacy` activo (se acepta sintaxis obsoleta)            |
 | `FPW-0018` | Sentencia DB traducida a SQL no exactamente equivalente         |
 
-**Warnings de modernización (sugieren usar sintaxis FPXBASE moderna):**
+**Warnings de modernización (sugieren usar sintaxis FXBASE moderna):**
 
-| Código     | Sintaxis clásica            | Sugerencia FPXBASE                                 |
+| Código     | Sintaxis clásica            | Sugerencia FXBASE                                 |
 |------------|-----------------------------|----------------------------------------------------|
 | `FPW-0101` | `DO WHILE ... ENDDO`        | Usar `WHILE ... END`                               |
 | `FPW-0102` | `DO CASE ... ENDCASE`       | Usar `SWITCH ... ENDSWITCH`                        |
@@ -1362,12 +1362,12 @@ Control de warnings:
 | T2   | Traducción `USE/SKIP/SEEK/GO TOP/EOF/BOF/REPLACE/PACK/ZAP` → SQL sobre RDD virtual                  | No (tokens lexados; parser reconoce sintaxis; lowering IR→RTL pendiente)                    |
 | T3   | Restricción de `&` macro a identificadores y expresiones simples; promoción a codeblocks `{|a, b| …}` | No (lexer entrega `&` como `ttAmp` sin transformación)                                      |
 
-FPXBASE ofrece **tres tiers opt-in** de compatibilidad con código xBASE legacy. La estrategia es explícitamente estratificada: en cada tier se asume un porcentaje de compatibilidad decreciente a cambio de ganancias en modernidad, predictibilidad y optimización.
+FXBASE ofrece **tres tiers opt-in** de compatibilidad con código xBASE legacy. La estrategia es explícitamente estratificada: en cada tier se asume un porcentaje de compatibilidad decreciente a cambio de ganancias en modernidad, predictibilidad y optimización.
 
 ### 5.A.1 Tier 1 — Sintaxis y control de flujo (~95 %)
 
 - **Soporte completo e insensibilidad a mayúsculas/minúsculas** para comandos legacy (`IF/ENDIF`, `DO WHILE/ENDDO`, `FOR/NEXT`, `@ … SAY/GET`, `?`, `??`).
-- **Eliminación de la regla de abreviación de comandos a 4 letras** (exigir palabras clave completas para mantener el lexer limpio). Razón: en xBASE clásico, `DECLARE` admitía `DECL`, `PROCEDURE` admitía `PROC`, etc. FPXBASE exige la palabra completa para reducir el espacio de tokens y eliminar ambigüedad entre dialectos.
+- **Eliminación de la regla de abreviación de comandos a 4 letras** (exigir palabras clave completas para mantener el lexer limpio). Razón: en xBASE clásico, `DECLARE` admitía `DECL`, `PROCEDURE` admitía `PROC`, etc. FXBASE exige la palabra completa para reducir el espacio de tokens y eliminar ambigüedad entre dialectos.
 
 ### 5.A.2 Tier 2 — Datos y RDD virtual (Sintaxis ~80 % / Binaria 0 %)
 
@@ -1394,7 +1394,7 @@ FPXBASE ofrece **tres tiers opt-in** de compatibilidad con código xBASE legacy.
 
 > **Estado:** Roadmap — pendiente de implementación. No hay directivas `#pragma strict` ni `#strict` activas en `fx.preprocessor.pas`.
 
-FPXBASE implementa un sistema de tipos **opcional y gradual** similar al de TypeScript: las variables sin anotación de tipo se infieren como `VARIANT` (o `ANY`), y la rigidez se activa por archivo o bloque.
+FXBASE implementa un sistema de tipos **opcional y gradual** similar al de TypeScript: las variables sin anotación de tipo se infieren como `VARIANT` (o `ANY`), y la rigidez se activa por archivo o bloque.
 
 ### 5.B.1 Sintaxis de la directiva
 
@@ -1453,7 +1453,7 @@ ENDIF
 
 ### 5.C.3 RTL multi-modelo (referencia)
 
-FPXBASE elegirá el modelo de memory management en compile-time según el tipo declarado:
+FXBASE elegirá el modelo de memory management en compile-time según el tipo declarado:
 
 | Tipo                          | Modelo de memoria (RTL)               |
 |-------------------------------|---------------------------------------|
@@ -1488,9 +1488,9 @@ Detalle arquitectónico en `docs/PARALLEL-COMPILER-ARCHITECTURE.md` §"Gestión 
 
 ```mermaid
 flowchart TD
-    ROOT[FPXBASE/] --> AGENTS[AGENTS.md]
+    ROOT[FXBASE/] --> AGENTS[AGENTS.md]
     ROOT --> DOCS[docs/]
-    DOCS --> PRD[PRD-FPXBASE.md]
+    DOCS --> PRD[PRD-FXBASE.md]
     DOCS --> GRAMMAR[GRAMMAR-FXBASE.md]
     ROOT --> SRC[src/]
     SRC --> FPX[fx/]
@@ -1533,7 +1533,7 @@ flowchart TD
 ## 9. Ejemplo Conceptual
 
 ```xbase
-// Código FPXBASE
+// Código FXBASE
 USE "clientes" ALIAS c
 INDEX ON c->apellido TAG apellido
 SET ORDER TO apellido
@@ -1604,6 +1604,6 @@ SELECT nombre, apellido FROM clientes WHERE apellido = 'García' LIMIT 1;
 
 ## 13. Propietario del Documento
 
-**Autor:** Equipo FPXBASE  
+**Autor:** Equipo FXBASE  
 **Contacto:** —  
 **Próxima revisión:** 2026-09-01

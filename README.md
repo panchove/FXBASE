@@ -103,11 +103,10 @@ fxbase/
 │   ├── implementation/     # fixtures de programas completos
 │   └── ir/                 # pruebas de bajada AST→IR
 ├── docs/
-│   ├── FXBASE-README.md          # este archivo
-│   ├── FXBASE-RULES.md           # normas de contribución y codificación
 │   ├── FXBASE-COMPATIBILITY-STRATEGY.md
 │   ├── FXBASE-GRAMMAR.md
 │   ├── FXBASE-PARALLEL-COMPILER-ARCHITECTURE.md
+│   ├── FXBASE-PRD.md
 │   └── FXBASE-ROADMAP.md
 ├── Makefile
 └── .gitignore
@@ -119,7 +118,7 @@ FXBASE se publica bajo la Licencia MIT – consulte el archivo `LICENSE` para m�
 
 ## Contribuir
 
-Por favor lea [`FXBASE-RULES.md`](docs/FXBASE-RULES.md) para conocer el estilo de código, convenciones de commits y el uso prohibido de `{$mode delphi>`. Abra problemas o envíe pull requests en GitHub.
+Por favor lea [`.opencode/rules.md`](.opencode/rules.md) para conocer el estilo de código, convenciones de commits y el uso prohibido de `{$mode delphi}`. Abra problemas o envíe pull requests en GitHub.
 
 ---  
 *Creado con ❤️ usando Free Pascal.*
