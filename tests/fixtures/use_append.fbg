@@ -1,0 +1,4 @@
+USE clientes
+APPEND id=1, nombre="Ana"
+APPEND id=2, nombre="Bob"
+REPLACE nombre WITH "Anita"
