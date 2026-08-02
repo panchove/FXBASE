@@ -92,6 +92,7 @@ procedure TFXBBackend.LoadPrintArg(Val: TIRValue);
 var
   c: TIRConstant;
   reg: string;
+  inst: TIRInstruction;
 begin
   if IsX86_64 then
   begin
@@ -126,6 +127,17 @@ begin
     end
     else if Val is TIRLocal then
       Emit(Format('movq %s, %s', [GetOperandMemRef(Val, 'rsi'), reg]))
+    else if Val is TIRInstruction then
+    begin
+      inst := TIRInstruction(Val);
+      if inst.Kind = fxb.ir.instr.ikLoad then
+      begin
+        // Load instruction: the operand is the pointer, we need to load from it
+        Emit(Format('movq %s, %s', [GetOperandMemRef(inst.GetOperand(0), 'rsi'), reg]))
+      end
+      else
+        Emit(Format('movq %%rax, %s', [reg])); // fallback: assume value in RAX
+    end
     else
       Emit(Format('movq %%rax, %s', [reg]));
   end
@@ -154,6 +166,14 @@ begin
         reg := GetOperandReg(Val, '%esi')
       else if Val is TIRLocal then
         reg := GetOperandReg(Val, '%esi')
+      else if Val is TIRInstruction then
+      begin
+        inst := TIRInstruction(Val);
+        if inst.Kind = fxb.ir.instr.ikLoad then
+          reg := GetOperandReg(inst.GetOperand(0), '%esi')
+        else
+          reg := GetOperandReg(Val, '%eax');
+      end
       else
         reg := GetOperandReg(Val, '%eax');
     end;

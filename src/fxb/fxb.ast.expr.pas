@@ -97,6 +97,18 @@ type
     property Target: TExpr read FTarget;
   end;
 
+  TIndexExpr = class(TExpr)
+  private
+    FTarget: TExpr;
+    FIndex: TExpr;
+  public
+    constructor Create(ATarget, AIndex: TExpr; ALine, ACol: Integer);
+    destructor Destroy; override;
+    function Dump(Indent: Integer = 0): string; override;
+    property Target: TExpr read FTarget;
+    property Index: TExpr read FIndex;
+  end;
+
   TArrayLiteralExpr = class(TExpr)
   private
     FItems: TExprArray;
@@ -316,6 +328,30 @@ begin
   pad := StringOfChar(' ', Indent * 2);
   Result := pad + 'DEREF ^' + LineEnding;
   Result := Result + FTarget.Dump(Indent + 1);
+end;
+
+constructor TIndexExpr.Create(ATarget, AIndex: TExpr; ALine, ACol: Integer);
+begin
+  inherited Create(ALine, ACol);
+  FTarget := ATarget;
+  FIndex := AIndex;
+end;
+
+destructor TIndexExpr.Destroy;
+begin
+  FTarget.Free;
+  FIndex.Free;
+  inherited;
+end;
+
+function TIndexExpr.Dump(Indent: Integer = 0): string;
+var
+  pad: string;
+begin
+  pad := StringOfChar(' ', Indent * 2);
+  Result := pad + 'INDEX [' + LineEnding;
+  Result := Result + FTarget.Dump(Indent + 1) + LineEnding;
+  Result := Result + FIndex.Dump(Indent + 1);
 end;
 
 constructor TArrayLiteralExpr.Create(ALine, ACol: Integer);

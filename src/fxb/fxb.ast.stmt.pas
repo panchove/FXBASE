@@ -164,11 +164,13 @@ type
     property Kind: string read FKind;
   end;
 
-  // Fase 2: database statements (USE / APPEND / REPLACE) lowered to SQLite calls.
-  // Op is one of: 'use', 'append', 'replace'.
+  // Fase 2: database statements (USE / APPEND / REPLACE / PACK / ZAP) lowered to SQLite calls.
+  // Op is one of: 'use', 'append', 'replace', 'pack', 'zap'.
   //  - use:     TableName set; opens/creates the table (schema inferred at compile time).
   //  - append:  FieldNames + Exprs (parallel arrays, the column/value pairs to insert).
   //  - replace: Field + Expr (single column assignment; MVP emits UPDATE over all rows).
+  //  - pack/zap: clear/truncate the active table.
+  // Scope clauses (Fase 2.4): ALL, REST n, NEXT n, FOR cond, WHILE cond → translated to WHERE/LIMIT/OFFSET.
   TASTDBStmt = class(TStmt)
   private
     FOp: string;
@@ -176,6 +178,11 @@ type
     FField: string;
     FFieldNames: TStringArray;
     FExprs: TExprArray;
+    FScopeAll: Boolean;
+    FScopeRest: Integer;        // REST n
+    FScopeNext: Integer;        // NEXT n
+    FScopeForCond: TExpr;       // FOR cond
+    FScopeWhileCond: TExpr;     // WHILE cond
   public
     constructor Create(const AOp, ATableName: string; ALine, ACol: Integer);
     destructor Destroy; override;
@@ -187,6 +194,11 @@ type
     property Field: string read FField;
     property FieldNames: TStringArray read FFieldNames;
     property Exprs: TExprArray read FExprs;
+    property ScopeAll: Boolean read FScopeAll write FScopeAll;
+    property ScopeRest: Integer read FScopeRest write FScopeRest;
+    property ScopeNext: Integer read FScopeNext write FScopeNext;
+    property ScopeForCond: TExpr read FScopeForCond write FScopeForCond;
+    property ScopeWhileCond: TExpr read FScopeWhileCond write FScopeWhileCond;
   end;
 
 implementation
@@ -594,6 +606,11 @@ begin
   FField := '';
   SetLength(FFieldNames, 0);
   SetLength(FExprs, 0);
+  FScopeAll := False;
+  FScopeRest := 0;
+  FScopeNext := 0;
+  FScopeForCond := nil;
+  FScopeWhileCond := nil;
 end;
 
 destructor TASTDBStmt.Destroy;
@@ -601,6 +618,8 @@ var
   i: Integer;
 begin
   for i := 0 to High(FExprs) do FExprs[i].Free;
+  if Assigned(FScopeForCond) then FScopeForCond.Free;
+  if Assigned(FScopeWhileCond) then FScopeWhileCond.Free;
   inherited;
 end;
 
@@ -633,6 +652,12 @@ begin
   end
   else if FOp = 'replace' then
     Result := Result + LineEnding + pad + '  ' + FField + ' = ' + FExprs[0].Dump(0);
+  // Scope clauses (Fase 2.4)
+  if FScopeAll then Result := Result + LineEnding + pad + '  ALL';
+  if FScopeRest > 0 then Result := Result + LineEnding + pad + '  REST ' + IntToStr(FScopeRest);
+  if FScopeNext > 0 then Result := Result + LineEnding + pad + '  NEXT ' + IntToStr(FScopeNext);
+  if Assigned(FScopeForCond) then Result := Result + LineEnding + pad + '  FOR ' + FScopeForCond.Dump(0);
+  if Assigned(FScopeWhileCond) then Result := Result + LineEnding + pad + '  WHILE ' + FScopeWhileCond.Dump(0);
 end;
 
 end.

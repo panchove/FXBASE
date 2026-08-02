@@ -21,7 +21,10 @@ type
   TASTNodeArrayArray = fxb.ast.base.TASTNodeArrayArray;
   TFunctionDef = fxb.ast.def.TFunctionDef;
   TProcedureDef = fxb.ast.def.TProcedureDef;
+  TMethodDef = fxb.ast.def.TMethodDef;
+  TConstructorDef = fxb.ast.def.TConstructorDef;
   TClassDef = fxb.ast.def.TClassDef;
+  TInterfaceDef = fxb.ast.def.TInterfaceDef;
   TStructDef = fxb.ast.def.TStructDef;
   TNewTypeDef = fxb.ast.def.TNewTypeDef;
   TCompilationUnit = fxb.ast.def.TCompilationUnit;
@@ -34,6 +37,7 @@ type
   TMethodCallExpr = fxb.ast.expr.TMethodCallExpr;
   TMemberAccessExpr = fxb.ast.expr.TMemberAccessExpr;
   TDerefExpr = fxb.ast.expr.TDerefExpr;
+  TIndexExpr = fxb.ast.expr.TIndexExpr;
   TArrayLiteralExpr = fxb.ast.expr.TArrayLiteralExpr;
   THashLiteralExpr = fxb.ast.expr.THashLiteralExpr;
   TStructLiteralExpr = fxb.ast.expr.TStructLiteralExpr;

@@ -77,11 +77,36 @@ begin
     table := Instr.Metadata.Values['table'];
     field := Instr.Metadata.Values['field'];
     vals := ConstToSQL(Instr.GetOperand(0));
-    // Scope the UPDATE to the row most recently inserted by the preceding
-    // APPEND (xBASE REPLACE acts on the current record). Without a cursor we
-    // key on rowid = last_insert_rowid() for the open connection.
+    // Base SQL for REPLACE (UPDATE scoped to last inserted row by default).
     sql := 'UPDATE ' + table + ' SET ' + field + ' = ' + vals +
            ' WHERE rowid = (SELECT last_insert_rowid())';
+    // Apply scope clauses: FOR/WHILE add WHERE, NEXT/REST add LIMIT/OFFSET.
+    if Instr.Metadata.Values['scope_for'] = '1' then
+      sql := sql + ' AND (' + ConstToSQL(Instr.GetOperand(Instr.OperandCount - 1)) + ')'
+    else if Instr.Metadata.Values['scope_while'] = '1' then
+      sql := sql + ' AND (' + ConstToSQL(Instr.GetOperand(Instr.OperandCount - 1)) + ')';
+    if Instr.Metadata.Values['scope_next'] <> '' then
+      sql := sql + ' LIMIT ' + Instr.Metadata.Values['scope_next'];
+    if Instr.Metadata.Values['scope_rest'] <> '' then
+      sql := sql + ' LIMIT ' + Instr.Metadata.Values['scope_rest'] + ' OFFSET 1';
+    if Instr.Metadata.Values['scope_all'] = '1' then
+      sql := sql; // no additional clause
+    EmitDBCall(sql, 'fxb_sqlite_exec');
+  end
+  else if (op = 'pack') or (op = 'zap') then
+  begin
+    // PACK/ZAP both clear the active table; SQLite has no deleted-flag or
+    // TRUNCATE, so DELETE FROM keeps the schema. Scope clauses add WHERE/LIMIT.
+    table := Instr.Metadata.Values['table'];
+    sql := 'DELETE FROM ' + table;
+    if Instr.Metadata.Values['scope_for'] = '1' then
+      sql := sql + ' WHERE (' + ConstToSQL(Instr.GetOperand(Instr.OperandCount - 1)) + ')'
+    else if Instr.Metadata.Values['scope_while'] = '1' then
+      sql := sql + ' WHERE (' + ConstToSQL(Instr.GetOperand(Instr.OperandCount - 1)) + ')';
+    if Instr.Metadata.Values['scope_next'] <> '' then
+      sql := sql + ' LIMIT ' + Instr.Metadata.Values['scope_next'];
+    if Instr.Metadata.Values['scope_rest'] <> '' then
+      sql := sql + ' LIMIT ' + Instr.Metadata.Values['scope_rest'] + ' OFFSET 1';
     EmitDBCall(sql, 'fxb_sqlite_exec');
   end;
 end;

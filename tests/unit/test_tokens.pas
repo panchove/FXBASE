@@ -47,6 +47,10 @@ begin
     'DESTRUCTOR keyword');
   AssertEqualsI(Ord(kwOperator), Ord(KeywordFromString('OPERATOR')),
     'OPERATOR keyword');
+  AssertEqualsI(Ord(kwMethod), Ord(KeywordFromString('METHOD')),
+    'METHOD keyword');
+  AssertEqualsI(Ord(kwEndMethod), Ord(KeywordFromString('ENDMETHOD')),
+    'ENDMETHOD keyword');
 end;
 
 procedure TestIsKeyword_True;

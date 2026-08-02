@@ -57,6 +57,9 @@ type
     function ScanString: TToken;
     function ScanRawString: TToken;
     function ScanOperator: TToken;
+    function ScanDotOperator: TToken;
+    function ScanTwoCharOperator: TToken;
+    function ScanSingleCharOperator(const c: Char): TToken;
     function ScanPreprocessor: TToken;
     function ClassifyKeyword(const AIdent: string): TKeyword;
     procedure InitKeywords;
@@ -65,6 +68,7 @@ type
     destructor Destroy; override;
     function Tokenize(const ASource, AFileName: string): Boolean;
     function NextToken: TToken;
+    function PeekToken(AOffset: Integer = 1): TToken;
     function HasMoreTokens: Boolean;
     function EOF: Boolean;
     property Tokens: TTokenArray read FTokens;
@@ -136,6 +140,10 @@ begin
   FKeywordMap.Add('CLEAR SCREEN', kwClearScreen);
   FKeywordMap.Add('CLEAR TYPEAHEAD', kwClearTypeAhead);
 
+  // Scope clauses (Fase 2.4)
+  FKeywordMap.Add('ALL', kwAll);
+  FKeywordMap.Add('REST', kwRest);
+
   FKeywordMap.Add('IF', kwIf);
   FKeywordMap.Add('ELSEIF', kwElseIf);
   FKeywordMap.Add('ELSE', kwElse);
@@ -173,6 +181,7 @@ begin
   FKeywordMap.Add('PUBLIC', kwPublic);
   FKeywordMap.Add('PRIVATE', kwPrivate);
   FKeywordMap.Add('MEMVAR', kwMemvar);
+  FKeywordMap.Add('DATA', kwData);
   FKeywordMap.Add('PARAMETERS', kwParameters);
   FKeywordMap.Add('PARAM', kwParam);
   FKeywordMap.Add('VAR', kwVar);
@@ -182,6 +191,7 @@ begin
   FKeywordMap.Add('CLASS', kwClass);
   FKeywordMap.Add('ENDCLASS', kwEndClass);
   FKeywordMap.Add('METHOD', kwMethod);
+  FKeywordMap.Add('ENDMETHOD', kwEndMethod);
   FKeywordMap.Add('PROPERTY', kwProperty);
   FKeywordMap.Add('NEW', kwNew);
   FKeywordMap.Add('THIS', kwThis);
@@ -190,6 +200,7 @@ begin
   FKeywordMap.Add('INHERIT', kwInherit);
   FKeywordMap.Add('INTERFACE', kwInterface);
   FKeywordMap.Add('IMPLEMENTS', kwImplements);
+  FKeywordMap.Add('ENDINTERFACE', kwEndInterface);
   FKeywordMap.Add('VIRTUAL', kwVirtual);
   FKeywordMap.Add('OVERRIDE', kwOverride);
   FKeywordMap.Add('ABSTRACT', kwAbstract);
@@ -540,6 +551,24 @@ begin
     Result := FTokens[FNextIndex];
     Inc(FNextIndex);
   end
+  else
+  begin
+    Result.TokenType := ttEof;
+    Result.Keyword := kwNone;
+    Result.IntValue := 0;
+    Result.RealValue := 0.0;
+    Result.StrValue := '';
+    Result.Line := FLine;
+    Result.Col := FColumn;
+    Result.FileName := FFileName;
+    Result.Flags := [];
+  end;
+end;
+
+function TFXBLexer.PeekToken(AOffset: Integer = 1): TToken;
+begin
+  if FNextIndex + AOffset < Length(FTokens) then
+    Result := FTokens[FNextIndex + AOffset]
   else
   begin
     Result.TokenType := ttEof;
@@ -984,41 +1013,83 @@ function TFXBLexer.ScanOperator: TToken;
 var
   startLine, startCol: Integer;
   c, next: Char;
-  value: string;
 begin
   startLine := FLine;
   startCol := FColumn;
-  value := '';
   c := CurrentChar;
   next := PeekChar;
 
   FillChar(Result, SizeOf(Result), 0);
 
-  if (c = '.') and (next = 'T') and (PeekChar(2) = '.') then
+  // Handle dot-prefixed operators first (.T., .F., .WORD., .., ...)
+  if c = '.' then
+  begin
+    Result := ScanDotOperator;
+    Result.Line := startLine;
+    Result.Col := startCol;
+    Exit;
+  end;
+
+  // Try two-char operators
+  Result := ScanTwoCharOperator;
+  if Result.TokenType <> ttInvalid then
+  begin
+    Result.Line := startLine;
+    Result.Col := startCol;
+    Exit;
+  end;
+
+  // Fallback to single-char operators
+  Result := ScanSingleCharOperator(c);
+  Result.Line := startLine;
+  Result.Col := startCol;
+end;
+
+function TFXBLexer.ScanDotOperator: TToken;
+var
+  value: string;
+  j: Integer;
+  next: Char;
+begin
+  FillChar(Result, SizeOf(Result), 0);
+  next := PeekChar;
+
+  // .T. and .F. logical literals
+  if (next = 'T') and (PeekChar(2) = '.') then
   begin
     value := '.T.'; Advance; Advance; Advance;
     Result.TokenType := ttLogical;
     Result.IntValue := 1;
+    Result.StrValue := value;
+    Exit;
   end
-  else if (c = '.') and (next = 'F') and (PeekChar(2) = '.') then
+  else if (next = 'F') and (PeekChar(2) = '.') then
   begin
     value := '.F.'; Advance; Advance; Advance;
     Result.TokenType := ttLogical;
     Result.IntValue := 0;
+    Result.StrValue := value;
+    Exit;
   end
-  else if (c = '.') and (((next >= 'A') and (next <= 'Z')) or ((next >= 'a') and (next <= 'z'))) then
+  // .WORD. forms (dot operators like .AND., .OR., .NOT., .XOR.)
+  else if ((next >= 'A') and (next <= 'Z')) or ((next >= 'a') and (next <= 'z')) then
   begin
-    value := '.';
-    Advance;
-    while (FPos <= Length(FSource)) and (((FSource[FPos] >= 'A') and (FSource[FPos] <= 'Z')) or ((FSource[FPos] >= 'a') and (FSource[FPos] <= 'z'))) do
+    j := 2;
+    while ((PeekChar(j) >= 'A') and (PeekChar(j) <= 'Z'))
+       or ((PeekChar(j) >= 'a') and (PeekChar(j) <= 'z')) do
+      Inc(j);
+    if PeekChar(j) = '.' then
     begin
-      value := value + FSource[FPos];
+      value := '.';
       Advance;
-    end;
-    if (FPos <= Length(FSource)) and (FSource[FPos] = '.') then
-    begin
+      while (FPos <= Length(FSource)) and (((FSource[FPos] >= 'A') and (FSource[FPos] <= 'Z')) or ((FSource[FPos] >= 'a') and (FSource[FPos] <= 'z'))) do
+      begin
+        value := value + FSource[FPos];
+        Advance;
+      end;
       value := value + '.';
       Advance;
+      Result.StrValue := value;
       if UpperCase(Copy(value, 2, Length(value) - 2)) = 'AND' then
       begin
         Result.TokenType := ttDotAnd;
@@ -1041,208 +1112,184 @@ begin
       end
       else
         Result.TokenType := ttIdentifier;
+      Exit;
     end
     else
-      Result.TokenType := ttIdentifier;
+    begin
+      // Member-access dot: emit ttDot and let the identifier be scanned next.
+      value := '.';
+      Advance;
+      Result.TokenType := ttDot;
+      Result.StrValue := value;
+      Exit;
+    end;
   end
-  else if (c = '.') and (next = '.') and (PeekChar(2) = '.') then
+  // .. and ...
+  else if (next = '.') and (PeekChar(2) = '.') then
   begin
     value := '...'; Advance; Advance; Advance;
     Result.TokenType := ttEllipsis;
+    Result.StrValue := value;
+    Exit;
   end
-  else if (c = '.') and (next = '.') then
+  else if (next = '.') then
   begin
     value := '..'; Advance; Advance;
     Result.TokenType := ttRange;
-  end
-  else if (c = ':') and (next = ':') then
-  begin
-    value := '::'; Advance; Advance;
-    Result.TokenType := ttDoubleColon;
-  end
-  else if (c = ':') and (next = '=') then
-  begin
-    value := ':='; Advance; Advance;
-    Result.TokenType := ttAssign;
-  end
-  else if (c = '?') and (next = '?') then
-  begin
-    value := '??'; Advance; Advance;
-    Result.TokenType := ttDoubleQuestion;
-  end
-  else if (c = '?') and (next = '.') then
-  begin
-    value := '?.'; Advance; Advance;
-    Result.TokenType := ttQuestionDot;
-  end
-  else if (c = '?') and (next = ':') then
-  begin
-    value := '?:'; Advance; Advance;
-    Result.TokenType := ttQuestionColon;
-  end
-  else if (c = '+') and (next = '+') then
-  begin
-    value := '++'; Advance; Advance;
-    Result.TokenType := ttInc;
-  end
-  else if (c = '-') and (next = '-') then
-  begin
-    value := '--'; Advance; Advance;
-    Result.TokenType := ttDec;
-  end
-  else if (c = '-') and (next = '>') then
-  begin
-    value := '->'; Advance; Advance;
-    Result.TokenType := ttArrow;
-  end
-  else if (c = '=') and (next = '=') then
-  begin
-    value := '=='; Advance; Advance;
-    if (FPos <= Length(FSource)) and (FSource[FPos] = '=') then
-    begin
-      value := '==='; Advance;
-      Result.TokenType := ttExactEqual;
-    end
-    else
-      Result.TokenType := ttEq;
-  end
-  else if (c = '!') and (next = '=') then
-  begin
-    value := '!='; Advance; Advance;
-    if (FPos <= Length(FSource)) and (FSource[FPos] = '=') then
-    begin
-      value := '!=='; Advance;
-      Result.TokenType := ttNotExactEqual;
-    end
-    else
-      Result.TokenType := ttNeq;
-  end
-  else if (c = '<') and (next = '=') then
-  begin
-    value := '<='; Advance; Advance;
-    Result.TokenType := ttLe;
-  end
-  else if (c = '>') and (next = '=') then
-  begin
-    value := '>='; Advance; Advance;
-    Result.TokenType := ttGe;
-  end
-  else if (c = '<') and (next = '>') then
-  begin
-    value := '<>'; Advance; Advance;
-    Result.TokenType := ttNeq2;
-  end
-  else if (c = '+') and (next = '=') then
-  begin
-    value := '+='; Advance; Advance;
-    Result.TokenType := ttPlusAssign;
-  end
-  else if (c = '-') and (next = '=') then
-  begin
-    value := '-='; Advance; Advance;
-    Result.TokenType := ttMinusAssign;
-  end
-  else if (c = '*') and (next = '=') then
-  begin
-    value := '*='; Advance; Advance;
-    Result.TokenType := ttStarAssign;
-  end
-  else if (c = '/') and (next = '=') then
-  begin
-    value := '/='; Advance; Advance;
-    Result.TokenType := ttSlashAssign;
-  end
-  else if (c = '%') and (next = '=') then
-  begin
-    value := '%='; Advance; Advance;
-    Result.TokenType := ttPercentAssign;
-  end
-  else if (c = '*') and (next = '*') then
-  begin
-    value := '**'; Advance; Advance;
-    Result.TokenType := ttStarStar;
-  end
-  else if (c = '/') and (next = '/') then
-  begin
-    value := '//'; Advance; Advance;
-    Result.TokenType := ttDoubleSlash;
-  end
-  else if (c = '&') and (next = '&') then
-  begin
-    value := '&&'; Advance; Advance;
-    Result.TokenType := ttAnd;
-  end
-  else if (c = '|') and (next = '|') then
-  begin
-    value := '||'; Advance; Advance;
-    Result.TokenType := ttOr;
-  end
-  else if (c = '<') and (next = '<') then
-  begin
-    value := '<<'; Advance; Advance;
-    Result.TokenType := ttShl;
-  end
-  else if (c = '>') and (next = '>') then
-  begin
-    value := '>>'; Advance; Advance;
-    Result.TokenType := ttShr;
-  end
-  else if (c = '=') and (next = '>') then
-  begin
-    value := '=>'; Advance; Advance;
-    Result.TokenType := ttArrow2;
-  end
-  else if (c = '@') and (next = '@') then
-  begin
-    value := '@@'; Advance; Advance;
-    Result.TokenType := ttAtAt;
+    Result.StrValue := value;
+    Exit;
   end
   else
   begin
-    value := c;
+    // Just a single dot
+    value := '.';
     Advance;
-    case c of
-      '+': Result.TokenType := ttPlus;
-      '-': Result.TokenType := ttMinus;
-      '*': Result.TokenType := ttStar;
-      '/': Result.TokenType := ttSlash;
-      '\': Result.TokenType := ttBackslash;
-      '%': Result.TokenType := ttPercent;
-      '^': Result.TokenType := ttCaret;
-      '=': Result.TokenType := ttEqual;
-      '<': Result.TokenType := ttLt;
-      '>': Result.TokenType := ttGt;
-      '!': Result.TokenType := ttNot;
-      '&': Result.TokenType := ttBitAnd;
-      '|': Result.TokenType := ttBitOr;
-      '~': Result.TokenType := ttBitNot;
-      '.': Result.TokenType := ttDot;
-      ',': Result.TokenType := ttComma;
-      ';': Result.TokenType := ttSemicolon;
-      ':': Result.TokenType := ttColon;
-      '(': Result.TokenType := ttLParen;
-      ')': Result.TokenType := ttRParen;
-      '[': Result.TokenType := ttLBracket;
-      ']': Result.TokenType := ttRBracket;
-      '{': Result.TokenType := ttLBrace;
-      '}': Result.TokenType := ttRBrace;
-      '?': begin Result.TokenType := ttQuestion; value := '?'; end;
-      '@': Result.TokenType := ttAt;
-      '#': Result.TokenType := ttHash;
-      '$': begin Result.TokenType := ttIdentifier; value := '$'; end;
-    else
-      Result.TokenType := ttInvalid;
-    end;
+    Result.TokenType := ttDot;
+    Result.StrValue := value;
+    Exit;
+  end;
+end;
+
+function TFXBLexer.ScanTwoCharOperator: TToken;
+var
+  c, next: Char;
+  value: string;
+  matched: Boolean;
+begin
+  FillChar(Result, SizeOf(Result), 0);
+  c := CurrentChar;
+  next := PeekChar;
+  value := '';
+  matched := False;
+
+  // Two-character operators (ordered by first char for efficiency)
+  case c of
+    ':':
+      if next = ':' then begin value := '::'; Advance; Advance; Result.TokenType := ttDoubleColon; matched := True; end
+      else if next = '=' then begin value := ':='; Advance; Advance; Result.TokenType := ttAssign; matched := True; end;
+    '?':
+      if next = '?' then begin value := '??'; Advance; Advance; Result.TokenType := ttDoubleQuestion; matched := True; end
+      else if next = '.' then begin value := '?.'; Advance; Advance; Result.TokenType := ttQuestionDot; matched := True; end
+      else if next = ':' then begin value := '?:'; Advance; Advance; Result.TokenType := ttQuestionColon; matched := True; end;
+    '+':
+      if next = '+' then begin value := '++'; Advance; Advance; Result.TokenType := ttInc; matched := True; end
+      else if next = '=' then begin value := '+='; Advance; Advance; Result.TokenType := ttPlusAssign; matched := True; end;
+    '-':
+      if next = '-' then begin value := '--'; Advance; Advance; Result.TokenType := ttDec; matched := True; end
+      else if next = '>' then begin value := '->'; Advance; Advance; Result.TokenType := ttArrow; matched := True; end
+      else if next = '=' then begin value := '-='; Advance; Advance; Result.TokenType := ttMinusAssign; matched := True; end;
+    '=':
+      if next = '=' then
+      begin
+        value := '=='; Advance; Advance;
+        if (FPos <= Length(FSource)) and (FSource[FPos] = '=') then
+        begin
+          value := '==='; Advance;
+          Result.TokenType := ttExactEqual;
+        end
+        else
+          Result.TokenType := ttEq;
+        matched := True;
+      end
+      else if next = '>' then begin value := '=>'; Advance; Advance; Result.TokenType := ttArrow2; matched := True; end;
+    '!':
+      if next = '=' then
+      begin
+        value := '!='; Advance; Advance;
+        if (FPos <= Length(FSource)) and (FSource[FPos] = '=') then
+        begin
+          value := '!=='; Advance;
+          Result.TokenType := ttNotExactEqual;
+        end
+        else
+          Result.TokenType := ttNeq;
+        matched := True;
+      end;
+    '<':
+      if next = '=' then begin value := '<='; Advance; Advance; Result.TokenType := ttLe; matched := True; end
+      else if next = '>' then begin value := '<>'; Advance; Advance; Result.TokenType := ttNeq2; matched := True; end
+      else if next = '<' then begin value := '<<'; Advance; Advance; Result.TokenType := ttShl; matched := True; end;
+    '>':
+      if next = '=' then begin value := '>='; Advance; Advance; Result.TokenType := ttGe; matched := True; end
+      else if next = '>' then begin value := '>>'; Advance; Advance; Result.TokenType := ttShr; matched := True; end;
+    '*':
+      if next = '=' then begin value := '*='; Advance; Advance; Result.TokenType := ttStarAssign; matched := True; end
+      else if next = '*' then begin value := '**'; Advance; Advance; Result.TokenType := ttStarStar; matched := True; end;
+    '/':
+      if next = '=' then begin value := '/='; Advance; Advance; Result.TokenType := ttSlashAssign; matched := True; end
+      else if next = '/' then begin value := '//'; Advance; Advance; Result.TokenType := ttDoubleSlash; matched := True; end;
+    '%':
+      if next = '=' then begin value := '%='; Advance; Advance; Result.TokenType := ttPercentAssign; matched := True; end;
+    '&':
+      if next = '&' then begin value := '&&'; Advance; Advance; Result.TokenType := ttAnd; matched := True; end;
+    '|':
+      if next = '|' then begin value := '||'; Advance; Advance; Result.TokenType := ttOr; matched := True; end;
+    '@':
+      if next = '@' then begin value := '@@'; Advance; Advance; Result.TokenType := ttAtAt; matched := True; end;
+  else
+    // No two-char operator for this character
   end;
 
+  if not matched then
+  begin
+    Result.TokenType := ttInvalid;
+    Exit;
+  end;
+
+  Result.StrValue := value;
   Result.Keyword := kwNone;
   Result.IntValue := 0;
   Result.UIntValue := 0;
   Result.RealValue := 0.0;
+  Result.Flags := [];
+end;
+
+function TFXBLexer.ScanSingleCharOperator(const c: Char): TToken;
+var
+  value: string;
+begin
+  FillChar(Result, SizeOf(Result), 0);
+  value := c;
+  Advance;
+
+  case c of
+    '+': Result.TokenType := ttPlus;
+    '-': Result.TokenType := ttMinus;
+    '*': Result.TokenType := ttStar;
+    '/': Result.TokenType := ttSlash;
+    '\': Result.TokenType := ttBackslash;
+    '%': Result.TokenType := ttPercent;
+    '^': Result.TokenType := ttCaret;
+    '=': Result.TokenType := ttEqual;
+    '<': Result.TokenType := ttLt;
+    '>': Result.TokenType := ttGt;
+    '!': Result.TokenType := ttNot;
+    '&': Result.TokenType := ttBitAnd;
+    '|': Result.TokenType := ttBitOr;
+    '~': Result.TokenType := ttBitNot;
+    '.': Result.TokenType := ttDot;
+    ',': Result.TokenType := ttComma;
+    ';': Result.TokenType := ttSemicolon;
+    ':': Result.TokenType := ttColon;
+    '(': Result.TokenType := ttLParen;
+    ')': Result.TokenType := ttRParen;
+    '[': Result.TokenType := ttLBracket;
+    ']': Result.TokenType := ttRBracket;
+    '{': Result.TokenType := ttLBrace;
+    '}': Result.TokenType := ttRBrace;
+    '?': begin Result.TokenType := ttQuestion; value := '?'; end;
+    '@': Result.TokenType := ttAt;
+    '#': Result.TokenType := ttHash;
+    '$': begin Result.TokenType := ttIdentifier; value := '$'; end;
+  else
+    Result.TokenType := ttInvalid;
+  end;
+
   Result.StrValue := value;
-  Result.Line := startLine;
-  Result.Col := startCol;
-  Result.FileName := FFileName;
+  Result.Keyword := kwNone;
+  Result.IntValue := 0;
+  Result.UIntValue := 0;
+  Result.RealValue := 0.0;
   Result.Flags := [];
 end;
 

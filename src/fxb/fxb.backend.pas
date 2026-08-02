@@ -330,8 +330,10 @@ begin
       else
         Emit(Format('xor%s %s, %s', [Copy(MovOp, 1, 3), ScratchReg, ScratchReg]));
     end
-    else if c.IsNull then
-      Emit(Format('xor%s %s, %s', [Copy(MovOp, 1, 3), ScratchReg, ScratchReg]));
+else if c.IsNull then
+      Emit(Format('xor%s %s, %s', [Copy(MovOp, 1, 3), ScratchReg, ScratchReg]))
+    else if c.Type_.Kind = fxb.ir.types.tkString then
+      Emit(Format('leaq %s, %s', [RIP(GetStringLabel(c.StrVal)), ScratchReg]))
   end
   else if Val is TIRArgument then
   begin
@@ -655,6 +657,10 @@ end;
 function TFXBBackend.Generate(const IR: TIRModule; const OutputFile: string): Boolean;
 var
   fn: TIRFunction;
+  blk: TIRBlock;
+  instr: TIRInstruction;
+  val: TIRValue;
+  fnIdx, blkIdx, instrIdx, opIdx: Integer;
   i: Integer;
 begin
   FModule := IR;
@@ -673,6 +679,35 @@ begin
     else
       EmitDirective('.code32');
     EmitDirective('.text');
+
+    // Pre-scan IR to collect all string constants for the string pool
+    // Walk all functions, blocks, and instructions to find string constants
+    for fnIdx := 0 to IR.Functions.Count - 1 do
+    begin
+      fn := TIRFunction(IR.Functions[fnIdx]);
+      for blkIdx := 0 to fn.Blocks.Count - 1 do
+      begin
+        blk := TIRBlock(fn.Blocks[blkIdx]);
+        for instrIdx := 0 to blk.Instructions.Count - 1 do
+        begin
+          instr := TIRInstruction(blk.Instructions[instrIdx]);
+          // Check operands for string constants
+          for opIdx := 0 to instr.OperandCount - 1 do
+          begin
+            val := instr.GetOperand(opIdx);
+            if (val is TIRConstant) and (TIRConstant(val).Type_.Kind = fxb.ir.types.tkString) then
+              GetStringLabel(TIRConstant(val).StrVal); // Register in string pool
+          end;
+        end;
+      end;
+    end;
+    // Also scan globals
+    for fnIdx := 0 to IR.Globals.Count - 1 do
+    begin
+      val := TIRValue(IR.Globals[fnIdx]);
+      if (val is TIRConstant) and (TIRConstant(val).Type_.Kind = fxb.ir.types.tkString) then
+        GetStringLabel(TIRConstant(val).StrVal);
+    end;
 
     GenerateAllFunctions(IR);
     EmitStringPool;

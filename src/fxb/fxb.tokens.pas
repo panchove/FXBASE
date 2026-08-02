@@ -136,6 +136,9 @@ type
     kwClear, kwClearAll, kwClearGets, kwClearMemory, kwClearScreen,
     kwClearTypeAhead,
 
+    // Scope clauses (Fase 2.4)
+    kwAll, kwRest,
+
     // Control flow
     kwIf, kwElseIf, kwElse, kwEndIf,
     kwDo, kwWhile, kwEndDo,
@@ -147,13 +150,13 @@ type
     // Functions/Procedures
     kwFunction, kwProcedure, kwEndFunc, kwEndFunction,
     kwEndProc, kwEndProcedure,
-    kwLocal, kwStatic, kwPublic, kwPrivate, kwMemvar,
+    kwLocal, kwStatic, kwPublic, kwPrivate, kwMemvar, kwData,
     kwParameters, kwParam, kwVar, kwOut, kwRef,
 
     // OOP
-    kwClass, kwEndClass, kwMethod, kwProperty,
+    kwClass, kwEndClass, kwMethod, kwEndMethod, kwProperty,
     kwNew, kwThis, kwSuper, kwInherit,
-    kwInterface, kwImplements,
+    kwInterface, kwImplements, kwEndInterface,
     kwVirtual, kwOverride, kwAbstract,
     kwConst, kwReadOnly, kwConstructor, kwDestructor,
     kwOperator,
@@ -257,6 +260,9 @@ const
     'CLEAR', 'CLEAR ALL', 'CLEAR GETS', 'CLEAR MEMORY', 'CLEAR SCREEN',
     'CLEAR TYPEAHEAD',
 
+    // Scope clauses (Fase 2.4)
+    'ALL', 'REST',
+
     // Control flow
     'IF', 'ELSEIF', 'ELSE', 'ENDIF',
     'DO', 'WHILE', 'ENDDO',
@@ -268,13 +274,13 @@ const
     // Functions/Procedures
     'FUNCTION', 'PROCEDURE', 'ENDFUNC', 'ENDFUNCTION',
     'ENDPROC', 'ENDPROCEDURE',
-    'LOCAL', 'STATIC', 'PUBLIC', 'PRIVATE', 'MEMVAR',
+    'LOCAL', 'STATIC', 'PUBLIC', 'PRIVATE', 'MEMVAR', 'DATA',
     'PARAMETERS', 'PARAM', 'VAR', 'OUT', 'REF',
 
     // OOP
-    'CLASS', 'ENDCLASS', 'METHOD', 'PROPERTY',
+    'CLASS', 'ENDCLASS', 'METHOD', 'ENDMETHOD', 'PROPERTY',
     'NEW', 'THIS', 'SUPER', 'INHERIT',
-    'INTERFACE', 'IMPLEMENTS',
+    'INTERFACE', 'IMPLEMENTS', 'ENDINTERFACE',
     'VIRTUAL', 'OVERRIDE', 'ABSTRACT',
     'CONST', 'READONLY', 'CONSTRUCTOR', 'DESTRUCTOR',
     'OPERATOR',

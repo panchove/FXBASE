@@ -17,7 +17,8 @@ begin
       hasMain := True
     else if (node is TProcedureDef) and (TProcedureDef(node).Name = 'Main') then
       hasMain := True
-    else if (node is TClassDef) or (node is TStructDef) or (node is TNewTypeDef) then
+    else if (node is TClassDef) or (node is TStructDef) or (node is TNewTypeDef)
+      or (node is TInterfaceDef) then
       Continue
     else
     begin
@@ -167,7 +168,7 @@ end;
 
 procedure TFXBIRGenerator.LowerExprStmt(Stmt: TExprStmt);
 begin
-  LowerExpression(Stmt.Expr);
+  Self.LowerExpression(Stmt.Expr);
 end;
 
 procedure TFXBIRGenerator.LowerPrint(Stmt: TPrintStmt);
@@ -177,12 +178,15 @@ var
   val: TIRValue;
 begin
   instr := TIRInstruction.Create(ikPrint, TIRType.Void, '');
+  if Stmt.NewLine then
+    instr.Metadata.Values['newline'] := '1'
+  else
+    instr.Metadata.Values['newline'] := '0';
   for i := 0 to High(Stmt.Expressions) do
   begin
-    val := LowerExpression(Stmt.Expressions[i]);
+    val := Self.LowerExpression(Stmt.Expressions[i]);
     instr.AddOperand(val);
   end;
-  instr.Metadata.Add(Format('newline=%s', [BoolToStr(Stmt.NewLine, '1', '0')]));
   EmitInstr(instr);
 end;
 
@@ -192,6 +196,7 @@ var
   i: Integer;
   val: TIRValue;
   table: string;
+  cond: TIRValue;
 begin
   instr := TIRInstruction.Create(ikDBOp, TIRType.Void, '');
   instr.Metadata.Values['op'] := Stmt.Op;
@@ -202,7 +207,7 @@ begin
   end
   else
   begin
-    // append / replace use the currently-open table.
+    // append / replace / pack / zap use the currently-open table.
     table := FCurrentDBTable;
     if table = '' then
       ReportErrorNode(Stmt, FXB_TYPE_MISMATCH, 'DB operation outside of USE')
@@ -224,9 +229,28 @@ begin
     // Lower the value expressions (expected to fold to constants).
     for i := 0 to High(Stmt.Exprs) do
     begin
-      val := LowerExpression(Stmt.Exprs[i]);
+      val := Self.LowerExpression(Stmt.Exprs[i]);
       instr.AddOperand(val);
     end;
+  end;
+  // Add scope clauses metadata
+  if Stmt.ScopeAll then
+    instr.Metadata.Values['scope_all'] := '1';
+  if Stmt.ScopeRest > 0 then
+    instr.Metadata.Values['scope_rest'] := IntToStr(Stmt.ScopeRest);
+  if Stmt.ScopeNext > 0 then
+    instr.Metadata.Values['scope_next'] := IntToStr(Stmt.ScopeNext);
+  if Assigned(Stmt.ScopeForCond) then
+  begin
+    instr.Metadata.Values['scope_for'] := '1';
+    cond := Self.LowerExpression(Stmt.ScopeForCond);
+    instr.AddOperand(cond);
+  end;
+  if Assigned(Stmt.ScopeWhileCond) then
+  begin
+    instr.Metadata.Values['scope_while'] := '1';
+    cond := Self.LowerExpression(Stmt.ScopeWhileCond);
+    instr.AddOperand(cond);
   end;
   EmitInstr(instr);
 end;
@@ -252,7 +276,7 @@ begin
       irType := TIRType.AnyType;
       if Assigned(initVal) then
       begin
-        val := LowerExpression(initVal);
+        val := Self.LowerExpression(initVal);
         if val.Type_.Kind <> tkAny then
           irType := val.Type_;
       end
@@ -264,7 +288,7 @@ begin
     if Assigned(initVal) then
     begin
       if not Assigned(val) then
-        val := LowerExpression(initVal);
+        val := Self.LowerExpression(initVal);
       CreateStore(val, local);
     end;
   end;
@@ -283,8 +307,8 @@ begin
     target := TIRValue(FLocalVarMap.Objects[idx]);
   end
   else
-    target := LowerExpression(Stmt.Target);
-  value := LowerExpression(Stmt.Value);
+    target := Self.LowerExpression(Stmt.Target);
+  value := Self.LowerExpression(Stmt.Value);
   CreateStore(value, target);
 end;
 
@@ -296,7 +320,7 @@ var
   hasElseIf: Boolean;
   innerBody: array of TASTNode;
 begin
-  condVal := LowerExpression(Stmt.Condition);
+  condVal := Self.LowerExpression(Stmt.Condition);
   thenBlock := FCurrentFunction.CreateBlock(CreateBlockName('then'));
   elseBlock := FCurrentFunction.CreateBlock(CreateBlockName('else'));
   mergeBlock := FCurrentFunction.CreateBlock(CreateBlockName('merge'));
@@ -321,7 +345,7 @@ begin
     begin
       for i := 0 to High(Stmt.ElseIfConds) do
       begin
-        condVal := LowerExpression(Stmt.ElseIfConds[i]);
+        condVal := Self.LowerExpression(Stmt.ElseIfConds[i]);
         thenBlock := FCurrentFunction.CreateBlock(CreateBlockName('elseif.then'));
         elseBlock := FCurrentFunction.CreateBlock(CreateBlockName('elseif.else'));
         EmitInstr(TIRInstruction.Create(ikCondBr, TIRType.Void, ''));
@@ -389,13 +413,13 @@ begin
   FCurrentBlock.GetLastInstr.AddOperand(initBlock);
 
   FCurrentBlock := initBlock;
-  startVal := LowerExpression(Stmt.StartExpr);
+  startVal := Self.LowerExpression(Stmt.StartExpr);
   CreateStore(startVal, varPtr);
   EmitInstr(TIRInstruction.Create(ikBr, TIRType.Void, ''));
   FCurrentBlock.GetLastInstr.AddOperand(condBlock);
 
   FCurrentBlock := condBlock;
-  endVal := LowerExpression(Stmt.EndExpr);
+  endVal := Self.LowerExpression(Stmt.EndExpr);
   varPtr := CreateLoad(varPtr, 'for.var');
   condInstr := TIRInstruction.Create(ikICmp, TIRType.Bool, 'for.cond');
   condInstr.AddOperand(varPtr);
@@ -414,7 +438,7 @@ begin
   FCurrentBlock.GetLastInstr.AddOperand(stepBlock);
 
   FCurrentBlock := stepBlock;
-  stepVal := LowerExpression(Stmt.StepExpr);
+  stepVal := Self.LowerExpression(Stmt.StepExpr);
   varPtr := TIRValue(FLocalVarMap.Objects[FLocalVarMap.IndexOf(varName)]);
   varPtr := CreateLoad(varPtr, 'for.var');
   EmitInstr(TIRInstruction.Create(ikAdd, varType, 'for.next'));
@@ -447,7 +471,7 @@ begin
   FCurrentBlock.GetLastInstr.AddOperand(condBlock);
 
   FCurrentBlock := condBlock;
-  condVal := LowerExpression(Stmt.Condition);
+  condVal := Self.LowerExpression(Stmt.Condition);
   EmitInstr(TIRInstruction.Create(ikCondBr, TIRType.Void, ''));
   FCurrentBlock.GetLastInstr.AddOperand(condVal);
   FCurrentBlock.GetLastInstr.AddOperand(bodyBlock);
@@ -475,7 +499,7 @@ var
 begin
   if Stmt.HasValue then
   begin
-    retVal := LowerExpression(Stmt.Value);
+    retVal := Self.LowerExpression(Stmt.Value);
     EmitInstr(TIRInstruction.Create(ikRet, TIRType.Void, ''));
     FCurrentBlock.GetLastInstr.AddOperand(retVal);
   end
@@ -488,7 +512,7 @@ procedure TFXBIRGenerator.LowerYield(Stmt: TYieldStmt);
 var
   val: TIRValue;
 begin
-  val := LowerExpression(Stmt.Value);
+  val := Self.LowerExpression(Stmt.Value);
   EmitInstr(TIRInstruction.Create(ikYield, TIRType.Void, ''));
   FCurrentBlock.GetLastInstr.AddOperand(val);
 end;

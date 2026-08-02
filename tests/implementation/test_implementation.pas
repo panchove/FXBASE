@@ -5,6 +5,7 @@ program test_implementation;
 uses
   SysUtils, Classes,
   fxb.tokens, fxb.lexer, fxb.parser, fxb.ast, fxb.errors, fxb.ir, fxb.backend,
+  fxb.backend.x86_64,
   fxb.test.framework;
 
 function CaptureProgramOutput(const Cmd: string; out ExitCode: Integer): string; forward;
@@ -77,6 +78,7 @@ begin
   AssertTrue(CountKeyword(r.Tokens, kwClass) > 0, 'Tiene CLASS');
   AssertTrue(CountKeyword(r.Tokens, kwEndClass) > 0, 'Tiene ENDCLASS');
   AssertTrue(CountKeyword(r.Tokens, kwMethod) > 0, 'Tiene METHOD');
+  AssertTrue(CountKeyword(r.Tokens, kwEndMethod) > 0, 'Tiene ENDMETHOD');
 end;
 
 procedure TestImpl_HelloWorld_ParseAST;
@@ -91,6 +93,7 @@ begin
   lex := TFXBLexer.Create;
   rep := TErrorReporter.Create('hello.fpg');
   par := TParser.Create(lex, rep);
+  unit_ := nil;
   try
     src.LoadFromFile('tests/fixtures/hello.fpg');
     lex.Tokenize(src.Text, 'hello.fpg');
@@ -283,7 +286,7 @@ begin
   irGen := TFXBIRGenerator.Create;
   ir := nil;
   ast := nil;
-  backend := TFXBBackend.Create;
+  backend := TFXBBackendX86_64.Create;
   try
     lex.Tokenize(src, 'backend.fpg');
     ast := par.ParseProgram;
@@ -363,7 +366,7 @@ begin
   irGen := TFXBIRGenerator.Create;
   ir := nil;
   ast := nil;
-  backend := TFXBBackend.Create;
+  backend := TFXBBackendX86_64.Create;
   try
     lex.Tokenize(src, 'float.fpg');
     ast := par.ParseProgram;
@@ -440,7 +443,7 @@ begin
   irGen := TFXBIRGenerator.Create;
   ir := nil;
   ast := nil;
-  backend := TFXBBackend.Create;
+  backend := TFXBBackendX86_64.Create;
   try
     lex.Tokenize(src, 'floatcmp.fpg');
     ast := par.ParseProgram;
@@ -511,7 +514,7 @@ begin
   irGen := TFXBIRGenerator.Create;
   ir := nil;
   ast := nil;
-  backend := TFXBBackend.Create;
+  backend := TFXBBackendX86_64.Create;
   try
     lex.Tokenize(src, 'backend32.fpg');
     ast := par.ParseProgram;
@@ -660,7 +663,7 @@ begin
   irGen := TFXBIRGenerator.Create;
   ir := nil;
   ast := nil;
-  backend := TFXBBackend.Create;
+  backend := TFXBBackendX86_64.Create;
   backend.TargetOS := 'windows';
   backend.TargetCPU := 'x86_64';
   try
@@ -793,7 +796,6 @@ begin
   end;
 end;
 
-var
 procedure TestImpl_Backend_DBPackZap;
 var
   exePath, outp: string;
@@ -830,6 +832,7 @@ begin
   end;
 end;
 
+var
   fxWinePrefix: string;
 
 begin
