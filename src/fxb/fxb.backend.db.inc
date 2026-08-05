@@ -115,6 +115,7 @@ var
   op, table, field, fields, sql, path, vals: string;
   i, nVals: Integer;
   hasCond: Boolean;
+  condExpr: string;
 begin
   op := Instr.Metadata.Values['op'];
   if op = 'use' then
@@ -172,7 +173,15 @@ begin
                (Instr.Metadata.Values['scope_while'] = '1');
     // If a FOR/WHILE condition is present, REPLACE applies to all matching rows.
     // Otherwise it updates only the last inserted row (legacy xBASE behaviour).
-    if hasCond then
+    // Use the stored AST expression for the WHERE clause (converted to SQL)
+    condExpr := '';
+    if Instr.Metadata.Values['scope_for_expr'] <> '' then
+      condExpr := Instr.Metadata.Values['scope_for_expr']
+    else if Instr.Metadata.Values['scope_while_expr'] <> '' then
+      condExpr := Instr.Metadata.Values['scope_while_expr'];
+    if hasCond and (condExpr <> '') then
+      sql := 'UPDATE ' + table + ' SET ' + field + ' = ?1 WHERE (' + condExpr + ')'
+    else if hasCond then
       sql := 'UPDATE ' + table + ' SET ' + field + ' = ?1 WHERE (?)'
     else
       sql := 'UPDATE ' + table + ' SET ' + field + ' = ?1' +
@@ -181,21 +190,25 @@ begin
     begin
       // Parameterized path; the value and any FOR/WHILE condition bind by index.
       nVals := 1;
-      if hasCond then Inc(nVals);
+      // If we have a stored expression, we don't need to bind the condition as a parameter
+      if hasCond and (condExpr = '') then Inc(nVals);
       if Instr.Metadata.Values['scope_next'] <> '' then
         sql := sql + ' LIMIT ' + Instr.Metadata.Values['scope_next'];
       if Instr.Metadata.Values['scope_rest'] <> '' then
         sql := sql + ' LIMIT ' + Instr.Metadata.Values['scope_rest'] + ' OFFSET 1';
       Emit(Format('leaq %s, %%r10', [RIP('fxb_db_args')]));
       EmitBindSlot(Instr.GetOperand(0), 0);
-      if hasCond then
+      if hasCond and (condExpr = '') then
         EmitBindSlot(Instr.GetOperand(Instr.OperandCount - 1), 1);
       EmitParamCall(sql, nVals);
     end
     else
     begin
       // Fallback (x86_32 / Windows): compile-time SQL, runtime values become NULL.
-      if hasCond then
+      if hasCond and (condExpr <> '') then
+        sql := 'UPDATE ' + table + ' SET ' + field + ' = ' + ConstToSQL(Instr.GetOperand(0)) +
+               ' WHERE (' + condExpr + ')'
+      else if hasCond then
         sql := 'UPDATE ' + table + ' SET ' + field + ' = ' + ConstToSQL(Instr.GetOperand(0)) +
                ' WHERE (' + ConstToSQL(Instr.GetOperand(Instr.OperandCount - 1)) + ')'
       else
@@ -215,19 +228,28 @@ begin
     table := Instr.Metadata.Values['table'];
     hasCond := (Instr.Metadata.Values['scope_for'] = '1') or
                (Instr.Metadata.Values['scope_while'] = '1');
+    // Use the stored AST expression for the WHERE clause (converted to SQL)
+    condExpr := '';
+    if Instr.Metadata.Values['scope_for_expr'] <> '' then
+      condExpr := Instr.Metadata.Values['scope_for_expr']
+    else if Instr.Metadata.Values['scope_while_expr'] <> '' then
+      condExpr := Instr.Metadata.Values['scope_while_expr'];
     if IsX86_64 and (not IsWindows) then
     begin
       // Parameterized path: bind runtime condition via fxb_sqlite_execv.
       nVals := 0;
-      if hasCond then Inc(nVals);
+      if hasCond and (condExpr = '') then Inc(nVals);
       sql := 'DELETE FROM ' + table;
-      if hasCond then sql := sql + ' WHERE (?)';
+      if hasCond and (condExpr <> '') then
+        sql := sql + ' WHERE (' + condExpr + ')'
+      else if hasCond then
+        sql := sql + ' WHERE (?)';
       if Instr.Metadata.Values['scope_next'] <> '' then
         sql := sql + ' LIMIT ' + Instr.Metadata.Values['scope_next'];
       if Instr.Metadata.Values['scope_rest'] <> '' then
         sql := sql + ' LIMIT ' + Instr.Metadata.Values['scope_rest'] + ' OFFSET 1';
       Emit(Format('leaq %s, %%r10', [RIP('fxb_db_args')]));
-      if hasCond then
+      if hasCond and (condExpr = '') then
         EmitBindSlot(Instr.GetOperand(Instr.OperandCount - 1), 0);
       EmitParamCall(sql, nVals);
     end
@@ -235,7 +257,9 @@ begin
     begin
       // Fallback (x86_32 / Windows): compile-time SQL, runtime values become NULL.
       sql := 'DELETE FROM ' + table;
-      if Instr.Metadata.Values['scope_for'] = '1' then
+      if hasCond and (condExpr <> '') then
+        sql := sql + ' WHERE (' + condExpr + ')'
+      else if Instr.Metadata.Values['scope_for'] = '1' then
         sql := sql + ' WHERE (' + ConstToSQL(Instr.GetOperand(Instr.OperandCount - 1)) + ')'
       else if Instr.Metadata.Values['scope_while'] = '1' then
         sql := sql + ' WHERE (' + ConstToSQL(Instr.GetOperand(Instr.OperandCount - 1)) + ')';

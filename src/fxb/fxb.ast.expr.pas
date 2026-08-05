@@ -18,6 +18,7 @@ type
   public
     constructor Create(constref AToken: TToken);
     function Dump(Indent: Integer = 0): string; override;
+    function ToSQL: string; override;
     property Token: TToken read FToken;
   end;
 
@@ -27,6 +28,7 @@ type
   public
     constructor Create(const AName: string; ALine, ACol: Integer);
     function Dump(Indent: Integer = 0): string; override;
+    function ToSQL: string; override;
     property Name: string read FName;
   end;
 
@@ -41,6 +43,7 @@ type
     constructor Create(AOp: TTokenType; AOperand: TExpr; ALine, ACol: Integer);
     destructor Destroy; override;
     function Dump(Indent: Integer = 0): string; override;
+    function ToSQL: string; override;
     property Op: TTokenType read FOp;
     property Operand: TExpr read FOperand;
   end;
@@ -183,6 +186,28 @@ begin
   Result := StringOfChar(' ', Indent * 2) + 'LITERAL ' + DumpToken(FToken);
 end;
 
+function TLiteralExpr.ToSQL: string;
+var
+  s: string;
+  tt: TTokenType;
+begin
+  tt := FToken.TokenType;
+  if tt = ttInteger then
+    Result := IntToStr(FToken.IntValue)
+  else if tt = ttReal then
+    Result := FloatToStr(FToken.RealValue)
+  else if tt = ttString then
+  begin
+    s := FToken.StrValue;
+    s := StringReplace(s, '''', '''''', [rfReplaceAll]);
+    Result := '''' + s + '''';
+  end
+  else if tt = ttLogical then
+    if FToken.IntValue = 1 then Result := '1' else Result := '0'
+  else
+    Result := 'NULL';
+end;
+
 constructor TIdentifierExpr.Create(const AName: string; ALine, ACol: Integer);
 begin
   inherited Create(ALine, ACol);
@@ -192,6 +217,11 @@ end;
 function TIdentifierExpr.Dump(Indent: Integer = 0): string;
 begin
   Result := StringOfChar(' ', Indent * 2) + 'ID "' + FName + '"';
+end;
+
+function TIdentifierExpr.ToSQL: string;
+begin
+  Result := FName;
 end;
 
 constructor TUnaryExpr.Create(AOp: TTokenType; AOperand: TExpr; ALine, ACol: Integer);
@@ -211,6 +241,20 @@ function TUnaryExpr.Dump(Indent: Integer = 0): string;
 begin
   Result := StringOfChar(' ', Indent * 2) + 'UNARY ' + TokenTypeName(FOp) + LineEnding;
   Result := Result + FOperand.Dump(Indent + 1);
+end;
+
+function TUnaryExpr.ToSQL: string;
+var
+  operandSQL, opSQL: string;
+begin
+  operandSQL := FOperand.ToSQL();
+  case FOp of
+    ttMinus: opSQL := '-';
+    ttPlus: opSQL := '+';
+    ttDotNot, ttNot: opSQL := 'NOT ';
+    else opSQL := '';
+  end;
+  Result := opSQL + operandSQL;
 end;
 
 constructor TCallExpr.Create(const AName: string; ALine, ACol: Integer);

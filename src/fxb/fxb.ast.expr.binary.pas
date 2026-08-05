@@ -19,6 +19,7 @@ type
     constructor Create(ALeft: TExpr; AOp: TTokenType; ARight: TExpr; ALine, ACol: Integer);
     destructor Destroy; override;
     function Dump(Indent: Integer = 0): string; override;
+    function ToSQL: string; override;
     property Left: TExpr read FLeft;
     property Op: TTokenType read FOp;
     property Right: TExpr read FRight;
@@ -49,6 +50,29 @@ begin
   Result := pad + 'BINARY ' + TokenTypeName(FOp) + LineEnding;
   Result := Result + FLeft.Dump(Indent + 1) + LineEnding;
   Result := Result + FRight.Dump(Indent + 1);
+end;
+
+function TBinaryExpr.ToSQL: string;
+var
+  leftSQL, rightSQL, opSQL: string;
+begin
+  leftSQL := FLeft.ToSQL();
+  rightSQL := FRight.ToSQL();
+  if (FOp = ttEq) or (FOp = ttEqual) then opSQL := '='
+  else if (FOp = ttNeq) or (FOp = ttNeq2) then opSQL := '<>'
+  else if FOp = ttLt then opSQL := '<'
+  else if FOp = ttLe then opSQL := '<='
+  else if FOp = ttGt then opSQL := '>'
+  else if FOp = ttGe then opSQL := '>='
+  else if FOp = ttPlus then opSQL := '+'
+  else if FOp = ttMinus then opSQL := '-'
+  else if FOp = ttStar then opSQL := '*'
+  else if FOp = ttSlash then opSQL := '/'
+  else if FOp = ttPercent then opSQL := '%'
+  else if (FOp = ttDotAnd) or (FOp = ttAnd) then opSQL := 'AND'
+  else if (FOp = ttDotOr) or (FOp = ttOr) then opSQL := 'OR'
+  else opSQL := '?';
+  Result := leftSQL + ' ' + opSQL + ' ' + rightSQL;
 end;
 
 end.

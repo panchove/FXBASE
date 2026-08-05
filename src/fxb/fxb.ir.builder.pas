@@ -606,12 +606,16 @@ begin
   if Assigned(Stmt.ScopeForCond) then
   begin
     instr.Metadata.Values['scope_for'] := '1';
+    // Store the AST expression as SQL for the WHERE clause
+    instr.Metadata.Values['scope_for_expr'] := Stmt.ScopeForCond.ToSQL();
     cond := Self.LowerExpression(Stmt.ScopeForCond);
     instr.AddOperand(cond);
   end;
   if Assigned(Stmt.ScopeWhileCond) then
   begin
     instr.Metadata.Values['scope_while'] := '1';
+    // Store the AST expression as SQL for the WHERE clause
+    instr.Metadata.Values['scope_while_expr'] := Stmt.ScopeWhileCond.ToSQL();
     cond := Self.LowerExpression(Stmt.ScopeWhileCond);
     instr.AddOperand(cond);
   end;

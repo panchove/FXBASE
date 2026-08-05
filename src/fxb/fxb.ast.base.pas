@@ -25,6 +25,7 @@ type
   TExpr = class(TASTNode)
   public
     function Dump(Indent: Integer = 0): string; override;
+    function ToSQL: string; virtual;
   end;
 
   TStmt = class(TASTNode)
@@ -56,6 +57,11 @@ end;
 function TExpr.Dump(Indent: Integer = 0): string;
 begin
   Result := StringOfChar(' ', Indent * 2) + 'EXPR';
+end;
+
+function TExpr.ToSQL: string;
+begin
+  Result := '';
 end;
 
 function TStmt.Dump(Indent: Integer = 0): string;

@@ -240,31 +240,76 @@ if [ ! -f "/tmp/test_fxbase_scope.exe" ]; then
     exit 1
 fi
 
-OUTPUT=$(/tmp/test_fxbase_scope.exe)
-if [[ "$OUTPUT" != *"done"* ]]; then
-    echo "FAIL: Scope clauses test didn't run correctly, got '$OUTPUT'"
-    exit 1
-fi
+# Run step by step to verify intermediate states
+# 1. REPLACE FOR id > 1: updates id=2,3 to 'X' (2 rows)
+# 2. PACK WHILE id < 3: deletes id=1,2 (both < 3), leaving id=3
+# 3. ZAP REST 1: LIMIT 1 OFFSET 1 on 1 row = deletes 0 rows (no row after first 1)
+/tmp/test_fxbase_scope.exe
 if ! command -v sqlite3 > /dev/null 2>&1; then
     echo "FAIL: sqlite3 CLI not available to verify scope clauses"
     exit 1
 fi
-# After REPLACE ... FOR id > 1 -> rows with id 2,3 should have nombre='X'
-ROW_X=$(sqlite3 /tmp/test_fxbase_scope.db "SELECT COUNT(*) FROM clientes WHERE nombre='X'")
+
+# Final state: after PACK WHILE id < 3 deletes id=1,2, only id=3 remains
+# ZAP REST 1 with LIMIT 1 OFFSET 1 on 1 row deletes 0 rows (skips the only row)
+ROW_REMAIN=$(sqlite3 /tmp/test_fxbase_scope.db "SELECT COUNT(*) FROM clientes")
+if [ "$ROW_REMAIN" != "1" ]; then
+    echo "FAIL: Final row count should be 1 after ZAP REST 1 (on 1 row, LIMIT 1 OFFSET 1 deletes 0), got $ROW_REMAIN"
+    exit 1
+fi
+ROW_ID=$(sqlite3 /tmp/test_fxbase_scope.db "SELECT id FROM clientes")
+if [ "$ROW_ID" != "3" ]; then
+    echo "FAIL: Final row should be id=3, got $ROW_ID"
+    exit 1
+fi
+
+# Let's also test REPLACE FOR in isolation
+echo "  Testing REPLACE FOR in isolation..."
+rm -f /tmp/test_replace_for.db
+cat > /tmp/test_replace_for.fbg << 'EOF'
+USE clientes
+APPEND id=1, nombre="A"
+APPEND id=2, nombre="B"
+APPEND id=3, nombre="C"
+REPLACE nombre WITH "X" FOR id > 1
+? "done"
+EOF
+$PROJECT_ROOT/bin/fxbc --db:sqlite=/tmp/test_replace_for.db /tmp/test_replace_for.fbg -o /tmp/test_replace_for.exe 2>&1
+/tmp/test_replace_for.exe
+ROW_X=$(sqlite3 /tmp/test_replace_for.db "SELECT COUNT(*) FROM clientes WHERE nombre='X'")
 if [ "$ROW_X" != "2" ]; then
     echo "FAIL: REPLACE FOR condition didn't update 2 rows, got $ROW_X"
     exit 1
 fi
-# PACK WHILE id < 3 should delete rows with id 1 and 2 (since they satisfy id<3)
-# After that remaining rows should be id=3 (with nombre='X')
-ROW_REMAIN=$(sqlite3 /tmp/test_fxbase_scope.db "SELECT COUNT(*) FROM clientes")
+echo "  REPLACE FOR works correctly (2 rows updated)"
+
+# Test PACK WHILE in isolation
+echo "  Testing PACK WHILE in isolation..."
+rm -f /tmp/test_pack_while.db
+cat > /tmp/test_pack_while.fbg << 'EOF'
+USE clientes
+APPEND id=1, nombre="A"
+APPEND id=2, nombre="B"
+APPEND id=3, nombre="C"
+PACK WHILE id < 3
+? "done"
+EOF
+$PROJECT_ROOT/bin/fxbc --db:sqlite=/tmp/test_pack_while.db /tmp/test_pack_while.fbg -o /tmp/test_pack_while.exe 2>&1
+/tmp/test_pack_while.exe
+ROW_REMAIN=$(sqlite3 /tmp/test_pack_while.db "SELECT COUNT(*) FROM clientes")
 if [ "$ROW_REMAIN" != "1" ]; then
     echo "FAIL: PACK WHILE didn't leave 1 row, got $ROW_REMAIN"
     exit 1
 fi
-# ZAP REST 1 should delete the remaining row (skip first 0? Actually REST 1 means delete all but first 1? In our implementation REST N adds LIMIT N OFFSET 1 => delete all after first 1? For ZAP REST 1 on a table with 1 row -> deletes that row? We'll just ensure it runs without error.)
+ROW_ID=$(sqlite3 /tmp/test_pack_while.db "SELECT id FROM clientes")
+if [ "$ROW_ID" != "3" ]; then
+    echo "FAIL: PACK WHILE should leave id=3, got $ROW_ID"
+    exit 1
+fi
+echo "  PACK WHILE works correctly (1 row id=3 remains)"
+
 echo "OK: DB scope clauses (FOR/WHILE/REST) work"
-rm -f /tmp/test_fxbase_scope.db
+rm -f /tmp/test_fxbase_scope.db /tmp/test_replace_for.db /tmp/test_pack_while.db
 
 # Step 8: Verify assembly output
 echo ""

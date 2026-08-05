@@ -29,6 +29,7 @@
 - `make test-all` / `run_all_tests.sh` **deprecated** (skips IR suite)
 - Test binaries built from `tests/unit/`, `tests/integration/`, `tests/implementation/`
 - Test FPC flags in `tests/run_common.sh` (uses `{$mode delphi}`)
+- End-to-end tests: `./test_e2e.sh` (includes DB runtime and scope-clause tests)
 
 ## Known Issues (Hard Constraints)
 1. **Bare `RETURN` before keyword** (e.g. `ENDFUNC`): lexer emits no `ttNewline`. Fix: treat `RETURN` as bare when next token can't start an expression.
@@ -39,7 +40,7 @@
 - Type annotations: `name: T` or `name AS T` (also `AS ARRAY OF T`)
 - `FOR` loops close with `NEXT` or `ENDFOR`
 - Source: `.prg` (legacy xBASE) or `.fbg` (FXBASE); headers `.ch` / `.fbh`
-- **DB commands (`USE`, `INDEX`, …) compile-time → SQL; no DBF runtime engine**
+- **DB commands (`USE`, `INDEX`, …) compile-time → SQL; runtime parameters bind via SQLite `?` placeholders (SysV x86_64 only; other targets fall back to compile-time SQL)**
 - Comments discouraged unless requested (codebase intentionally sparse)
 - English comments required in new/modified code
 
