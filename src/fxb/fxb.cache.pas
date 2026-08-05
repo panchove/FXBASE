@@ -17,7 +17,7 @@ uses
   fxb.backend;
 
 type
-  TCacheEntryKind = (cekPPO, cekAST, cekIR, cekObject);
+  TCacheEntryKind = (cekPPO, cekAST, cekIR, cekObject, cekSymbols);
 
   TCacheEntry = record
     Kind: TCacheEntryKind;
@@ -57,11 +57,20 @@ type
     constructor Create(const ACacheDir: string = '.fxbcache');
     destructor Destroy; override;
 
+    // Keyed text snapshot cache (PPO, export-symbol snapshots). AKey is the
+    // precomputed content key (see ComputeContentKey); when empty, BuildKey is
+    // recomputed so callers can reuse a single read for multiple cache kinds.
+    function GetCachedText(const ASourceFile: string; AKind: TCacheEntryKind;
+      const AIncludePaths, ADefines: TStringList; const AKey: string; out AText: string): Boolean;
+    procedure StoreCachedText(const ASourceFile: string; AKind: TCacheEntryKind;
+      const AOutput: string; const AIncludePaths, ADefines: TStringList; const AKey: string);
+
     function GetPPO(const ASourceFile: string; var AOutput: string; const AIncludePaths: TStringList; const ADefines: TStringList): Boolean;
     function GetAST(const ASourceFile: string; var AAST: TCompilationUnit; const AIncludePaths: TStringList; const ADefines: TStringList): Boolean;
     function GetIR(const ASourceFile: string; var AIR: TIRModule; const AIncludePaths: TStringList; const ADefines: TStringList): Boolean;
     function GetObject(const ASourceFile: string; var AObjectFile: string; const AIncludePaths: TStringList; const ADefines: TStringList;
-      const ATargetOS, ATargetCPU: string; AOptimization: Integer; ADebug: Boolean; AEntryPoint: Boolean): Boolean;
+      const ATargetOS, ATargetCPU: string; AOptimization: Integer; ADebug: Boolean; AEntryPoint: Boolean;
+      const AKey: string = ''): Boolean;
 
     procedure StorePPO(const ASourceFile: string; const AOutput: string; const AIncludePaths: TStringList; const ADefines: TStringList);
     procedure StoreAST(const ASourceFile: string; const AAST: TCompilationUnit; const AIncludePaths: TStringList; const ADefines: TStringList);
@@ -73,6 +82,9 @@ type
     procedure InvalidateAll;
     procedure Save;
     procedure Load;
+    // Public wrapper over BuildKey so pass 0 can compute each file's content
+    // key once and reuse it for the symbol snapshot and object lookup.
+    function ComputeContentKey(const ASourceFile: string; const AIncludePaths, ADefines: TStringList): string;
 
     property CacheDir: string read FCacheDir;
   end;
@@ -159,6 +171,7 @@ begin
     cekAST: kindStr := 'ast';
     cekIR: kindStr := 'ir';
     cekObject: kindStr := 'o';
+    cekSymbols: kindStr := 's';
   end;
 
   hash := ComputeHash(ASourceFile);
@@ -415,28 +428,38 @@ begin
   end;
 end;
 
-function TFXBCache.GetPPO(const ASourceFile: string; var AOutput: string; const AIncludePaths: TStringList; const ADefines: TStringList): Boolean;
+function TFXBCache.ComputeContentKey(const ASourceFile: string; const AIncludePaths, ADefines: TStringList): string;
+begin
+  Result := BuildKey(ASourceFile, AIncludePaths, ADefines);
+end;
+
+function TFXBCache.GetCachedText(const ASourceFile: string; AKind: TCacheEntryKind;
+  const AIncludePaths, ADefines: TStringList; const AKey: string; out AText: string): Boolean;
 var
   cacheFile: string;
   entry: TCacheEntry;
   sl: TStringList;
+  key: string;
 begin
   Result := False;
-  cacheFile := GetCacheFileName(ASourceFile, cekPPO);
+  key := AKey;
+  if key = '' then
+    key := BuildKey(ASourceFile, AIncludePaths, ADefines);
+  cacheFile := GetCacheFileName(ASourceFile, AKind);
 
   if not ReadEntry(cacheFile, entry) then Exit;
   if not entry.Valid then Exit;
 
   // Quick source modtime pre-check, then the authoritative content key.
   if entry.ModTime <> FileModTime(ASourceFile) then Exit;
-  if entry.ContentHash <> BuildKey(ASourceFile, AIncludePaths, ADefines) then Exit;
+  if entry.ContentHash <> key then Exit;
 
   if FileExists(entry.OutputFile) then
   begin
     sl := TStringList.Create;
     try
       sl.LoadFromFile(entry.OutputFile);
-      AOutput := sl.Text;
+      AText := sl.Text;
       Result := True;
     finally
       sl.Free;
@@ -444,7 +467,8 @@ begin
   end;
 end;
 
-procedure TFXBCache.StorePPO(const ASourceFile: string; const AOutput: string; const AIncludePaths: TStringList; const ADefines: TStringList);
+procedure TFXBCache.StoreCachedText(const ASourceFile: string; AKind: TCacheEntryKind;
+  const AOutput: string; const AIncludePaths, ADefines: TStringList; const AKey: string);
 var
   entry: TCacheEntry;
   cacheFile: string;
@@ -455,7 +479,7 @@ var
   depPath: string;
   idx: Integer;
 begin
-  cacheFile := GetCacheFileName(ASourceFile, cekPPO);
+  cacheFile := GetCacheFileName(ASourceFile, AKind);
   outputFile := cacheFile + '.out';
 
   FillChar(entry, SizeOf(entry), 0);
@@ -480,9 +504,9 @@ begin
       entry.Dependencies[i] := deps[i];
   end;
 
-  entry.Kind := cekPPO;
+  entry.Kind := AKind;
   entry.SourceFile := ASourceFile;
-  entry.ContentHash := BuildKey(ASourceFile, AIncludePaths, ADefines);
+  entry.ContentHash := AKey;
   entry.ModTime := FileModTime(ASourceFile);
   entry.OutputFile := outputFile;
   entry.TargetOS := '';
@@ -493,7 +517,7 @@ begin
 
   FEntriesLock.Enter;
   try
-    idx := FindEntry(ASourceFile, cekPPO);
+    idx := FindEntry(ASourceFile, AKind);
     if idx >= 0 then
       FEntries[idx] := entry
     else
@@ -505,6 +529,18 @@ begin
   finally
     FEntriesLock.Leave;
   end;
+end;
+
+function TFXBCache.GetPPO(const ASourceFile: string; var AOutput: string; const AIncludePaths: TStringList; const ADefines: TStringList): Boolean;
+begin
+  Result := GetCachedText(ASourceFile, cekPPO, AIncludePaths, ADefines,
+    BuildKey(ASourceFile, AIncludePaths, ADefines), AOutput);
+end;
+
+procedure TFXBCache.StorePPO(const ASourceFile: string; const AOutput: string; const AIncludePaths: TStringList; const ADefines: TStringList);
+begin
+  StoreCachedText(ASourceFile, cekPPO, AOutput, AIncludePaths, ADefines,
+    BuildKey(ASourceFile, AIncludePaths, ADefines));
 end;
 
 function TFXBCache.GetAST(const ASourceFile: string; var AAST: TCompilationUnit; const AIncludePaths: TStringList; const ADefines: TStringList): Boolean;
@@ -528,15 +564,31 @@ begin
 end;
 
 function TFXBCache.GetObject(const ASourceFile: string; var AObjectFile: string; const AIncludePaths: TStringList; const ADefines: TStringList;
-  const ATargetOS, ATargetCPU: string; AOptimization: Integer; ADebug: Boolean; AEntryPoint: Boolean): Boolean;
+  const ATargetOS, ATargetCPU: string; AOptimization: Integer; ADebug: Boolean; AEntryPoint: Boolean;
+  const AKey: string): Boolean;
 var
-  cacheFile: string;
+  idx: Integer;
   entry: TCacheEntry;
+  key: string;
 begin
   Result := False;
-  cacheFile := GetCacheFileName(ASourceFile, cekObject);
+  key := AKey;
+  if key = '' then
+    key := BuildKey(ASourceFile, AIncludePaths, ADefines);
 
-  if not ReadEntry(cacheFile, entry) then Exit;
+  // Look the entry up in the in-memory table (populated by Load on startup)
+  // instead of re-reading the metadata file. Only the array access is under
+  // the lock; the stat + key compare run outside it so parallel pass-1 cache
+  // hits do not serialize on disk I/O.
+  FEntriesLock.Enter;
+  try
+    idx := FindEntry(ASourceFile, cekObject);
+    if idx < 0 then Exit;
+    entry := FEntries[idx];
+  finally
+    FEntriesLock.Leave;
+  end;
+
   if not entry.Valid then Exit;
 
   // The object entry must match flags AND the same content key as PPO.
@@ -546,16 +598,12 @@ begin
   if entry.Debug <> ADebug then Exit;
   if entry.EntryPoint <> AEntryPoint then Exit;
   if entry.ModTime <> FileModTime(ASourceFile) then Exit;
-  if entry.ContentHash <> BuildKey(ASourceFile, AIncludePaths, ADefines) then Exit;
+  if entry.ContentHash <> key then Exit;
 
   if not FileExists(entry.OutputFile) then Exit;
 
-  // Restore the cached object at the caller-requested location so the rest of
-  // the pipeline (assemble/link) keeps working unchanged.
-  if AObjectFile = '' then
-    AObjectFile := entry.OutputFile
-  else
-    CopyFileData(entry.OutputFile, AObjectFile);
+  // Link against the cached object in place; the pipeline never copies it.
+  AObjectFile := entry.OutputFile;
   Result := True;
 end;
 

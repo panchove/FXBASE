@@ -66,11 +66,17 @@ type
     procedure MergeFrom(const AOther: TSymbolTable);
     procedure Clear;
 
+    // Incremental snapshot support: bulk-append cached symbols and extract the
+    // symbols that belong to one source file.
+    procedure AppendSymbols(const ASymbols: TSymbolArray);
+    function SymbolsForFile(const AFile: string): TSymbolArray;
+
     property Symbols: TSymbolArray read FSymbols;
   end;
 
   // Two-pass compilation manager
-  // Pass 0: sequential scan for exported symbols.
+  // Pass 0: scan for exported symbols, reusing the cached per-unit symbol
+  //         snapshot when a file is unchanged (incremental frontend skip).
   // Pass 1: parallel per-unit compile against the read-only symbol table,
   //         with incremental PPO/object caching.
   TFXBTwoPassCompiler = class
@@ -94,6 +100,9 @@ type
     FDBConnection: string;
     FVerbose: Boolean;
     FEntryIndex: Integer;
+    // Per-file content keys (file=key) computed once in pass 0 and reused by
+    // pass 1 so each source is hashed exactly once per invocation.
+    FContentKeys: TStringList;
 
     function ScanForExports(const AFile: string; AIndex: Integer): Boolean;
     function IsEntryUnit(const AFile: string): Boolean;
@@ -360,6 +369,41 @@ begin
   end;
 end;
 
+procedure TSymbolTable.AppendSymbols(const ASymbols: TSymbolArray);
+var
+  i: Integer;
+  base: Integer;
+begin
+  if Length(ASymbols) = 0 then Exit;
+  FLock.Enter;
+  try
+    base := Length(FSymbols);
+    SetLength(FSymbols, base + Length(ASymbols));
+    for i := 0 to High(ASymbols) do
+      FSymbols[base + i] := ASymbols[i];
+  finally
+    FLock.Leave;
+  end;
+end;
+
+function TSymbolTable.SymbolsForFile(const AFile: string): TSymbolArray;
+var
+  i: Integer;
+begin
+  Result := nil;
+  FLock.Enter;
+  try
+    for i := 0 to High(FSymbols) do
+      if SameText(FSymbols[i].SourceFile, AFile) then
+      begin
+        SetLength(Result, Length(Result) + 1);
+        Result[High(Result)] := FSymbols[i];
+      end;
+  finally
+    FLock.Leave;
+  end;
+end;
+
 function TSymbolTable.ResolveSymbol(const AName: string; out ASymbol: TSymbol): Boolean;
 var
   idx: Integer;
@@ -533,6 +577,7 @@ begin
   FDBConnection := '';
   FVerbose := False;
   FEntryIndex := -1;
+  FContentKeys := TStringList.Create;
 
   if ACacheDir <> '' then
     FCache := TFXBCache.Create(ACacheDir)
@@ -543,6 +588,7 @@ end;
 destructor TFXBTwoPassCompiler.Destroy;
 begin
   FCache.Free;
+  FContentKeys.Free;
   FResultsLock.Free;
   FObjectFiles.Free;
   FGlobalSymbols.Free;
@@ -576,6 +622,81 @@ begin
   Result := exitCode = 0;
 end;
 
+const
+  SYMBOL_SNAPSHOT_HEADER = 'FXB-SYMS v1';
+
+// Serialize the exported symbols of one file into a stable text snapshot.
+// Field layout per line: S|Kind|Visibility|Name|TypeName|Signature|
+//                        Static|Exported|ParentClass|Line|Col
+function SerializeSymbolSnapshot(const ASymbols: TSymbolArray; ADefinesMain: Boolean): string;
+var
+  i: Integer;
+  s: TSymbol;
+begin
+  Result := SYMBOL_SNAPSHOT_HEADER + LineEnding;
+  if ADefinesMain then
+    Result := Result + 'M1' + LineEnding
+  else
+    Result := Result + 'M0' + LineEnding;
+  for i := 0 to High(ASymbols) do
+  begin
+    s := ASymbols[i];
+    Result := Result + Format('S|%d|%d|%s|%s|%s|%d|%d|%s|%d|%d%s',
+      [Ord(s.Kind), Ord(s.Visibility), s.Name, s.TypeName, s.Signature,
+       Ord(s.IsStatic), Ord(s.IsExported), s.ParentClass, s.Line, s.Col, LineEnding]);
+  end;
+end;
+
+function DeserializeSymbolSnapshot(const AText, ASourceFile: string;
+  out ASymbols: TSymbolArray; out ADefinesMain: Boolean): Boolean;
+var
+  sl: TStringList;
+  i: Integer;
+  parts: TStringArray;
+  s: TSymbol;
+begin
+  Result := False;
+  ASymbols := nil;
+  ADefinesMain := False;
+  sl := TStringList.Create;
+  try
+    sl.Text := AText;
+    if sl.Count < 2 then Exit;
+    if sl[0] <> SYMBOL_SNAPSHOT_HEADER then Exit;
+    ADefinesMain := sl[1] = 'M1';
+    for i := 2 to sl.Count - 1 do
+    begin
+      if sl[i] = '' then Continue;
+      parts := sl[i].Split('|');
+      if Length(parts) < 11 then Continue;
+      if parts[0] <> 'S' then Continue;
+      s.Kind := TSymbolKind(StrToIntDef(parts[1], 0));
+      s.Visibility := TSymbolVisibility(StrToIntDef(parts[2], 0));
+      s.Name := parts[3];
+      s.TypeName := parts[4];
+      s.Signature := parts[5];
+      s.IsStatic := parts[6] = '1';
+      s.IsExported := parts[7] = '1';
+      s.ParentClass := parts[8];
+      s.Line := StrToIntDef(parts[9], 0);
+      s.Col := StrToIntDef(parts[10], 0);
+      s.SourceFile := ASourceFile;
+      SetLength(ASymbols, Length(ASymbols) + 1);
+      ASymbols[High(ASymbols)] := s;
+    end;
+    Result := True;
+  finally
+    sl.Free;
+  end;
+end;
+
+procedure StoreSymbolSnapshot(ACache: TFXBCache; const AFile, AKey: string;
+  const AIncludePaths, ADefines: TStringList; const ASymbols: TSymbolArray; ADefinesMain: Boolean);
+begin
+  ACache.StoreCachedText(AFile, cekSymbols, SerializeSymbolSnapshot(ASymbols, ADefinesMain),
+    AIncludePaths, ADefines, AKey);
+end;
+
 function TFXBTwoPassCompiler.ScanForExports(const AFile: string; AIndex: Integer): Boolean;
 var
   source: string;
@@ -589,6 +710,10 @@ var
   ast: TCompilationUnit;
   err: TFXBLexerError;
   i: Integer;
+  key: string;
+  snapText: string;
+  syms: TSymbolArray;
+  definesMain: Boolean;
 begin
   Result := False;
 
@@ -596,6 +721,26 @@ begin
   begin
     WriteLn(StdErr, 'Error: file not found: ', AFile);
     Exit;
+  end;
+
+  // Compute the content key once per file; pass 1 reuses it for the object
+  // lookup so each source is hashed exactly once per invocation.
+  key := FCache.ComputeContentKey(AFile, FIncludePaths, FDefines);
+  FContentKeys.Add(AFile + '=' + key);
+
+  // Incremental frontend skip: an unchanged file reuses its cached export
+  // snapshot instead of re-preprocessing, re-lexing and re-parsing it.
+  if FCache.GetCachedText(AFile, cekSymbols, FIncludePaths, FDefines, key, snapText) then
+  begin
+    if DeserializeSymbolSnapshot(snapText, AFile, syms, definesMain) then
+    begin
+      FGlobalSymbols.AddSourceFile(AFile);
+      FGlobalSymbols.AppendSymbols(syms);
+      if definesMain then
+        FEntryIndex := AIndex;
+      Result := True;
+      Exit;
+    end;
   end;
 
   sl := TStringList.Create;
@@ -654,16 +799,19 @@ begin
 
   // The entry unit is the one defining Main; it owns the runtime (_start,
   // __fx_argc/argv, DB helpers).
-  if FEntryIndex < 0 then
-  begin
-    for i := 0 to ast.Count - 1 do
-      if ((ast.Nodes[i] is TFunctionDef) and (UpperCase(TFunctionDef(ast.Nodes[i]).Name) = 'MAIN'))
-        or ((ast.Nodes[i] is TProcedureDef) and (UpperCase(TProcedureDef(ast.Nodes[i]).Name) = 'MAIN')) then
-      begin
-        FEntryIndex := AIndex;
-        Break;
-      end;
-  end;
+  definesMain := False;
+  for i := 0 to ast.Count - 1 do
+    if ((ast.Nodes[i] is TFunctionDef) and (UpperCase(TFunctionDef(ast.Nodes[i]).Name) = 'MAIN'))
+      or ((ast.Nodes[i] is TProcedureDef) and (UpperCase(TProcedureDef(ast.Nodes[i]).Name) = 'MAIN')) then
+    begin
+      definesMain := True;
+      FEntryIndex := AIndex;
+      Break;
+    end;
+
+  // Cache the export snapshot so the next run skips the frontend for this file.
+  StoreSymbolSnapshot(FCache, AFile, key, FIncludePaths, FDefines,
+    FGlobalSymbols.SymbolsForFile(AFile), definesMain);
 
   ast.Free;
   Result := True;
@@ -703,10 +851,14 @@ begin
     Exit;
   end;
 
-  // Object cache: skip the whole frontend + backend when unchanged.
-  objPath := AObjectFile;
+  // Object cache: skip the whole frontend + backend when unchanged. The
+  // content key was computed once during pass 0, avoiding a second read.
+  // On a hit the cached object is linked in place (no copy), keeping the hot
+  // path to a metadata read + stat + key compare.
+  objPath := '';
   if FCache.GetObject(AFile, objPath, FIncludePaths, FDefines,
-    FTargetOS, FTargetCPU, FOptimization, FDebug, IsEntryUnit(AFile)) then
+    FTargetOS, FTargetCPU, FOptimization, FDebug, IsEntryUnit(AFile),
+    FContentKeys.Values[AFile]) then
   begin
     FResultsLock.Enter;
     try
@@ -868,6 +1020,7 @@ var
   pool: TThreadPool;
   job: PTwoPassJobData;
   i: Integer;
+  t0: QWord;
 begin
   Result := False;
 
@@ -877,9 +1030,11 @@ begin
     Exit;
   end;
 
-  // Pass 0: sequential scan for exports.
+  // Pass 0: sequential scan for exports (incremental symbol cache fast path).
+  t0 := GetTickCount64;
   if FVerbose then
     WriteLn('Pass 0: Collecting exported symbols...');
+  FErrorCount := 0;
   for i := 0 to FSourceFiles.Count - 1 do
   begin
     if not ScanForExports(FSourceFiles[i], i) then
@@ -888,13 +1043,19 @@ begin
       Exit;
     end;
   end;
-  WriteLn('  Collected ', Length(FGlobalSymbols.Symbols), ' symbols from ', FSourceFiles.Count, ' files');
+  if FErrorCount > 0 then
+  begin
+    WriteLn(StdErr, FErrorCount, ' file(s) failed to scan exports');
+    Exit;
+  end;
+  WriteLn(Format('  Collected %d symbols from %d files (pass0 %d ms)', [Length(FGlobalSymbols.Symbols), FSourceFiles.Count, GetTickCount64 - t0]));
 
   // First unit is the entry when no unit defines Main.
   if FEntryIndex < 0 then
     FEntryIndex := 0;
 
   // Pass 1: parallel per-unit compilation.
+  t0 := GetTickCount64;
   FObjectFiles.Clear;
   FErrorCount := 0;
   pool := TThreadPool.Create(FJobs);
@@ -919,6 +1080,8 @@ begin
     Exit;
   end;
 
+  if FVerbose then
+    WriteLn(Format('Pass 1 took %d ms', [GetTickCount64 - t0]));
   Result := FObjectFiles.Count = FSourceFiles.Count;
 end;
 
@@ -929,6 +1092,7 @@ var
   linkFlag: string;
   i: Integer;
   outFile: string;
+  t0: QWord;
 begin
   Result := False;
 
@@ -937,6 +1101,7 @@ begin
     WriteLn(StdErr, 'No object files to link');
     Exit;
   end;
+  t0 := GetTickCount64;
 
   objects := '';
   for i := 0 to FObjectFiles.Count - 1 do
@@ -977,6 +1142,8 @@ begin
     Exit;
   end;
 
+  if FVerbose then
+    WriteLn(Format('Link took %d ms', [GetTickCount64 - t0]));
   WriteLn('Linked: ', outFile);
   Result := True;
 end;
