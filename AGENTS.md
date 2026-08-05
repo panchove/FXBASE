@@ -46,7 +46,8 @@
 ## File Organization
 - One unit per file: `fxb.*.pas`
 - Related types grouped in dedicated units (`fxb.ast.def.pas`, `fxb.ir.types.pas`, …)
-- Real IR in `fxb.ir.pas` (`TFXBIRGenerator`); `fxb.ir.builder.pas` is a stub
+- **IR lowering lives in `fxb.ir.builder.pas` (`TIRBuilder`)**; `fxb.ir.pas` is `TFXBIRGenerator` (front-end wrapper that drives the builder). `fxb.ir.expr.inc` / `fxb.ir.stmt.inc` are DEAD (included nowhere) — do not edit or build on them
+- `.inc` files are NOT tracked by FPC as dependencies of `{$I}`; after editing an `.inc`, run `make clean && make fxbc` (the Makefile also force-rebuilds for the backend/cli `.inc` pairs)
 - Explicit compilation mode at top of every unit: `{$mode objfpc}` or `{$mode delphi}`
 
 ## Commit Rules (Mandatory)

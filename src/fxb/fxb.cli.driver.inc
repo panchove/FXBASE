@@ -1,7 +1,8 @@
 // fxb.cli.driver.inc -- CLI build pipeline + dumps + run (Run/CompileFile/
 // AssembleAndLink/RunExecutable/RunTests/LintFile/Dump*).
 // Included into fxb.cli.pas via {$I}. NOT a standalone unit.
-// Method declarations remain in TFXCLI; behaviour unchanged.
+// The file must NOT end with a unit terminator: fxb.cli.pas supplies the
+// final `end.` after the include.
 
 procedure TFXCLI.Run;
 begin
@@ -19,7 +20,7 @@ begin
     Exit;
   end;
 
-  if FInputFile = '' then
+  if (FInputFile = '') and (FSourceFiles.Count = 0) then
   begin
     WriteLn(StdErr, 'Error: no input file specified');
     WriteLn(StdErr, 'Use -h or --help for help');
@@ -38,25 +39,55 @@ begin
     Exit;
   end;
 
-  if not CompileFile(FInputFile) then
+  // Two-pass compilation for multiple files
+  if FTwoPass then
   begin
-    Halt(1);
+    if not CompileTwoPass then
+      Halt(1);
+    Exit;
   end;
+
+  // Single file compilation (original behavior)
+  if not CompileFile(FInputFile) then
+    Halt(1);
 
   if FRunAfterBuild and (FOutputType = 'exe') then
     RunExecutable;
 end;
 
-class procedure TFXCLI.RunClass;
+function TFXCLI.CompileTwoPass: Boolean;
 var
-  cli: TFXCLI;
+  compiler: TFXBTwoPassCompiler;
+  i: Integer;
 begin
-  cli := TFXCLI.Create;
+  Result := False;
+
+  compiler := TFXBTwoPassCompiler.Create(FIncludePaths, FDefines,
+    FTargetOS, FTargetCPU, FOptimization, FDebug, '', FJobs, FCacheDir);
   try
-    cli.Run;
+    compiler.OutputFile := DetermineOutputFile(FSourceFiles[0]);
+    compiler.OutputDir := ExtractFilePath(compiler.OutputFile);
+    compiler.NeedSQLite := (FDBDriver = 'sqlite') or (FDBConnection <> '');
+    compiler.DBDriver := FDBDriver;
+    compiler.DBConnection := FDBConnection;
+    compiler.Verbose := FVerbose;
+    for i := 0 to FSourceFiles.Count - 1 do
+      compiler.AddFile(FSourceFiles[i]);
+
+    if not compiler.CompileAll then
+      Exit;
+
+    // Two-pass mode builds a linked executable from all units.
+    if not compiler.LinkAll then
+      Exit;
   finally
-    cli.Free;
+    compiler.Free;
   end;
+
+  if FRunAfterBuild and (FOutputType = 'exe') then
+    RunExecutable;
+
+  Result := True;
 end;
 
 function TFXCLI.CompileFile(const AFileName: string): Boolean;
@@ -88,7 +119,7 @@ begin
   if FVerbose then
     WriteLn('Compiling: ', AFileName);
 
-sl := TStringList.Create;
+  sl := TStringList.Create;
   try
     sl.LoadFromFile(AFileName);
     source := '';
@@ -167,6 +198,7 @@ sl := TStringList.Create;
   // If only dumping AST, don't continue to IR/Backend
   if FDumpAST and not FDumpIR and not FDumpASM then
   begin
+    ast.Free;
     Result := True;
     Exit;
   end;
@@ -190,9 +222,7 @@ sl := TStringList.Create;
   end;
 
   if FDumpIR then
-  begin
     DumpIR(ir);
-  end;
 
   // R2: instantiate the architecture-specific backend subclass.
   if FTargetCPU = 'x86' then
@@ -226,16 +256,18 @@ sl := TStringList.Create;
     backend.Free;
   end;
 
+  ast.Free;
+
   if FDumpASM then
-    begin
-      sl := TStringList.Create;
-      try
-        sl.LoadFromFile(asmFile);
-        DumpASM(sl.Text);
-      finally
-        sl.Free;
-      end;
+  begin
+    sl := TStringList.Create;
+    try
+      sl.LoadFromFile(asmFile);
+      DumpASM(sl.Text);
+    finally
+      sl.Free;
     end;
+  end;
 
   if FVerbose then
     WriteLn('Output: ', outputFile);
@@ -276,9 +308,9 @@ begin
   if FVerbose then
     WriteLn('Assembling: /usr/bin/as -o ', ChangeFileExt(OutputFile, '.o'), ' ', AsmFile);
   if FTargetCPU = 'x86' then
-    exitCode := ExecuteProcess('/usr/bin/as', Format('--32 -o %s.o %s', [ChangeFileExt(OutputFile, ''), AsmFile]))
+    exitCode := RunProcess('/usr/bin/as', Format('--32 -o %s.o %s', [ChangeFileExt(OutputFile, ''), AsmFile]))
   else
-    exitCode := ExecuteProcess('/usr/bin/as', Format('-o %s.o %s', [ChangeFileExt(OutputFile, ''), AsmFile]));
+    exitCode := RunProcess('/usr/bin/as', Format('-o %s.o %s', [ChangeFileExt(OutputFile, ''), AsmFile]));
   if exitCode <> 0 then
   begin
     WriteLn(StdErr, 'Assembly failed with code: ', exitCode);
@@ -303,14 +335,14 @@ begin
     // Cross-compile to PE via the MinGW toolchain. The gcc driver emits COFF and
     // links msvcrt + the CRT (which provides the real entry and calls our `main`).
     if FTargetCPU = 'x86' then
-      exitCode := ExecuteProcess('/usr/bin/i686-w64-mingw32-gcc', Format('-mconsole -o %s %s -static%s', [OutputFile, AsmFile, LinkFlag]))
+      exitCode := RunProcess('/usr/bin/i686-w64-mingw32-gcc', Format('-mconsole -o %s %s -static%s', [OutputFile, AsmFile, LinkFlag]))
     else
-      exitCode := ExecuteProcess('/usr/bin/x86_64-w64-mingw32-gcc', Format('-o %s %s -static%s', [OutputFile, AsmFile, LinkFlag]));
+      exitCode := RunProcess('/usr/bin/x86_64-w64-mingw32-gcc', Format('-o %s %s -static%s', [OutputFile, AsmFile, LinkFlag]));
   end
   else if FTargetCPU = 'x86' then
-    exitCode := ExecuteProcess('/usr/bin/ld', Format('-m elf_i386 -o %s %s.o -lc -dynamic-linker /lib/ld-linux.so.2 -e _start%s', [OutputFile, ChangeFileExt(OutputFile, ''), LinkFlag]))
+    exitCode := RunProcess('/usr/bin/ld', Format('-m elf_i386 -o %s %s.o -lc -dynamic-linker /lib/ld-linux.so.2 -e _start%s', [OutputFile, ChangeFileExt(OutputFile, ''), LinkFlag]))
   else
-    exitCode := ExecuteProcess('/usr/bin/ld', Format('-o %s %s.o -lc -dynamic-linker /lib64/ld-linux-x86-64.so.2 -e _start%s', [OutputFile, ChangeFileExt(OutputFile, ''), LinkFlag]));
+    exitCode := RunProcess('/usr/bin/ld', Format('-o %s %s.o -lc -dynamic-linker /lib64/ld-linux-x86-64.so.2 -e _start%s', [OutputFile, ChangeFileExt(OutputFile, ''), LinkFlag]));
   if exitCode <> 0 then
   begin
     WriteLn(StdErr, 'Link failed with code: ', exitCode);
@@ -337,7 +369,7 @@ begin
   if FVerbose then
     WriteLn('Running: ', outputFile);
 
-  exitCode := ExecuteProcess(outputFile, FArgs.CommaText);
+  exitCode := RunProcess(outputFile, FArgs.CommaText);
   if exitCode <> 0 then
     WriteLn(StdErr, 'Program exited with code: ', exitCode);
 end;
@@ -353,7 +385,6 @@ var
   lexer: TFXBLexer;
   reporter: TErrorReporter;
   parser: TParser;
-  ast: TCompilationUnit;
   source: string;
   err2: TFXBLexerError;
   sl: TStringList;
@@ -391,7 +422,7 @@ begin
   reporter := TErrorReporter.Create(FInputFile);
   parser := TParser.Create(lexer, reporter);
   try
-    ast := parser.ParseProgram;
+    parser.ParseProgram;
     if reporter.HasErrors then
     begin
       WriteLn(StdErr, 'Lint errors:');
@@ -421,8 +452,19 @@ begin
   WriteLn(AASM);
 end;
 
+class procedure TFXCLI.RunClass;
+var
+  cli: TFXCLI;
+begin
+  cli := TFXCLI.Create;
+  try
+    cli.Run;
+  finally
+    cli.Free;
+  end;
+end;
+
 procedure RunFXCLI;
 begin
   TFXCLI.RunClass;
 end;
-

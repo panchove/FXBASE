@@ -28,6 +28,7 @@ type
     FDebugInfo: Boolean;
     FDBDriver: string;
     FDBConnection: string;
+    FEmitEntryPoint: Boolean;
     FErrors: TCompilerMessageArray;
     FLastASM: string;
     FASM: TStringList;
@@ -108,6 +109,7 @@ type
 
     procedure ReportError(const Msg: string; Node: TObject = nil);
   public
+    constructor Create;
     property TargetOS: string read FTargetOS write FTargetOS;
     property TargetCPU: string read FTargetCPU write FTargetCPU;
     property OutputType: string read FOutputType write FOutputType;
@@ -115,6 +117,10 @@ type
     property DebugInfo: Boolean read FDebugInfo write FDebugInfo;
     property DBDriver: string read FDBDriver write FDBDriver;
     property DBConnection: string read FDBConnection write FDBConnection;
+    // When False, only user functions are emitted (no _start, runtime helpers,
+    // DB runtime or runtime data). Used for the non-entry units of a two-pass
+    // multi-unit build; the entry unit owns the shared runtime.
+    property EmitEntryPoint: Boolean read FEmitEntryPoint write FEmitEntryPoint;
     function Generate(const IR: TIRModule; const OutputFile: string): Boolean;
     function HasErrors: Boolean;
     property Errors: TCompilerMessageArray read FErrors;
@@ -124,6 +130,14 @@ type
 implementation
 
 { TFXBBackend }
+
+constructor TFXBBackend.Create;
+begin
+  inherited Create;
+  // Default to emitting the entry point (single-file builds). The two-pass
+  // compiler explicitly clears this for non-entry units before Generate.
+  FEmitEntryPoint := True;
+end;
 
 procedure TFXBBackend.Emit(const Line: string);
 begin
@@ -328,10 +342,10 @@ begin
       if c.BoolVal then
         Emit(Format('%s $1, %s', [MovOp, ScratchReg]))
       else
-        Emit(Format('xor%s %s, %s', [Copy(MovOp, 1, 3), ScratchReg, ScratchReg]));
+        Emit(Format('xor%s %s, %s', [Copy(MovOp, 4, 3), ScratchReg, ScratchReg]));
     end
 else if c.IsNull then
-      Emit(Format('xor%s %s, %s', [Copy(MovOp, 1, 3), ScratchReg, ScratchReg]))
+      Emit(Format('xor%s %s, %s', [Copy(MovOp, 4, 3), ScratchReg, ScratchReg]))
     else if c.Type_.Kind = fxb.ir.types.tkString then
       Emit(Format('leaq %s, %s', [RIP(GetStringLabel(c.StrVal)), ScratchReg]))
   end
@@ -729,7 +743,11 @@ var
   fn: TIRFunction;
   i: Integer;
 begin
-  // Generate startup code that captures argv/argc and calls Main
+  // Generate startup code that captures argv/argc and calls Main.
+  // Only the entry unit of a multi-unit build emits it; other units only
+  // contain user functions and reference the shared runtime externally.
+  if FEmitEntryPoint then
+  begin
   if IsWindows then
   begin
     // Windows: entry is `main`, linked via the MinGW CRT (msvcrt). The CRT sets up
@@ -837,6 +855,7 @@ begin
   EmitDirective('.size _start, .-_start');
   Emit('');
   end;
+  end;
 
   // Generate user functions
   for i := 0 to IR.Functions.Count - 1 do
@@ -845,9 +864,12 @@ begin
     GenerateFunction(fn);
   end;
 
-  EmitRuntimeHelpers;
-  EmitDBRuntime;
-  EmitRuntimeData;
+  if FEmitEntryPoint then
+  begin
+    EmitRuntimeHelpers;
+    EmitDBRuntime;
+    EmitRuntimeData;
+  end;
 end;
 
 function TFXBBackend.HasErrors: Boolean;

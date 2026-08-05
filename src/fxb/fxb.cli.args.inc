@@ -25,6 +25,9 @@ begin
   FIncludeStdFph := True;
   FShowHelp := False;
   FShowVersion := False;
+  FJobs := 0; // 0 = auto-detect
+  FCacheDir := '.fxbcache';
+  FTwoPass := False;
 end;
 
 procedure TFXCLI.ParseArgs;
@@ -178,11 +181,32 @@ begin
         FDefines.Add(ParamStr(i));
       end;
     end
+    else if (arg = '-j') or (arg = '--jobs') then
+    begin
+      if i < ParamCount then
+      begin
+        Inc(i);
+        FJobs := StrToIntDef(ParamStr(i), 0);
+      end
+      else
+        FJobs := 0;
+    end
+    else if (arg = '--cache-dir') then
+    begin
+      if i < ParamCount then
+      begin
+        Inc(i);
+        FCacheDir := ParamStr(i);
+      end;
+    end
+    else if (arg = '--two-pass') then
+      FTwoPass := True
     else if not arg.StartsWith('-') then
     begin
+      FSourceFiles.Add(arg);
       if FInputFile = '' then
         FInputFile := arg
-      else
+      else if not FTwoPass then
         FArgs.Add(arg);
     end
     else
@@ -226,6 +250,9 @@ begin
   WriteLn('  --no-std-fph            Do not auto-include std.fph');
   WriteLn('  -I, --include <path>    Add include path');
   WriteLn('  -D, --define <macro>    Define preprocessor macro');
+  WriteLn('  -j, --jobs <n>          Parallel jobs (0 = auto-detect cores, default: 0)');
+  WriteLn('  --cache-dir <dir>       Cache directory (default: .fxbcache)');
+  WriteLn('  --two-pass              Enable two-pass compilation (symbol collection + parallel compile)');
   WriteLn('');
   WriteLn('File extensions:');
   WriteLn('  .prg  - xBASE source (Clipper/Harbour compatible)');

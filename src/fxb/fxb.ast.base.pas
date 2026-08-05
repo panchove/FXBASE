@@ -49,8 +49,8 @@ begin
   inherited Create;
   FLine := ALine;
   FCol := ACol;
-  FNodeId := NextNodeId;
-  Inc(NextNodeId);
+  // Thread-safe: parallel parsing assigns node ids from worker threads.
+  FNodeId := InterLockedIncrement(NextNodeId);
 end;
 
 function TExpr.Dump(Indent: Integer = 0): string;

@@ -36,5 +36,8 @@ Thumbs.db
 /bin/
 /build/
 
+# Incremental cache
+.fxbcache/
+
 # Install artifacts
 /*.deb

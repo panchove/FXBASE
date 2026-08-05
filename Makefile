@@ -5,7 +5,7 @@ SHELL := /bin/bash
 
 FPC := fpc
 SRC_DIR := src
-FPCFLAGS := -n -Mobjfpc -O2 -gl -vewnhi -Fu/usr/lib/x86_64-linux-gnu/fpc/3.2.2/units/x86_64-linux/rtl -Fu/usr/lib/x86_64-linux-gnu/fpc/3.2.2/units/x86_64-linux/rtl-objpas -Fu$(SRC_DIR)/fxb -Fu/usr/share/fpcsrc/3.2.2/packages/rtl-generics/src -FEbin -FUbuild
+FPCFLAGS := -n -Mobjfpc -O2 -gl -vewnhi -Fu/usr/lib/x86_64-linux-gnu/fpc/3.2.2/units/x86_64-linux/rtl -Fu/usr/lib/x86_64-linux-gnu/fpc/3.2.2/units/x86_64-linux/rtl-objpas -Fu/usr/lib/x86_64-linux-gnu/fpc/3.2.2/units/x86_64-linux/fcl-base -Fu/usr/lib/x86_64-linux-gnu/fpc/3.2.2/units/x86_64-linux/hash -Fu$(SRC_DIR)/fxb -Fu/usr/share/fpcsrc/3.2.2/packages/rtl-generics/src -FEbin -FUbuild
 BUILD_DIR := build
 BIN_DIR := bin
 
@@ -19,6 +19,19 @@ all: fxbc
 
 # Main compiler
 fxbc: $(BUILD_DIR) $(BIN_DIR) lib/libsqlite3.so
+	@# FPC does not track {$I ...inc} dependencies for incremental builds, so an
+	@# edited .inc leaves the including unit's .ppu/.o stale. Detect a newer .inc
+	@# per including unit and force a clean rebuild so the edit always applies.
+	@rm -f .fxb_inc_stale; \
+	for pair in "fxb.backend.runtime.inc fxb.backend" "fxb.backend.db.inc fxb.backend" \
+	            "fxb.cli.args.inc fxb.cli" "fxb.cli.driver.inc fxb.cli"; do \
+	  set -- $$pair; inc=$$1; unit=$$2; \
+	  if [ -f "$(BUILD_DIR)/$$unit.ppu" ] && [ -f "$(SRC_DIR)/fxb/$$inc" ] && \
+	     [ "$(SRC_DIR)/fxb/$$inc" -nt "$(BUILD_DIR)/$$unit.ppu" ]; then \
+	    echo "  $$inc newer than $$unit.ppu; forcing rebuild"; touch .fxb_inc_stale; \
+	  fi; \
+	done; \
+	if [ -f .fxb_inc_stale ]; then rm -f $(BUILD_DIR)/*.o $(BUILD_DIR)/*.ppu; rm -f .fxb_inc_stale; fi
 	$(FPC) $(FPCFLAGS) -Fllib -k-lsqlite3 -k--dynamic-linker=/lib64/ld-linux-x86-64.so.2 -o$(BIN_DIR)/fxbc $(SRC_DIR)/fxb/fxb.lpr
 
 $(BUILD_DIR):

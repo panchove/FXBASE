@@ -6,6 +6,7 @@ program fxb;
 {$H+}
 
 uses
+  cthreads,
   SysUtils,
   Classes,
   fxb.cli;

@@ -43,6 +43,7 @@ type
     FTargetCPU: string;
     FOptimizationLevel: Integer;
     FDebugInfo: Boolean;
+    FMultiUnit: Boolean;
     FErrors: TCompilerMessageArray;
     FModule: TIRModule;
     FBuilder: TIRBuilder;
@@ -52,6 +53,9 @@ type
     property TargetCPU: string read FTargetCPU write FTargetCPU;
     property OptimizationLevel: Integer read FOptimizationLevel write FOptimizationLevel;
     property DebugInfo: Boolean read FDebugInfo write FDebugInfo;
+    // When True, unresolved calls are emitted as external references resolved
+    // at the final link; when False, empty stub functions are emitted instead.
+    property MultiUnit: Boolean read FMultiUnit write FMultiUnit;
     function Generate(const AST: TCompilationUnit): TIRModule;
     function HasErrors: Boolean;
     property Errors: TCompilerMessageArray read FErrors;
@@ -69,6 +73,7 @@ begin
   FBuilder := TIRBuilder.Create(FModule);
   FBuilder.FOptimizationLevel := FOptimizationLevel;
   FBuilder.FDebugInfo := FDebugInfo;
+  FBuilder.FMultiUnit := FMultiUnit;
   try
     FBuilder.LowerCompilationUnit(AST);
     if FOptimizationLevel > 0 then

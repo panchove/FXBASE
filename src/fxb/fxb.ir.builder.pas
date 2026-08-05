@@ -32,6 +32,7 @@ type
     FPrependStmts: array of TASTNode;
     FCurrentDBTable: string;
     FOptimizationLevel: Integer;
+    FMultiUnit: Boolean;
 
     function GetIRType(const TypeName: string): TIRType;
     function GetIRTypeFromToken(AToken: TToken): TIRType;
@@ -362,10 +363,16 @@ begin
   for i := 0 to AST.Count - 1 do
   begin
     node := AST.Nodes[i];
-    if (node is TFunctionDef) and (TFunctionDef(node).Name = 'Main') then
-      hasMain := True
-    else if (node is TProcedureDef) and (TProcedureDef(node).Name = 'Main') then
-      hasMain := True
+    if (node is TFunctionDef) then
+    begin
+      if TFunctionDef(node).Name = 'Main' then hasMain := True;
+      Continue;
+    end
+    else if (node is TProcedureDef) then
+    begin
+      if TProcedureDef(node).Name = 'Main' then hasMain := True;
+      Continue;
+    end
     else if (node is TClassDef) or (node is TStructDef) or (node is TNewTypeDef)
       or (node is TInterfaceDef) then
       Continue
@@ -1047,7 +1054,15 @@ begin
 
   fn := FModule.GetFunction(Expr.Name);
   if not Assigned(fn) then
+  begin
     fn := FModule.AddFunction(Expr.Name, TIRType.AnyType);
+    // In a multi-unit build the callee is either defined in another unit or a
+    // runtime/library routine; mark it external so this unit only emits the
+    // `call` and the final link resolves it (no duplicate per-unit stubs).
+    // Single-unit builds keep the legacy empty stub so programs referencing
+    // not-yet-implemented stdlib functions (e.g. STR) still link.
+    fn.IsExternal := FMultiUnit;
+  end;
   SetLength(args, Expr.ArgCount);
   for i := 0 to Expr.ArgCount - 1 do
     args[i] := LowerExpression(Expr.Args[i]);

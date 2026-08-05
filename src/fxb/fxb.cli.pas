@@ -7,7 +7,6 @@ interface
 uses
   SysUtils,
   Classes,
-  BaseUnix,
   fxb.tokens,
   fxb.lexer,
   fxb.parser,
@@ -17,7 +16,12 @@ uses
   fxb.backend,
   fxb.backend.x86_64,
   fxb.backend.x86_32,
-  fxb.ppo;
+  fxb.ppo,
+  fxb.threadpool,
+  fxb.cache,
+  fxb.symbols,
+  fxb.preprocessor,
+  fxb.process;
 
 type
   TFXCLI = class
@@ -51,6 +55,10 @@ type
     FGeneratePPO: Boolean;
     FOutputPPO: string;
     FIncludeStdFph: Boolean;
+    FJobs: Integer;
+    FCacheDir: string;
+    FTwoPass: Boolean;
+    FSourceFiles: TStringList;
     procedure ParseArgs;
     procedure ShowHelp;
     procedure ShowVersion;
@@ -62,6 +70,7 @@ type
     procedure DumpAST(const AAST: TCompilationUnit);
     procedure DumpIR(const AIR: TIRModule);
     procedure DumpASM(const AASM: string);
+    function CompileTwoPass: Boolean;
     function DetermineOutputFile(const AInputFile: string): string;
     procedure SetDefaults;
   public
@@ -81,6 +90,7 @@ begin
   FArgs := TStringList.Create;
   FIncludePaths := TStringList.Create;
   FDefines := TStringList.Create;
+  FSourceFiles := TStringList.Create;
   SetDefaults;
 end;
 
@@ -89,51 +99,9 @@ begin
   FArgs.Free;
   FIncludePaths.Free;
   FDefines.Free;
+  FSourceFiles.Free;
   inherited Destroy;
 end;
-
-function ExecuteProcess(const Program_: string; const Args: string): Integer;
-var
-  argList: TStringList;
-  argv: array of PChar;
-  pArgv: PPChar;
-  i: Integer;
-  pid: TPid;
-  status: cInt;
-begin
-  Result := -1;
-  argList := TStringList.Create;
-  try
-    argList.Delimiter := ' ';
-    argList.StrictDelimiter := True;
-    argList.DelimitedText := Args;
-    SetLength(argv, argList.Count + 2);
-    argv[0] := PChar(Program_);
-    for i := 0 to argList.Count - 1 do
-      argv[i + 1] := PChar(argList[i]);
-    argv[argList.Count + 1] := nil;
-    pArgv := @argv[0];
-
-    pid := FpFork;
-    case pid of
-      -1:
-        Exit; // fork failed
-      0:
-        begin
-          // Child: exec, then exit with error if it fails
-          FpExecV(PChar(Program_), pArgv);
-          FpExit(127);
-        end;
-      else
-        // Parent: wait for child
-        if FpWaitPid(pid, status, 0) = pid then
-          Result := WEXITSTATUS(status);
-    end;
-  finally
-    argList.Free;
-  end;
-end;
-
 
 {$I 'fxb.cli.args.inc'}
 {$I 'fxb.cli.driver.inc'}
