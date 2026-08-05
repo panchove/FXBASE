@@ -18,7 +18,7 @@ VERSION := $(shell cat VERSION 2>/dev/null || echo 0.0.0)
 all: fxbc
 
 # Main compiler
-fxbc: $(BUILD_DIR) $(BIN_DIR) lib/libsqlite3.so
+fxbc: $(BUILD_DIR) $(BIN_DIR) lib/libsqlite3.so lib/libpq.so
 	@# FPC does not track {$I ...inc} dependencies for incremental builds, so an
 	@# edited .inc leaves the including unit's .ppu/.o stale. Detect a newer .inc
 	@# per including unit and force a clean rebuild so the edit always applies.
@@ -32,7 +32,7 @@ fxbc: $(BUILD_DIR) $(BIN_DIR) lib/libsqlite3.so
 	  fi; \
 	done; \
 	if [ -f .fxb_inc_stale ]; then rm -f $(BUILD_DIR)/*.o $(BUILD_DIR)/*.ppu; rm -f .fxb_inc_stale; fi
-	$(FPC) $(FPCFLAGS) -Fllib -k-lsqlite3 -k--dynamic-linker=/lib64/ld-linux-x86-64.so.2 -o$(BIN_DIR)/fxbc $(SRC_DIR)/fxb/fxb.lpr
+	$(FPC) $(FPCFLAGS) -Fllib -k-lsqlite3 -k-lpq -k--dynamic-linker=/lib64/ld-linux-x86-64.so.2 -o$(BIN_DIR)/fxbc $(SRC_DIR)/fxb/fxb.lpr
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -50,6 +50,11 @@ test: test-unit test-integration test-implementation test-ir
 lib/libsqlite3.so:
 	@mkdir -p lib
 	@ln -sf /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 lib/libsqlite3.so
+
+# Local symlink for libpq (PostgreSQL client library).
+lib/libpq.so:
+	@mkdir -p lib
+	@ln -sf /usr/lib/x86_64-linux-gnu/libpq.so.5 lib/libpq.so
 
 test-unit: fxbc lib/libsqlite3.so
 	@bash tests/run_unit.sh

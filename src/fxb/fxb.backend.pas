@@ -88,6 +88,7 @@ type
     procedure GenerateAllFunctions(const IR: TIRModule);
     procedure EmitRuntimeHelpers;
     procedure EmitDBRuntime;
+    procedure EmitPGRuntime;
     procedure EmitRuntimeData;
 
     // Instruction generators
@@ -103,6 +104,7 @@ type
     procedure GenICmp(Instr: TIRInstruction); virtual; abstract;
     procedure GenPrint(Instr: TIRInstruction); virtual; abstract;
     procedure GenDBOp(Instr: TIRInstruction);
+    procedure GenPGOp(Instr: TIRInstruction);
 
     function MapInstrKindToAsm(Kind: TIRInstructionKind): string;
     function IsCommutative(Kind: TIRInstructionKind): Boolean;
@@ -549,6 +551,7 @@ begin
     fxb.ir.instr.ikICmp: GenICmp(Instr);
     fxb.ir.instr.ikPrint: GenPrint(Instr);
     fxb.ir.instr.ikDBOp: GenDBOp(Instr);
+    fxb.ir.instr.ikPGOp: GenPGOp(Instr);
     else
       Emit(Format('# Unimplemented: %s', [InstrKindToStr(Instr.Kind)]));
   end;
@@ -872,10 +875,16 @@ begin
     EmitCall('fflush');
     Emit('addq $8, %rsp');       // Restore stack
     // Close the SQLite connection if the DB runtime was linked in (no-op when nil).
-    if (FDBDriver = 'sqlite') or (FDBConnection <> '') then
+    if (FDBDriver = 'sqlite') then
     begin
       Emit('andq $0xFFFFFFFFFFFFFFF0, %rsp');  // align before the runtime call
       EmitCall('fxb_sqlite_close');
+    end;
+    // Close the PostgreSQL connection if the DB runtime was linked in (no-op when nil).
+    if (FDBDriver = 'postgresql') then
+    begin
+      Emit('andq $0xFFFFFFFFFFFFFFF0, %rsp');  // align before the runtime call
+      EmitCall('fxb_pg_disconnect');
     end;
     Emit('movq %rbx, %rdi');
     Emit('movq $60, %rax');
@@ -900,9 +909,14 @@ begin
     Emit('pushl %eax');
     EmitCall('fflush');
     Emit('addl $4, %esp');
-    if (FDBDriver = 'sqlite') or (FDBConnection <> '') then
+    if (FDBDriver = 'sqlite') then
     begin
       Emit('call fxb_sqlite_close');
+    end;
+    // Close the PostgreSQL connection if the DB runtime was linked in (no-op when nil).
+    if (FDBDriver = 'postgresql') then
+    begin
+      Emit('call fxb_pg_disconnect');
     end;
     Emit('movl %ebx, %eax');                      // exit code
     Emit('movl $1, %eax');                        // __NR_exit
@@ -924,6 +938,8 @@ begin
   begin
     EmitRuntimeHelpers;
     EmitDBRuntime;
+    if (FDBDriver = 'postgresql') then
+      EmitPGRuntime;
     EmitRuntimeData;
   end;
 end;
@@ -936,4 +952,5 @@ end;
 
 {$I 'fxb.backend.runtime.inc'}
 {$I 'fxb.backend.db.inc'}
+{$I 'fxb.backend.pg.inc'}
 end.
