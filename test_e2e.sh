@@ -190,6 +190,47 @@ fi
 echo "OK: DB test compiled, ran and created the SQLite database"
 rm -f /tmp/test_fxbase.db
 
+# Runtime values in DB operations: APPEND/REPLACE with non-constant operands
+# must bind through parameters instead of being stored as NULL.
+echo ""
+echo "Step 7b: Testing DB operations with runtime values..."
+cat > /tmp/test_db_runtime.fpg << 'DB_RUNTIME_EOF'
+FUNCTION Main() : INTEGER
+    LOCAL id, nombre
+    id := 42
+    nombre := "Zoe"
+    USE clientes
+    APPEND id=id, nombre=nombre
+    REPLACE nombre WITH nombre
+    ? "runtime values"
+    RETURN 0
+ENDFUNC
+DB_RUNTIME_EOF
+
+rm -f /tmp/test_fxbase_runtime.db
+$PROJECT_ROOT/bin/fxbc --db:sqlite=/tmp/test_fxbase_runtime.db /tmp/test_db_runtime.fpg -o /tmp/test_db_runtime.exe 2>&1
+if [ ! -f "/tmp/test_db_runtime.exe" ]; then
+    echo "FAIL: Executable not generated for DB runtime test"
+    exit 1
+fi
+
+OUTPUT=$(/tmp/test_db_runtime.exe)
+if [[ "$OUTPUT" != *"runtime values"* ]]; then
+    echo "FAIL: DB runtime test didn't run correctly, got '$OUTPUT'"
+    exit 1
+fi
+if ! command -v sqlite3 > /dev/null 2>&1; then
+    echo "FAIL: sqlite3 CLI not available to verify stored row"
+    exit 1
+fi
+ROW=$(sqlite3 /tmp/test_fxbase_runtime.db "SELECT id || '|' || nombre FROM clientes LIMIT 1")
+if [ "$ROW" != "42|Zoe" ]; then
+    echo "FAIL: DB runtime values stored as NULL or wrong value, got '$ROW'"
+    exit 1
+fi
+echo "OK: DB runtime values bound correctly (id=42, nombre=Zoe)"
+rm -f /tmp/test_fxbase_runtime.db
+
 # Step 8: Verify assembly output
 echo ""
 echo "Step 8: Verifying assembly output..."
