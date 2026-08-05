@@ -2,7 +2,7 @@
 
 **Norma de Referencia:** ISO/IEC/IEEE 29148:2018 / ISO/IEC 12207:2017
 
-**Actualizado:** 2026-07-30
+**Actualizado:** 2026-08-05
 **Versión:** 1.0  
 **Trazabilidad ID:** REQ-RDM-001  
 **Auditoría:** Control de Versiones y Hitos  
@@ -35,6 +35,10 @@
 | 0.5.5   | LTO diferido y codegen paralelo       | Backend nativo genera `.o` por unidad; link final en hilo principal                                                                      |
 
 **Verificación:** Compilación limpia (100 archivos, 10k LOC) < 2s en 8 cores; incremental (1 archivo) < 150ms.
+
+> **Estado:** ✅ **Verificado** (2026-08-05, `make bench`). Limpia: 272 ms (< 2 s). Incremental (1 archivo): 57 ms (< 150 ms). Smoke de binario generado OK.
+>
+> **Nota de diseño:** La caché de objetos (`cekObject`) se consulta **antes** del frontend en `CompileUnit` y corta el pipeline completo en el hit caliente. Por eso los stubs `GetAST`/`StoreAST`/`GetIR`/`StoreIR` de `fxb.cache.pas` siguen siendo `TODO` a propósito: serializar `.ast`/`.ir` no aporta al criterio de la fase (el camino incremental ya es hits de objeto + link) y solo ayudaría en recompi­laciones por cambio de flags (target/optimización/debug) con fuente sin cambios. Se difiere a Fase 4.5 (`.fbu`, caché estilo `.ppu`), donde sí hay un escenario de recompilación parcial que lo justifica.
 
 ---
 

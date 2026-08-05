@@ -543,6 +543,10 @@ begin
     BuildKey(ASourceFile, AIncludePaths, ADefines));
 end;
 
+// AST/IR snapshots are intentionally not cached: GetObject short-circuits the
+// whole frontend on the warm incremental path, so serializing .ast/.ir would add
+// format surface without helping the Fase 0.5 criteria. Revisit for Fase 4.5
+// (.fbu partial recompiles).
 function TFXBCache.GetAST(const ASourceFile: string; var AAST: TCompilationUnit; const AIncludePaths: TStringList; const ADefines: TStringList): Boolean;
 begin
   Result := False; // TODO: implement AST serialization
