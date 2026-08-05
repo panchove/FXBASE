@@ -20,6 +20,10 @@ type
   TTopLevelParser = class
   private
     FCtx: IParserContext;
+    // Set by the kwStatic top-level dispatch before delegating to
+    // ParseFunctionDef/ParseProcedureDef, so the STATIC keyword consumed there
+    // still marks the declaration as static (those parsers re-check the token).
+    FPendingStatic: Boolean;
   public
     constructor Create(const ACtx: IParserContext);
     function ParseFunctionDef: TFunctionDef;
@@ -40,6 +44,7 @@ constructor TTopLevelParser.Create(const ACtx: IParserContext);
 begin
   inherited Create;
   FCtx := ACtx;
+  FPendingStatic := False;
 end;
 
 function TTopLevelParser.ParseFunctionDef: TFunctionDef;
@@ -51,6 +56,8 @@ var
   p: TParamInfo;
 begin
   isStatic := False;
+  if FPendingStatic then isStatic := True;
+  FPendingStatic := False;
   if FCtx.MatchKeyword(kwStatic) then isStatic := True;
   FCtx.ConsumeKeyword(kwFunction, 'Expected FUNCTION');
 
@@ -114,6 +121,8 @@ var
   p: TParamInfo;
 begin
   isStatic := False;
+  if FPendingStatic then isStatic := True;
+  FPendingStatic := False;
   if FCtx.MatchKeyword(kwStatic) then isStatic := True;
   FCtx.ConsumeKeyword(kwProcedure, 'Expected PROCEDURE');
 
@@ -470,6 +479,7 @@ begin
         kwNewType: Result := ParseNewTypeDef;
         kwStatic:
           begin
+            FPendingStatic := True;
             FCtx.Advance;
             if FCtx.CheckKeyword(kwFunction) then
               Result := ParseFunctionDef
@@ -477,6 +487,7 @@ begin
               Result := ParseProcedureDef
             else
             begin
+              FPendingStatic := False;
               FCtx.Error('Expected FUNCTION or PROCEDURE after STATIC');
               Result := nil;
             end;
