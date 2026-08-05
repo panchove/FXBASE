@@ -179,7 +179,16 @@ var
   i: Integer;
 begin
   Shutdown;
-  
+
+  // FPC 3.2.2 TThread.Destroy -> WaitFor from the MAIN thread spins on
+  // "while not FFinished do CheckSynchronize(100)", which blocks a full
+  // 100ms when no Synchronize call is pending (a join of a finished thread
+  // still pays this). Wait for each worker to finish first so the join below
+  // takes the fast path (FFinished already set -> immediate pthread_join).
+  for i := 0 to High(FWorkers) do
+    while not FWorkers[i].Finished do
+      Sleep(1);
+
   for i := 0 to High(FWorkers) do
     FWorkers[i].Free;
   SetLength(FWorkers, 0);
