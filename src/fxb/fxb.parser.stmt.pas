@@ -330,7 +330,9 @@ var
   forStmt: TForStmt;
   varName: string;
   start, finish: TExpr;
+  down: Boolean;
 begin
+  down := False;
   FCtx.ConsumeKeyword(kwFor, 'Expected FOR');
   if FCtx.Peek = ttIdentifier then
     varName := FCtx.GetCurrent.StrValue
@@ -348,7 +350,10 @@ begin
   if FCtx.CheckKeyword(kwTo) then
     FCtx.Advance
   else if FCtx.CheckKeyword(kwDownTo) then
-    FCtx.Advance
+  begin
+    FCtx.Advance;
+    down := True;
+  end
   else
   begin
     FCtx.Error('Expected TO or DOWNTO in FOR loop');
@@ -357,6 +362,8 @@ begin
 
   finish := FCtx.ParseExpression;
   forStmt := TForStmt.Create(varName, start, finish, FCtx.GetCurrent.Line, FCtx.GetCurrent.Col);
+  if down then
+    forStmt.SetDownTo(True);
 
   if FCtx.CheckKeyword(kwStep) then
   begin

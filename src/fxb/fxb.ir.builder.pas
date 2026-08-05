@@ -33,6 +33,9 @@ type
     FCurrentDBTable: string;
     FOptimizationLevel: Integer;
     FMultiUnit: Boolean;
+    // For untyped (tkAny) locals: records the concrete type of the most recent
+    // store so loads/prints can be typed statically (straight-line dataflow).
+    FAnyStoreKinds: TStringList;
 
     function GetIRType(const TypeName: string): TIRType;
     function GetIRTypeFromToken(AToken: TToken): TIRType;
@@ -122,10 +125,12 @@ begin
   FLoopDepth := 0;
   FLocalVarMap := TStringList.Create;
   FTypeCache := TStringList.Create;
+  FAnyStoreKinds := TStringList.Create;
 end;
 
 destructor TIRBuilder.Destroy;
 begin
+  FAnyStoreKinds.Free;
   FLocalVarMap.Free;
   FTypeCache.Free;
   inherited Destroy;
@@ -417,6 +422,8 @@ begin
   fn := FModule.AddFunction(Func.Name, retType);
   FCurrentFunction := fn;
   FCurrentBlock := fn.EntryBlock;
+  FLocalVarMap.Clear;
+  FAnyStoreKinds.Clear;
 
   n := Func.ParamCount;
   for i := 0 to n - 1 do
@@ -450,6 +457,8 @@ begin
   fn := FModule.AddFunction(Proc.Name, TIRType.Void);
   FCurrentFunction := fn;
   FCurrentBlock := fn.EntryBlock;
+  FLocalVarMap.Clear;
+  FAnyStoreKinds.Clear;
 
   n := Proc.ParamCount;
   for i := 0 to n - 1 do
@@ -482,6 +491,8 @@ begin
   fn := FModule.AddFunction('Main', TIRType.Int(True, 32));
   FCurrentFunction := fn;
   FCurrentBlock := fn.EntryBlock;
+  FLocalVarMap.Clear;
+  FAnyStoreKinds.Clear;
 
   for i := 0 to High(Statements) do
     LowerStatement(Statements[i]);
@@ -662,6 +673,8 @@ begin
     target := Self.LowerExpression(Stmt.Target);
   value := Self.LowerExpression(Stmt.Value);
   CreateStore(value, target);
+  if (target is TIRLocal) and (TIRLocal(target).Type_.Kind = tkAny) and (value.Type_.Kind <> tkAny) then
+    FAnyStoreKinds.Values[nm] := IntToStr(Ord(value.Type_.Kind));
 end;
 
 procedure TIRBuilder.LowerIf(Stmt: TIfStmt);
@@ -776,6 +789,11 @@ begin
   condInstr := TIRInstruction.Create(ikICmp, TIRType.Bool, 'for.cond');
   condInstr.AddOperand(varPtr);
   condInstr.AddOperand(endVal);
+  // Ascending FOR (step >= 0) iterates while counter <= end; DOWNTO uses >=.
+  if Stmt.IsDownTo then
+    condInstr.Metadata.Values['pred'] := 'ge'
+  else
+    condInstr.Metadata.Values['pred'] := 'le';
   EmitInstr(condInstr);
   EmitInstr(TIRInstruction.Create(ikCondBr, TIRType.Void, ''));
   FCurrentBlock.GetLastInstr.AddOperand(condInstr);
@@ -790,7 +808,12 @@ begin
   FCurrentBlock.GetLastInstr.AddOperand(stepBlock);
 
   FCurrentBlock := stepBlock;
-  stepVal := Self.LowerExpression(Stmt.StepExpr);
+  if Assigned(Stmt.StepExpr) then
+    stepVal := Self.LowerExpression(Stmt.StepExpr)
+  else if Stmt.IsDownTo then
+    stepVal := TIRConstant.CreateInt(TIRType.Int(True, 64), -1, 'for.step')
+  else
+    stepVal := TIRConstant.CreateInt(TIRType.Int(True, 64), 1, 'for.step');
   varPtr := TIRValue(FLocalVarMap.Objects[FLocalVarMap.IndexOf(varName)]);
   varPtr := CreateLoad(varPtr, 'for.var');
   EmitInstr(TIRInstruction.Create(ikAdd, varType, 'for.next'));
@@ -959,7 +982,8 @@ end;
 function TIRBuilder.LowerIdentifier(Expr: TIdentifierExpr): TIRValue;
 var
   local: TIRValue;
-  nm: string;
+  nm, kindStr: string;
+  t: TIRType;
 begin
   nm := Expr.Name;
   if FLocalVarMap.IndexOf(nm) >= 0 then
@@ -967,7 +991,21 @@ begin
     local := TIRValue(FLocalVarMap.Objects[FLocalVarMap.IndexOf(nm)]);
     Result := CreateLoad(local, nm);
     if local is TIRLocal then
+    begin
       TIRLocal(local).IsAddressTaken := True;
+      // Untyped local: statically resolve its concrete type from the most
+      // recent store so the backend prints/uses it with the right kind.
+      if TIRLocal(local).Type_.Kind = tkAny then
+      begin
+        kindStr := FAnyStoreKinds.Values[nm];
+        if kindStr <> '' then
+        begin
+          t := TIRInstruction(Result).Type_;
+          t.Kind := TIRTypeKind(StrToInt(kindStr));
+          TIRInstruction(Result).Type_ := t;
+        end;
+      end;
+    end;
   end
   else
   begin

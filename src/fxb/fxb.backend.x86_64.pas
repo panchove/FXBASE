@@ -279,7 +279,11 @@ begin
       end;
       else
       begin
-        fmtLabel := GetStringLabel('%s');
+        // Unknown/any-typed value: default to a signed 64-bit integer. The
+        // builder statically resolves untyped locals; this only covers the
+        // unresolvable fallback (never print as %s, which would dereference
+        // a non-pointer value).
+        fmtLabel := GetStringLabel('%lld');
         Emit(Format('leaq %s(%%rip), %s', [fmtLabel, FmtReg]));
         LoadPrintArg(val);
         if not IsWindows then Emit('xorl %eax, %eax');
