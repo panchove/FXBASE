@@ -1,0 +1,8 @@
+USE clientes
+APPEND id=1, nombre="A"
+APPEND id=2, nombre="B"
+APPEND id=3, nombre="C"
+REPLACE nombre WITH "X" FOR id > 1
+PACK WHILE id < 3
+ZAP REST 1
+? "done"

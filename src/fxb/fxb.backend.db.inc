@@ -170,18 +170,18 @@ begin
     field := Instr.Metadata.Values['field'];
     hasCond := (Instr.Metadata.Values['scope_for'] = '1') or
                (Instr.Metadata.Values['scope_while'] = '1');
-    // Base SQL for REPLACE (UPDATE scoped to last inserted row by default).
-    sql := 'UPDATE ' + table + ' SET ' + field + ' = ?1' +
-           ' WHERE rowid = (SELECT last_insert_rowid())';
+    // If a FOR/WHILE condition is present, REPLACE applies to all matching rows.
+    // Otherwise it updates only the last inserted row (legacy xBASE behaviour).
+    if hasCond then
+      sql := 'UPDATE ' + table + ' SET ' + field + ' = ?1 WHERE (?)'
+    else
+      sql := 'UPDATE ' + table + ' SET ' + field + ' = ?1' +
+             ' WHERE rowid = (SELECT last_insert_rowid())';
     if IsX86_64 and (not IsWindows) then
     begin
       // Parameterized path; the value and any FOR/WHILE condition bind by index.
       nVals := 1;
-      if hasCond then
-      begin
-        Inc(nVals);
-        sql := sql + ' AND (?' + IntToStr(nVals) + ')';
-      end;
+      if hasCond then Inc(nVals);
       if Instr.Metadata.Values['scope_next'] <> '' then
         sql := sql + ' LIMIT ' + Instr.Metadata.Values['scope_next'];
       if Instr.Metadata.Values['scope_rest'] <> '' then
@@ -195,12 +195,12 @@ begin
     else
     begin
       // Fallback (x86_32 / Windows): compile-time SQL, runtime values become NULL.
-      sql := 'UPDATE ' + table + ' SET ' + field + ' = ' + ConstToSQL(Instr.GetOperand(0)) +
-             ' WHERE rowid = (SELECT last_insert_rowid())';
-      if Instr.Metadata.Values['scope_for'] = '1' then
-        sql := sql + ' AND (' + ConstToSQL(Instr.GetOperand(Instr.OperandCount - 1)) + ')'
-      else if Instr.Metadata.Values['scope_while'] = '1' then
-        sql := sql + ' AND (' + ConstToSQL(Instr.GetOperand(Instr.OperandCount - 1)) + ')';
+      if hasCond then
+        sql := 'UPDATE ' + table + ' SET ' + field + ' = ' + ConstToSQL(Instr.GetOperand(0)) +
+               ' WHERE (' + ConstToSQL(Instr.GetOperand(Instr.OperandCount - 1)) + ')'
+      else
+        sql := 'UPDATE ' + table + ' SET ' + field + ' = ' + ConstToSQL(Instr.GetOperand(0)) +
+               ' WHERE rowid = (SELECT last_insert_rowid())';
       if Instr.Metadata.Values['scope_next'] <> '' then
         sql := sql + ' LIMIT ' + Instr.Metadata.Values['scope_next'];
       if Instr.Metadata.Values['scope_rest'] <> '' then
@@ -213,16 +213,38 @@ begin
     // PACK/ZAP both clear the active table; SQLite has no deleted-flag or
     // TRUNCATE, so DELETE FROM keeps the schema. Scope clauses add WHERE/LIMIT.
     table := Instr.Metadata.Values['table'];
-    sql := 'DELETE FROM ' + table;
-    if Instr.Metadata.Values['scope_for'] = '1' then
-      sql := sql + ' WHERE (' + ConstToSQL(Instr.GetOperand(Instr.OperandCount - 1)) + ')'
-    else if Instr.Metadata.Values['scope_while'] = '1' then
-      sql := sql + ' WHERE (' + ConstToSQL(Instr.GetOperand(Instr.OperandCount - 1)) + ')';
-    if Instr.Metadata.Values['scope_next'] <> '' then
-      sql := sql + ' LIMIT ' + Instr.Metadata.Values['scope_next'];
-    if Instr.Metadata.Values['scope_rest'] <> '' then
-      sql := sql + ' LIMIT ' + Instr.Metadata.Values['scope_rest'] + ' OFFSET 1';
-    EmitDBCall(sql, 'fxb_sqlite_exec');
+    hasCond := (Instr.Metadata.Values['scope_for'] = '1') or
+               (Instr.Metadata.Values['scope_while'] = '1');
+    if IsX86_64 and (not IsWindows) then
+    begin
+      // Parameterized path: bind runtime condition via fxb_sqlite_execv.
+      nVals := 0;
+      if hasCond then Inc(nVals);
+      sql := 'DELETE FROM ' + table;
+      if hasCond then sql := sql + ' WHERE (?)';
+      if Instr.Metadata.Values['scope_next'] <> '' then
+        sql := sql + ' LIMIT ' + Instr.Metadata.Values['scope_next'];
+      if Instr.Metadata.Values['scope_rest'] <> '' then
+        sql := sql + ' LIMIT ' + Instr.Metadata.Values['scope_rest'] + ' OFFSET 1';
+      Emit(Format('leaq %s, %%r10', [RIP('fxb_db_args')]));
+      if hasCond then
+        EmitBindSlot(Instr.GetOperand(Instr.OperandCount - 1), 0);
+      EmitParamCall(sql, nVals);
+    end
+    else
+    begin
+      // Fallback (x86_32 / Windows): compile-time SQL, runtime values become NULL.
+      sql := 'DELETE FROM ' + table;
+      if Instr.Metadata.Values['scope_for'] = '1' then
+        sql := sql + ' WHERE (' + ConstToSQL(Instr.GetOperand(Instr.OperandCount - 1)) + ')'
+      else if Instr.Metadata.Values['scope_while'] = '1' then
+        sql := sql + ' WHERE (' + ConstToSQL(Instr.GetOperand(Instr.OperandCount - 1)) + ')';
+      if Instr.Metadata.Values['scope_next'] <> '' then
+        sql := sql + ' LIMIT ' + Instr.Metadata.Values['scope_next'];
+      if Instr.Metadata.Values['scope_rest'] <> '' then
+        sql := sql + ' LIMIT ' + Instr.Metadata.Values['scope_rest'] + ' OFFSET 1';
+      EmitDBCall(sql, 'fxb_sqlite_exec');
+    end;
   end;
 end;
 

@@ -72,6 +72,7 @@ type
     function GetOperandReg(Val: TIRValue; ScratchReg: string): string;
     function GetOperandMemRef(Val: TIRValue; ScratchReg: string): string;
     function LoadFloatOperand(Val: TIRValue; const XmmReg: string): string;
+    function SSEArgReg(ArgIndex: Integer): string;
     function GetStringLabel(const S: string): string;
     function GetRealLabel(const V: Double): string;
     procedure EmitStringPool;
@@ -403,6 +404,9 @@ else if c.IsNull then
   end;
 end;
 
+  // Returns the SSE register (xmm0, xmm1, ...) for the nth function argument (0-based).
+  // Follows the platform ABI: SysV x86_64 uses xmm0-xmm5 for first 6 float args,
+  // Windows x64 uses xmm0-xmm3 for first 4 float args.
 function TFXBBackend.GetOperandMemRef(Val: TIRValue; ScratchReg: string): string;
 var
   l: TIRLocal;
@@ -424,6 +428,7 @@ var
   c: TIRConstant;
   l: TIRLocal;
   inst: TIRInstruction;
+  arg: TIRArgument;
 begin
   Result := XmmReg;
   if Val is TIRConstant then
@@ -450,11 +455,38 @@ begin
       // it was materialized to its stack slot by GenBinaryOp, so reload it.
       Emit(Format('movsd %s, %s', [GetOperandMemRef(inst, XmmReg), XmmReg]));
   end
+  else if Val is TIRArgument then
+  begin
+    arg := TIRArgument(Val);
+    // Float argument passed in XMM register by position.
+    Emit(Format('movsd %s, %s', [SSEArgReg(arg.Index), XmmReg]));
+  end
   else
     Emit(Format('xorps %s, %s', [XmmReg, XmmReg]));
 end;
 
-procedure TFXBBackend.GenerateFunction(Func: TIRFunction);
+  function TFXBBackend.SSEArgReg(ArgIndex: Integer): string;
+  const
+    SSEArgRegs_X86_64: array[0..5] of string = ('%xmm0', '%xmm1', '%xmm2', '%xmm3', '%xmm4', '%xmm5');
+    SSEArgRegs_X86_64_WIN: array[0..3] of string = ('%xmm0', '%xmm1', '%xmm2', '%xmm3');
+  begin
+    if IsWindows then
+    begin
+      if ArgIndex < Length(SSEArgRegs_X86_64_WIN) then
+        Result := SSEArgRegs_X86_64_WIN[ArgIndex]
+      else
+        Result := '%xmm0';
+    end
+    else
+    begin
+      if ArgIndex < Length(SSEArgRegs_X86_64) then
+        Result := SSEArgRegs_X86_64[ArgIndex]
+      else
+        Result := '%xmm0';
+    end;
+  end;
+
+  procedure TFXBBackend.GenerateFunction(Func: TIRFunction);
 var
   blk: TIRBlock;
   i: Integer;

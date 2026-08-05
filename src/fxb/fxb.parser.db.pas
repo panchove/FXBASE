@@ -141,6 +141,7 @@ begin
     val := FCtx.ParseExpression;
     dbStmt := TASTDBStmt.Create('replace', '', FCtx.GetCurrent.Line, FCtx.GetCurrent.Col);
     dbStmt.SetReplace(fieldName, val);
+    ParseScopeClauses(dbStmt);
     Result := dbStmt;
     Exit;
   end
