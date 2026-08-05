@@ -72,6 +72,10 @@ test-coverage:
 test-quality:
 	@bash tests/metrics/quality.sh
 
+# Fase 0.5 verification benchmark: clean <2s (100 files, 8 cores), incremental <150ms
+bench: fxbc
+	@bash tests/bench/fxbench.sh
+
 # Clean
 clean:
 	rm -rf $(BUILD_DIR) $(BIN_DIR)/fxbc*
@@ -127,6 +131,7 @@ help:
 	@echo "  test-all            - Run full suite (verbose)"
 	@echo "  test-coverage       - Generate coverage report"
 	@echo "  test-quality        - Generate quality metrics"
+	@echo "  bench               - Fase 0.5 verification benchmark"
 	@echo "  test-coverage-real  - Real gcov/lcov coverage"
 	@echo "  test-coverage-strict- Strict heuristic coverage gate"
 	@echo "  clean               - Clean build artifacts"
