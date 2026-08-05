@@ -336,7 +336,22 @@ begin
                        fxb.ir.types.tkUInt8, fxb.ir.types.tkUInt16, fxb.ir.types.tkUInt32, fxb.ir.types.tkUInt64] then
       Emit(Format('%s $%d, %s', [MovOp, c.IntVal, ScratchReg]))
     else if c.Type_.Kind in [fxb.ir.types.tkFloat32, fxb.ir.types.tkFloat64] then
-      Emit(Format('movsd %s, %s', [RIP(GetRealLabel(c.RealVal)), ScratchReg])) // placeholder
+    begin
+      // movsd only moves between memory and XMM registers, so bridge the float
+      // constant into the scratch GPR through %xmm0. On x86_64 the SSE2 movq
+      // copies the low 64 bits straight to the register; on x86_32 the value
+      // has to round-trip through the stack.
+      Emit(Format('movsd %s, %%xmm0', [RIP(GetRealLabel(c.RealVal))]));
+      if IsX86_64 then
+        Emit(Format('movq %%xmm0, %s', [ScratchReg]))
+      else
+      begin
+        Emit(Format('%s $8, %s', [SubOp, SPReg]));
+        Emit(Format('movsd %%xmm0, (%s)', [SPReg]));
+        Emit(Format('%s (%s), %s', [MovOp, SPReg, ScratchReg]));
+        Emit(Format('%s $8, %s', [AddOp, SPReg]));
+      end;
+    end
     else if c.Type_.Kind = fxb.ir.types.tkBool then
     begin
       if c.BoolVal then
@@ -571,8 +586,17 @@ begin
   if Instr.OperandCount < 2 then Exit;
   val := Instr.GetOperand(0);
   ptr := Instr.GetOperand(1);
-  Emit(Format('%s %s, %s', [MovOp, GetOperandReg(val, AXReg), AXReg]));
-  Emit(Format('%s %s, %s', [MovOp, AXReg, GetOperandMemRef(ptr, CXReg)]));
+  if val.Type_.Kind in [fxb.ir.types.tkFloat32, fxb.ir.types.tkFloat64] then
+  begin
+    // Float store: float values operate in XMM registers, never in a GPR.
+    LoadFloatOperand(val, '%xmm0');
+    Emit(Format('movsd %%xmm0, %s', [GetOperandMemRef(ptr, '%xmm0')]));
+  end
+  else
+  begin
+    Emit(Format('%s %s, %s', [MovOp, GetOperandReg(val, AXReg), AXReg]));
+    Emit(Format('%s %s, %s', [MovOp, AXReg, GetOperandMemRef(ptr, CXReg)]));
+  end;
 end;
 
 procedure TFXBBackend.GenAlloca(Instr: TIRInstruction);

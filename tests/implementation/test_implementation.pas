@@ -489,6 +489,31 @@ begin
 end;
 
 // ----------------------------------------------------------------------
+// Backend: float variables (store/load/print/arithmetic of float locals)
+// ----------------------------------------------------------------------
+procedure TestImpl_Backend_FloatVariables;
+var
+  exePath, outp: string;
+  code: Integer;
+begin
+  exePath := 'floatvars_exec_test_bin';
+  code := SysUtils.ExecuteProcess('./bin/fxbc', 'tests/fixtures/floatvars.fbg -o ' + exePath);
+  AssertEqualsI(0, code, 'fxbc compila floatvars.fbg');
+  AssertTrue(FileExists(exePath), 'binario generado');
+  try
+    outp := CaptureProgramOutput('./' + exePath, code);
+    AssertEqualsI(0, code, 'ejecucion retorna 0');
+    AssertTrue(Pos('3.14', outp) > 0, 'imprime 3.14 (x)');
+    AssertTrue(Pos('4.64', outp) > 0, 'imprime 4.64 (x + 1.5)');
+    AssertTrue(Pos('1.57', outp) > 0, 'imprime 1.57 (x / 2.0)');
+    AssertTrue(Pos('9.28', outp) > 0, 'imprime 9.28 ((x + 1.5) * 2.0)');
+    AssertTrue(Pos('1', outp) > 0, 'imprime 1 (x > 3.0)');
+  finally
+    DeleteFile(exePath);
+  end;
+end;
+
+// ----------------------------------------------------------------------
 // Backend: x86_32 (i386) ELF codegen
 // ----------------------------------------------------------------------
 procedure TestImpl_Backend_x86_32_Asm;
@@ -861,6 +886,7 @@ begin
   RegisterTest('Impl: backend float executes',         @TestImpl_Backend_FloatExecutes);
   RegisterTest('Impl: backend float cmp asm',          @TestImpl_Backend_FloatCmpAsm);
   RegisterTest('Impl: backend float cmp executes',     @TestImpl_Backend_FloatCmpExecutes);
+  RegisterTest('Impl: backend float variables',        @TestImpl_Backend_FloatVariables);
   RegisterTest('Impl: backend x86_32 asm',             @TestImpl_Backend_x86_32_Asm);
   RegisterTest('Impl: backend x86_32 executes',         @TestImpl_Backend_x86_32_Executes);
   RegisterTest('Impl: backend win64 asm',              @TestImpl_Backend_Win64_Asm);

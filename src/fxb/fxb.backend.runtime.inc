@@ -63,6 +63,7 @@ end;
 procedure TFXBBackend.LoadPrintArgFloat(Val: TIRValue);
 var
   c: TIRConstant;
+  inst: TIRInstruction;
 begin
   if Val is TIRConstant then
   begin
@@ -74,6 +75,17 @@ begin
   else if Val is TIRArgument then
     // x86_32 cdecl passes float args on the stack, same slot as integer args
     Emit(Format('movsd %s, %%xmm0', [GetOperandReg(Val, '%xmm0')]))
+  else if Val is TIRInstruction then
+  begin
+    inst := TIRInstruction(Val);
+    if inst.Kind = fxb.ir.instr.ikLoad then
+      // Load instruction: load the float from its pointer operand.
+      Emit(Format('movsd %s, %%xmm0', [GetOperandMemRef(inst.GetOperand(0), '%xmm0')]))
+    else
+      // Value defined by a float op: it stays in %xmm0 until consumed, so
+      // reloading from the instruction's (phantom) slot is a no-op.
+      Emit(Format('movsd %s, %%xmm0', [GetOperandMemRef(inst, '%xmm0')]));
+  end
   else
     Emit('xorps %xmm0, %xmm0');
   // MS x64 ABI for varargs: the floating-point argument must also be present in the

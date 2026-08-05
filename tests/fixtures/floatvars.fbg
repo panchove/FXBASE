@@ -1,0 +1,13 @@
+FUNCTION Main() AS INTEGER
+    LOCAL x, y
+    x := 3.14
+    ? x
+    y := x + 1.5
+    ? y
+    ? x / 2.0
+    ? (x + 1.5) * 2.0
+    IF x > 3.0 THEN
+        ? 1
+    ENDIF
+    RETURN 0
+ENDFUNC
