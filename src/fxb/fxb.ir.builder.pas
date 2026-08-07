@@ -33,6 +33,8 @@ type
     FCurrentDBTable: string;
     FOptimizationLevel: Integer;
     FMultiUnit: Boolean;
+    // Class definitions cache for method lookup
+    FClassDefs: TStringList;
     // For untyped (tkAny) locals: records the concrete type of the most recent
     // store so loads/prints can be typed statically (straight-line dataflow).
     FAnyStoreKinds: TStringList;
@@ -63,7 +65,7 @@ type
 
     // AST lowering
     procedure LowerCompilationUnit(AST: TCompilationUnit);
-    procedure LowerFunctionDef(Func: TFunctionDef);
+    procedure LowerFunctionDef(Func: TFunctionDef; const AMangledName: string = '');
     procedure LowerProcedureDef(Proc: TProcedureDef);
     procedure LowerClassDef(ClassDef: TClassDef);
     procedure LowerStructDef(StructDef: TStructDef);
@@ -125,12 +127,14 @@ begin
   FLoopDepth := 0;
   FLocalVarMap := TStringList.Create;
   FTypeCache := TStringList.Create;
+  FClassDefs := TStringList.Create;
   FAnyStoreKinds := TStringList.Create;
 end;
 
 destructor TIRBuilder.Destroy;
 begin
   FAnyStoreKinds.Free;
+  FClassDefs.Free;
   FLocalVarMap.Free;
   FTypeCache.Free;
   inherited Destroy;
@@ -139,6 +143,7 @@ end;
 function TIRBuilder.GetIRType(const TypeName: string): TIRType;
 var
   upper: string;
+  idx: Integer;
 begin
   upper := UpperCase(TypeName);
   if upper = 'VOID' then Exit(TIRType.Void)
@@ -163,7 +168,13 @@ begin
   else if upper = 'FLOAT64' then Exit(TIRType.Float(64))
   else if upper = 'NIL' then Exit(TIRType.Pointer(TIRType.Void))
   else
+  begin
+    // Check if it's a known class/struct
+    idx := FClassDefs.IndexOf(TypeName);
+    if idx >= 0 then
+      Exit(TIRType.Struct(TypeName));
     Exit(TIRType.AnyType);
+  end;
 end;
 
 function TIRBuilder.GetIRTypeFromToken(AToken: TToken): TIRType;
@@ -411,15 +422,20 @@ begin
   FPrependStmts := nil;
 end;
 
-procedure TIRBuilder.LowerFunctionDef(Func: TFunctionDef);
+procedure TIRBuilder.LowerFunctionDef(Func: TFunctionDef; const AMangledName: string = '');
 var
   retType: TIRType;
   fn: TIRFunction;
   i, n: Integer;
   paramName, paramType: string;
+  funcName: string;
 begin
   retType := GetIRType(Func.ReturnType);
-  fn := FModule.AddFunction(Func.Name, retType);
+  if AMangledName <> '' then
+    funcName := AMangledName
+  else
+    funcName := Func.Name;
+  fn := FModule.AddFunction(funcName, retType);
   FCurrentFunction := fn;
   FCurrentBlock := fn.EntryBlock;
   FLocalVarMap.Clear;
@@ -505,7 +521,31 @@ begin
 end;
 
 procedure TIRBuilder.LowerClassDef(ClassDef: TClassDef);
+var
+  i: Integer;
+  methodDef: TMethodDef;
+  mangledName: string;
+  ctorName: string;
 begin
+  // Store class definition for method lookup
+  FClassDefs.AddObject(ClassDef.Name, ClassDef);
+
+  // Lower each method as a function with mangled name: ClassName_MethodName
+  for i := 0 to ClassDef.GetMethodCount - 1 do
+  begin
+    methodDef := ClassDef.GetMethod(i);
+    mangledName := ClassDef.Name + '_' + methodDef.Name;
+    // Lower the method body as a function
+    // We temporarily set up a function context
+    LowerFunctionDef(methodDef, mangledName);
+  end;
+
+  // Lower constructors too
+  for i := 0 to ClassDef.GetConstructorCount - 1 do
+  begin
+    ctorName := ClassDef.Name + '_CONSTRUCTOR';
+    LowerFunctionDef(ClassDef.GetConstructor(i), ctorName);
+  end;
 end;
 
 procedure TIRBuilder.LowerStructDef(StructDef: TStructDef);
@@ -1116,8 +1156,104 @@ var
   target: TIRValue;
   args: TIRValueArray;
   i: Integer;
+  targetType: TIRType;
+  classDef: TClassDef;
+  methodDef: TMethodDef;
+  mangledName: string;
+  fn: TIRFunction;
+  m: Integer;
+  found: Boolean;
+  thenBlock, mergeBlock: TIRBlock;
+  nullCheckInstr: TIRInstruction;
+  nilVal: TIRValue;
 begin
   target := LowerExpression(Expr.Target);
+  targetType := target.Type_;
+
+  // Check if target is a class/struct type
+  if (targetType.Kind = fxb.ir.types.tkStruct) and (targetType.StructName <> '') then
+  begin
+    // Look up class definition
+    classDef := nil;
+    for i := 0 to FClassDefs.Count - 1 do
+      if SameText(FClassDefs[i], targetType.StructName) then
+      begin
+        classDef := TClassDef(FClassDefs.Objects[i]);
+        Break;
+      end;
+
+    found := False;
+    if Assigned(classDef) then
+    begin
+      // Search for method in this class
+      for m := 0 to classDef.GetMethodCount - 1 do
+      begin
+        methodDef := classDef.GetMethod(m);
+        if SameText(methodDef.Name, Expr.Method) then
+        begin
+          found := True;
+          Break;
+        end;
+      end;
+    end;
+
+    if found then
+    begin
+      // Method found - generate call with 'this' pointer as first argument
+      mangledName := targetType.StructName + '_' + Expr.Method;
+      fn := FModule.GetFunction(mangledName);
+      if not Assigned(fn) then
+      begin
+        // Create the function if it doesn't exist yet (forward reference)
+        fn := FModule.AddFunction(mangledName, GetIRType(methodDef.ReturnType));
+      end;
+
+      // Build argument list: this pointer + user args
+      SetLength(args, Expr.ArgCount + 1);
+      args[0] := target; // 'this' pointer
+      for i := 0 to Expr.ArgCount - 1 do
+        args[i + 1] := LowerExpression(Expr.Args[i]);
+
+      // Handle nil-safe (?.) calls: generate conditional call
+      if Expr.IsNilSafe then
+      begin
+        // Create blocks for conditional execution
+        thenBlock := FCurrentFunction.CreateBlock(CreateBlockName('then'));
+        mergeBlock := FCurrentFunction.CreateBlock(CreateBlockName('merge'));
+
+        // Generate null check: test if target is null
+        nilVal := TIRConstant.CreateNull(TIRType.Pointer(TIRType.Void), 'nil');
+        nullCheckInstr := TIRInstruction.Create(ikICmp, TIRType.Bool, 'nilcheck');
+        nullCheckInstr.AddOperand(target);
+        nullCheckInstr.AddOperand(nilVal);
+        nullCheckInstr.Metadata.Values['pred'] := 'ne';
+        EmitInstr(nullCheckInstr);
+
+        // Conditional branch
+        EmitInstr(TIRInstruction.Create(ikCondBr, TIRType.Void, ''));
+        FCurrentBlock.GetLastInstr.AddOperand(nullCheckInstr);
+        FCurrentBlock.GetLastInstr.AddOperand(thenBlock);
+        FCurrentBlock.GetLastInstr.AddOperand(mergeBlock);
+
+        // Then block: call the method
+        FCurrentBlock := thenBlock;
+        Result := CreateCall(fn, args, CreateTempName('method.' + Expr.Method));
+        EmitInstr(TIRInstruction.Create(ikBr, TIRType.Void, ''));
+        FCurrentBlock.GetLastInstr.AddOperand(mergeBlock);
+
+        // Merge block
+        FCurrentBlock := mergeBlock;
+        Exit;
+      end
+      else
+      begin
+        Result := CreateCall(fn, args, CreateTempName('method.' + Expr.Method));
+        Exit;
+      end;
+    end;
+  end;
+
+  // Fallback: unknown method or non-class target
   SetLength(args, Expr.ArgCount);
   for i := 0 to Expr.ArgCount - 1 do
     args[i] := LowerExpression(Expr.Args[i]);
@@ -1175,10 +1311,27 @@ end;
 function TIRBuilder.LowerStructLiteral(Expr: TStructLiteralExpr): TIRValue;
 var
   i: Integer;
+  args: TIRValueArray;
+  ctorName: string;
+  fn: TIRFunction;
 begin
-  for i := 0 to Length(Expr.Args) - 1 do
-    LowerExpression(Expr.Args[i]);
-  Result := TIRConstant.CreateNull(TIRType.AnyType, CreateTempName('struct.' + Expr.TypeName));
+  // Evaluate constructor arguments
+  SetLength(args, Length(Expr.Args));
+  for i := 0 to High(Expr.Args) do
+    args[i] := LowerExpression(Expr.Args[i]);
+
+  // Call the constructor: TypeName_CONSTRUCTOR
+  ctorName := Expr.TypeName + '_CONSTRUCTOR';
+  fn := FModule.GetFunction(ctorName);
+  if not Assigned(fn) then
+  begin
+    // Constructor not yet lowered - create forward reference
+    fn := FModule.AddFunction(ctorName, TIRType.Struct(Expr.TypeName));
+  end;
+
+  // Call constructor with args; result is the constructed instance
+  Result := CreateCall(fn, args, CreateTempName('struct.' + Expr.TypeName));
+  Result.Type_ := TIRType.Struct(Expr.TypeName);
 end;
 
 function TIRBuilder.LowerMacro(Expr: TMacroExpr): TIRValue;

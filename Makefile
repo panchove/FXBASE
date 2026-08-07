@@ -18,12 +18,13 @@ VERSION := $(shell cat VERSION 2>/dev/null || echo 0.0.0)
 all: fxbc
 
 # Main compiler
-fxbc: $(BUILD_DIR) $(BIN_DIR) lib/libsqlite3.so lib/libpq.so
+fxbc: $(BUILD_DIR) $(BIN_DIR) lib/libsqlite3.so lib/libpq.so lib/libodbc.so
 	@# FPC does not track {$I ...inc} dependencies for incremental builds, so an
 	@# edited .inc leaves the including unit's .ppu/.o stale. Detect a newer .inc
 	@# per including unit and force a clean rebuild so the edit always applies.
 	@rm -f .fxb_inc_stale; \
 	for pair in "fxb.backend.runtime.inc fxb.backend" "fxb.backend.db.inc fxb.backend" \
+	            "fxb.backend.pg.inc fxb.backend" "fxb.backend.ms.inc fxb.backend" \
 	            "fxb.cli.args.inc fxb.cli" "fxb.cli.driver.inc fxb.cli"; do \
 	  set -- $$pair; inc=$$1; unit=$$2; \
 	  if [ -f "$(BUILD_DIR)/$$unit.ppu" ] && [ -f "$(SRC_DIR)/fxb/$$inc" ] && \
@@ -32,7 +33,7 @@ fxbc: $(BUILD_DIR) $(BIN_DIR) lib/libsqlite3.so lib/libpq.so
 	  fi; \
 	done; \
 	if [ -f .fxb_inc_stale ]; then rm -f $(BUILD_DIR)/*.o $(BUILD_DIR)/*.ppu; rm -f .fxb_inc_stale; fi
-	$(FPC) $(FPCFLAGS) -Fllib -k-lsqlite3 -k-lpq -k--dynamic-linker=/lib64/ld-linux-x86-64.so.2 -o$(BIN_DIR)/fxbc $(SRC_DIR)/fxb/fxb.lpr
+	$(FPC) $(FPCFLAGS) -Fllib -k-lsqlite3 -k-lpq -k-lodbc -k--dynamic-linker=/lib64/ld-linux-x86-64.so.2 -o$(BIN_DIR)/fxbc $(SRC_DIR)/fxb/fxb.lpr
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -55,6 +56,11 @@ lib/libsqlite3.so:
 lib/libpq.so:
 	@mkdir -p lib
 	@ln -sf /usr/lib/x86_64-linux-gnu/libpq.so.5 lib/libpq.so
+
+# Local symlink for libodbc (MSSQL ODBC driver).
+lib/libodbc.so:
+	@mkdir -p lib
+	@ln -sf /usr/lib/x86_64-linux-gnu/libodbc.so.2 lib/libodbc.so
 
 test-unit: fxbc lib/libsqlite3.so
 	@bash tests/run_unit.sh

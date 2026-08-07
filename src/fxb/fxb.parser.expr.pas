@@ -277,6 +277,7 @@ begin
                   begin
                     FCtx.Advance;
                     Result := TMethodCallExpr.Create(Result, savedName, savedLine, savedCol);
+                    TMethodCallExpr(Result).IsNilSafe := FCtx.GetPrevious.TokenType = ttQuestionDot;
                     while not FCtx.Check(ttRParen) and not FCtx.GetLexer.EOF do
                     begin
                       TMethodCallExpr(Result).AddArg(ParseExpression);

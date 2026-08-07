@@ -67,6 +67,7 @@ type
     FTarget: TExpr;
     FMethod: string;
     FArgs: TExprArray;
+    FIsNilSafe: Boolean;
   public
     constructor Create(ATarget: TExpr; const AMethod: string; ALine, ACol: Integer);
     destructor Destroy; override;
@@ -75,6 +76,7 @@ type
     property Target: TExpr read FTarget;
     property Method: string read FMethod;
     property Args: TExprArray read FArgs;
+    property IsNilSafe: Boolean read FIsNilSafe write FIsNilSafe;
     function ArgCount: Integer;
   end;
 

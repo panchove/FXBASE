@@ -47,6 +47,7 @@ type
     ikPrint,
     ikDBOp,        // Fase 2: USE/APPEND/REPLACE -> SQLite runtime call
     ikPGOp,        // Fase 3: USE/APPEND/REPLACE -> PostgreSQL runtime call
+    ikMSOp,        // Fase 3: USE/APPEND/REPLACE -> MSSQL ODBC runtime call
     ikYield,
     ikUnreachable,
     ikDbgValue,

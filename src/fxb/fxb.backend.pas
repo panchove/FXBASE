@@ -89,6 +89,7 @@ type
     procedure EmitRuntimeHelpers;
     procedure EmitDBRuntime;
     procedure EmitPGRuntime;
+    procedure EmitMSRuntime;
     procedure EmitRuntimeData;
 
     // Instruction generators
@@ -105,6 +106,7 @@ type
     procedure GenPrint(Instr: TIRInstruction); virtual; abstract;
     procedure GenDBOp(Instr: TIRInstruction);
     procedure GenPGOp(Instr: TIRInstruction);
+    procedure GenMSOp(Instr: TIRInstruction);
 
     function MapInstrKindToAsm(Kind: TIRInstructionKind): string;
     function IsCommutative(Kind: TIRInstructionKind): Boolean;
@@ -552,6 +554,7 @@ begin
     fxb.ir.instr.ikPrint: GenPrint(Instr);
     fxb.ir.instr.ikDBOp: GenDBOp(Instr);
     fxb.ir.instr.ikPGOp: GenPGOp(Instr);
+    fxb.ir.instr.ikMSOp: GenMSOp(Instr);
     else
       Emit(Format('# Unimplemented: %s', [InstrKindToStr(Instr.Kind)]));
   end;
@@ -886,6 +889,12 @@ begin
       Emit('andq $0xFFFFFFFFFFFFFFF0, %rsp');  // align before the runtime call
       EmitCall('fxb_pg_disconnect');
     end;
+    // Close the MSSQL connection if the DB runtime was linked in (no-op when nil).
+    if (FDBDriver = 'mssql') then
+    begin
+      Emit('andq $0xFFFFFFFFFFFFFFF0, %rsp');  // align before the runtime call
+      EmitCall('fxb_ms_disconnect');
+    end;
     Emit('movq %rbx, %rdi');
     Emit('movq $60, %rax');
     Emit('syscall');
@@ -918,6 +927,11 @@ begin
     begin
       Emit('call fxb_pg_disconnect');
     end;
+    // Close the MSSQL connection if the DB runtime was linked in (no-op when nil).
+    if (FDBDriver = 'mssql') then
+    begin
+      Emit('call fxb_ms_disconnect');
+    end;
     Emit('movl %ebx, %eax');                      // exit code
     Emit('movl $1, %eax');                        // __NR_exit
     Emit('int $0x80');
@@ -940,8 +954,11 @@ begin
     EmitDBRuntime;
     if (FDBDriver = 'postgresql') then
       EmitPGRuntime;
+    if (FDBDriver = 'mssql') then
+      EmitMSRuntime;
     EmitRuntimeData;
   end;
+
 end;
 
 function TFXBBackend.HasErrors: Boolean;
@@ -953,4 +970,5 @@ end;
 {$I 'fxb.backend.runtime.inc'}
 {$I 'fxb.backend.db.inc'}
 {$I 'fxb.backend.pg.inc'}
+{$I 'fxb.backend.ms.inc'}
 end.
