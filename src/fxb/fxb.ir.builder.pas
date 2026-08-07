@@ -43,6 +43,8 @@ type
     function GetIRTypeFromToken(AToken: TToken): TIRType;
     function CreateTempName(const Prefix: string): string;
     function CreateBlockName(const Prefix: string): string;
+    function SanitizeMangledName(const Name: string): string;
+    function ExtractBaseTypeName(const TypeName: string): string;
     procedure PushBreakTarget(Block: TIRBlock);
     procedure PopBreakTarget;
     function CurrentBreakTarget: TIRBlock;
@@ -192,6 +194,33 @@ function TIRBuilder.CreateBlockName(const Prefix: string): string;
 begin
   Inc(FNextBlockId);
   Result := Prefix + IntToStr(FNextBlockId);
+end;
+
+function TIRBuilder.SanitizeMangledName(const Name: string): string;
+var
+  i: Integer;
+  c: Char;
+begin
+  Result := '';
+  for i := 1 to Length(Name) do
+  begin
+    c := Name[i];
+    if (c = '<') or (c = '>') or (c = ',') or (c = ' ') then
+      Result := Result + '_'
+    else
+      Result := Result + c;
+  end;
+end;
+
+function TIRBuilder.ExtractBaseTypeName(const TypeName: string): string;
+var
+  ltPos: Integer;
+begin
+  ltPos := Pos('<', TypeName);
+  if ltPos > 0 then
+    Result := Copy(TypeName, 1, ltPos - 1)
+  else
+    Result := TypeName;
 end;
 
 procedure TIRBuilder.PushBreakTarget(Block: TIRBlock);
@@ -534,7 +563,7 @@ begin
   for i := 0 to ClassDef.GetMethodCount - 1 do
   begin
     methodDef := ClassDef.GetMethod(i);
-    mangledName := ClassDef.Name + '_' + methodDef.Name;
+    mangledName := SanitizeMangledName(ClassDef.Name + '_' + methodDef.Name);
     // Lower the method body as a function
     // We temporarily set up a function context
     LowerFunctionDef(methodDef, mangledName);
@@ -543,7 +572,7 @@ begin
   // Lower constructors too
   for i := 0 to ClassDef.GetConstructorCount - 1 do
   begin
-    ctorName := ClassDef.Name + '_CONSTRUCTOR';
+    ctorName := SanitizeMangledName(ClassDef.Name + '_CONSTRUCTOR');
     LowerFunctionDef(ClassDef.GetConstructor(i), ctorName);
   end;
 end;
@@ -1200,7 +1229,7 @@ begin
     if found then
     begin
       // Method found - generate call with 'this' pointer as first argument
-      mangledName := targetType.StructName + '_' + Expr.Method;
+      mangledName := SanitizeMangledName(targetType.StructName + '_' + Expr.Method);
       fn := FModule.GetFunction(mangledName);
       if not Assigned(fn) then
       begin
@@ -1314,14 +1343,16 @@ var
   args: TIRValueArray;
   ctorName: string;
   fn: TIRFunction;
+  baseName: string;
 begin
   // Evaluate constructor arguments
   SetLength(args, Length(Expr.Args));
   for i := 0 to High(Expr.Args) do
     args[i] := LowerExpression(Expr.Args[i]);
 
-  // Call the constructor: TypeName_CONSTRUCTOR
-  ctorName := Expr.TypeName + '_CONSTRUCTOR';
+  // Call the constructor: for generic types, use base class name
+  baseName := ExtractBaseTypeName(Expr.TypeName);
+  ctorName := baseName + '_CONSTRUCTOR';
   fn := FModule.GetFunction(ctorName);
   if not Assigned(fn) then
   begin

@@ -324,7 +324,10 @@ begin
   if NeedSQLite then
   begin
     if FTargetOS = 'windows' then
-      LinkFlag := ' -lsqlite3'
+    begin
+      // Use prebuilt static MinGW sqlite3 library (absolute path)
+      LinkFlag := ' -L/home/panchove/Projects/I+D-SYSTEM/FXBASE/lib -lsqlite3';
+    end
     else
       LinkFlag := ' -Llib -lsqlite3';
   end
