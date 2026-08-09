@@ -197,13 +197,9 @@ Optimized FX-IR
 | Risk Code | Pattern | Severity |
 |-----------|---------|----------|
 | RIESGO-101 | `&macro` without type signature | HIGH |
-| RIESGO-102 | `PUBLIC`/`PRIVATE` variables | HIGH |
-| RIESGO-201 | Implicit typing in critical paths | MEDIUM |
-| RIESGO-202 | `SET EXACT OFF` / `SET SOFTSEEK` | MEDIUM |
-| RIESGO-301 | Raw `POINTER` manipulation | HIGH |
-| RIESGO-302 | Untyped `CodeBlock` capture | LOW |
-| RIESGO-401 | Circular `#include` | MEDIUM |
-| RIESGO-402 | Unresolved `REQUEST` function | HIGH |
+| RIESGO-202 | `PUBLIC`/`PRIVATE` variables | HIGH |
+| RIESGO-303 | Implicit typing in critical paths | MEDIUM |
+| RIESGO-404 | `SET EXACT OFF` / `SET SOFTSEEK` | MEDIUM |
 
 ---
 

@@ -745,19 +745,17 @@ OPTIONS:
 
 | xHarbour Pattern | FXBASE Output | Annotation |
 |------------------|---------------|------------|
-| `PUBLIC var` | `EXPORT MODULE VARIABLE var AS VARIANT` | RIESGO-102 |
-| `PRIVATE var` | `MODULE VARIABLE var AS VARIANT` | RIESGO-102 |
+| `PUBLIC var` | `EXPORT MODULE VARIABLE var AS VARIANT` | RIESGO-202 |
+| `PRIVATE var` | `MODULE VARIABLE var AS VARIANT` | RIESGO-202 |
 | `LOCAL var` | `LOCAL var AS VARIANT` | (none) |
 | `LOCAL var := expr` | `LOCAL var AS VARIANT := expr` | (none) |
-| `FUNCTION f(p1, p2)` | `FUNCTION f(p1 AS VARIANT, p2 AS VARIANT) AS VARIANT` | RIESGO-201 if critical |
+| `FUNCTION f(p1, p2)` | `FUNCTION f(p1 AS VARIANT, p2 AS VARIANT) AS VARIANT` | RIESGO-303 if critical |
 | `&macro` | `COMPILE<VARIANT>("macro")` | RIESGO-101 |
-| `#include "x.ch"` | `IMPORT * FROM "x"` | RIESGO-401 if circular |
-| `REQUEST func` | `IMPORT func FROM "legacy/func"` | RIESGO-402 if unresolved |
+| `#include "x.ch"` | `IMPORT * FROM "x"` | (heuristic) |
+| `REQUEST func` | `IMPORT func FROM "legacy/func"` | (unresolved → RIESGO-404) |
 | `BEGIN SEQUENCE ... RECOVER ... END` | `TRY ... CATCH ... END` | (direct) |
-| `SET EXACT OFF` / `SET SOFTSEEK ON` | (emitted, requires review) | RIESGO-202 |
+| `SET EXACT OFF` / `SET SOFTSEEK ON` | (emitted, requires review) | RIESGO-404 |
 | `USE file.dbf` | `USE "file.dbf" VIA "DBF"` | (legacy RDD) |
-| Raw `POINTER` arithmetic | `UNSAFE { ... }` | RIESGO-301 |
-| Untyped `CodeBlock` literal | Typed `CODEBLOCK<...>` | RIESGO-302 |
 
 ### 5.3 Risk Report Schema (JSON)
 
@@ -782,7 +780,7 @@ OPTIONS:
       ]
     },
     {
-      "code": "RIESGO-102",
+      "code": "RIESGO-202",
       "description": "PUBLIC/PRIVATE variables detected",
       "severity": "HIGH",
       "count": 234,
@@ -791,8 +789,8 @@ OPTIONS:
       ]
     },
     {
-      "code": "RIESGO-201",
-      "description": "Implicit typing in critical paths",
+      "code": "RIESGO-303",
+      "description": "Implicit typing in critical functions",
       "severity": "MEDIUM",
       "count": 8901,
       "locations": [
@@ -800,49 +798,12 @@ OPTIONS:
       ]
     },
     {
-      "code": "RIESGO-202",
+      "code": "RIESGO-404",
       "description": "SET EXACT OFF / SET SOFTSEEK ON detected",
       "severity": "MEDIUM",
       "count": 12,
       "locations": [
         {"file": "Config.prg", "line": 5, "context": "SET EXACT OFF"}
-      ]
-    },
-    {
-      "code": "RIESGO-301",
-      "description": "Raw POINTER manipulation",
-      "severity": "HIGH",
-      "count": 67,
-      "locations": [
-        {"file": "Interop.prg", "line": 200, "context": "p := malloc(1024)"}
-      ]
-    },
-    {
-      "code": "RIESGO-302",
-      "description": "Untyped CodeBlock capture",
-      "severity": "LOW",
-      "count": 189,
-      "locations": [
-        {"file": "Filtros.prg", "line": 50, "context": "{|x| x.activo = TRUE}"}
-      ]
-    },
-    {
-      "code": "RIESGO-401",
-      "description": "Circular #include detected",
-      "severity": "MEDIUM",
-      "count": 23,
-      "locations": [
-        {"file": "Facturacion.prg", "line": 1, "context": "#include \"Clientes.ch\""},
-        {"file": "Clientes.prg", "line": 1, "context": "#include \"Facturacion.ch\""}
-      ]
-    },
-    {
-      "code": "RIESGO-402",
-      "description": "Unresolved REQUEST function",
-      "severity": "HIGH",
-      "count": 8,
-      "locations": [
-        {"file": "Modulo1.prg", "line": 10, "context": "REQUEST FuncionExterna"}
       ]
     }
   ],
@@ -851,9 +812,8 @@ OPTIONS:
   ],
   "recommendations": [
     "Start with --legacy mode, enable strict per-module",
-    "Prioritize RIESGO-101, RIESGO-102, RIESGO-301, RIESGO-402 fixes (HIGH severity)",
-    "Address RIESGO-201, RIESGO-202, RIESGO-401 (MEDIUM) in critical modules",
-    "Review RIESGO-302 (LOW) during code cleanup phase"
+    "Prioritize RIESGO-101 and RIESGO-202 fixes (HIGH severity)",
+    "Address RIESGO-303 and RIESGO-404 (MEDIUM) in critical modules"
   ]
 }
 ```
