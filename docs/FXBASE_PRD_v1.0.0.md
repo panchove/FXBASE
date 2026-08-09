@@ -650,20 +650,40 @@ Cada patrón que no tiene traducción directa o que introduce riesgo semántico 
 // [FX-MIGRATE] Contexto: Filtro dinámico construido desde entrada de usuario
 LOCAL bExpr := COMPILE<VARIANT>(cExpresion)
 
-// [FX-MIGRATE: RIESGO-202] Variable PUBLIC detectada
+// [FX-MIGRATE: RIESGO-102] Variable PUBLIC detectada
 // [FX-MIGRATE] Considerar encapsular en módulo o pasar por parámetro
 // [FX-MIGRATE] Impacto: 47 archivos referencian esta variable
 EXPORT MODULE VARIABLE nContadorGlobal AS VARIANT
 
-// [FX-MIGRATE: RIESGO-303] Tipado implícito en función crítica
+// [FX-MIGRATE: RIESGO-201] Tipado implícito en función crítica
 // [FX-MIGRATE] Recomendación: tipar como FUNCTION(..., ...) AS DECIMAL
 FUNCTION CalcularTotal(nSubtotal, nImpuesto)
     RETURN nSubtotal + nImpuesto
 END
 
-// [FX-MIGRATE: RIESGO-404] Uso de SET EXACT OFF detectado
+// [FX-MIGRATE: RIESGO-202] Uso de SET EXACT OFF detectado
 // [FX-MIGRATE] FXBASE usa comparación estricta por defecto
 // [FX-MIGRATE] Revisar lógica de búsquedas y LOCATE
+
+// [FX-MIGRATE: RIESGO-301] Manipulación cruda de POINTER detectada
+// [FX-MIGRATE] Requiere bloque UNSAFE y revisión de seguridad
+// [FX-MIGRATE] Contexto: Interop con biblioteca C legacy
+UNSAFE {
+    LOCAL p := malloc(1024)
+    // ...
+}
+
+// [FX-MIGRATE: RIESGO-302] CodeBlock sin tipado detectado
+// [FX-MIGRATE] Recomendación: añadir firma CODEBLOCK<...>
+LOCAL bFiltrar := {|x| x.activo = TRUE}
+
+// [FX-MIGRATE: RIESGO-401] Include circular detectado
+// [FX-MIGRATE] Refactorizar para romper el ciclo
+// [FX-MIGRATE] Archivos: Facturacion.prg ↔ Clientes.prg
+
+// [FX-MIGRATE: RIESGO-402] REQUEST no resuelto
+// [FX-MIGRATE] Función: FuncionExterna
+// [FX-MIGRATE] Referenciada en: Modulo1.prg:10
 ```
 
 **c) Reporte de migración**
@@ -682,18 +702,18 @@ $ fxbase migrate --report --source ./sistema-legacy/ --output ./sistema-fxbase/
 ║ Requiere revisión manual:         11,119 líneas (12.4%)          ║
 ║                                                                  ║
 ║ RIESGOS DETECTADOS:                                              ║
-║ ┌─────────────────────────────┬──────────┬─────────────────────┐ ║
-║ │ Tipo                        │ Cantidad │ Severidad           │ ║
-║ ├─────────────────────────────┼──────────┼─────────────────────┤ ║
-║ │ Variables PUBLIC/PRIVATE    │ 234      │ ALTA                │ ║
-║ │ Macros inseguras (&)        │ 45       │ ALTA                │ ║
-║ │ Tipos implícitos críticos   │ 8,901    │ MEDIA               │ ║
-║ │ SET EXACT / SET SOFTSEEK    │ 12       │ MEDIA               │ ║
-║ │ Memoria cruda (POINTER)     │ 67       │ ALTA                │ ║
-║ │ CodeBlocks sin contexto     │ 189      │ BAJA                │ ║
-║ │ Headers circulares (#inc)   │ 23       │ MEDIA               │ ║
-║ │ Funciones no resueltas      │ 8        │ ALTA                │ ║
-║ └─────────────────────────────┴──────────┴─────────────────────┘ ║
+║ ┌─────────────────────────────┬──────────┬──────────┬───────────┐ ║
+║ │ Tipo                        │ Código   │ Cantidad │ Severidad │ ║
+║ ├─────────────────────────────┼──────────┼──────────┼───────────┤ ║
+║ │ Variables PUBLIC/PRIVATE    │ RIESGO-102 │ 234      │ ALTA      │ ║
+║ │ Macros inseguras (&)        │ RIESGO-101 │ 45       │ ALTA      │ ║
+║ │ Tipos implícitos críticos   │ RIESGO-201 │ 8,901    │ MEDIA     │ ║
+║ │ SET EXACT / SET SOFTSEEK    │ RIESGO-202 │ 12       │ MEDIA     │ ║
+║ │ Memoria cruda (POINTER)     │ RIESGO-301 │ 67       │ ALTA      │ ║
+║ │ CodeBlocks sin contexto     │ RIESGO-302 │ 189      │ BAJA      │ ║
+║ │ Headers circulares (#inc)   │ RIESGO-401 │ 23       │ MEDIA     │ ║
+║ │ Funciones no resueltas      │ RIESGO-402 │ 8        │ ALTA      │ ║
+║ └─────────────────────────────┴──────────┴──────────┴───────────┘ ║
 ║                                                                  ║
 ║ Tiempo estimado de revisión:      42 horas (1 desarrollador)     ║
 ║ Archivos listos para --legacy:    312 (91.2%)                    ║
