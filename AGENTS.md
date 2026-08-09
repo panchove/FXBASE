@@ -1,49 +1,49 @@
-# AGENTS.md — FXBASE Specification Repository
+# AGENTS.md — Repositorio Especificaciones FXBASE
 
-## Repository Purpose
-This repo contains **only the specification documents** for the FXBASE programming language. No implementation code exists here.
+## Propósito del Repositorio
+Este repo contiene **únicamente los documentos de especificación** del lenguaje de programación FXBASE. No existe código de implementación aquí.
 
-## Document Structure (load order matters)
+## Estructura Documentos (el orden de carga importa)
 
-| File | Role | Depends On |
-|------|------|------------|
-| `FXBASE_PRD_v1.0.0.md` | Product Requirements — source of truth for features | — |
-| `FXBASE_GRAMMAR.md` | Formal EBNF syntax specification | PRD |
-| `FXBASE_ARCH.md` | System architecture (compiler, runtime, tooling) | PRD, GRAMMAR |
-| `FXBASE_SPEC.md` | Technical specification (semantics, APIs, CLI, conformance) | PRD, GRAMMAR, ARCH |
+| Archivo | Rol | Depende De |
+|---------|-----|------------|
+| `FXBASE_PRD_v1.0.0.md` | Requisitos de Producto — fuente de verdad para features | — |
+| `FXBASE_GRAMMAR.md` | Especificación formal sintaxis EBNF | PRD |
+| `FXBASE_ARCH.md` | Arquitectura sistema (compilador, runtime, tooling) | PRD, GRAMMAR |
+| `FXBASE_SPEC.md` | Especificación técnica (semántica, APIs, CLI, conformidad) | PRD, GRAMMAR, ARCH |
 
-**Rule:** When updating one document, verify consistency with its dependencies.
+**Regla:** Al actualizar un documento, verificar consistencia con sus dependencias.
 
-## Working with This Repo
+## Trabajo con Este Repo
 
-### Edit workflow
-1. Read the dependent documents first (see table above)
-2. Make changes to the target document
-3. Cross-check affected sections in dependent documents
-4. Update version/date in modified file headers
+### Flujo Edición
+1. Leer los documentos dependientes primero (ver tabla arriba)
+2. Hacer cambios al documento objetivo
+3. Verificar secciones afectadas en documentos dependientes
+4. Actualizar versión/fecha en cabeceras del archivo modificado
 
-### Validation
-No automated validation exists. Manual checks:
-- Grammar productions match PRD language features
-- Architecture components cover all SPEC subsystems
-- SPEC CLI matches ARCH tooling design
-- Version numbers consistent across all four files
+### Validación
+No existe validación automatizada. Verificaciones manuales:
+- Producciones gramaticales coinciden con features del lenguaje en PRD
+- Componentes arquitectura cubren todos subsistemas SPEC
+- CLI SPEC coincide con diseño tooling ARCH
+- Números de versión consistentes en los cuatro archivos
 
-### Versioning
-All four documents share the same version (currently `1.0.0-alpha`). Increment together.
+### Versionado
+Los cuatro documentos comparten la misma versión (actualmente `1.0.0-alpha`). Incrementar juntos.
 
-## Conventions
-- Dates: ISO 8601 (`YYYY-MM-DD`)
-- RFC 2119 keywords (MUST/SHOULD/MAY) in SPEC only
-- EBNF in GRAMMAR uses `::=`, `|`, `[ ]`, `{ }`, `( )`, `" "`
-- Diagrams: Mermaid-compatible markdown fenced blocks
+## Convenciones
+- Fechas: ISO 8601 (`YYYY-MM-DD`)
+- Palabras clave RFC 2119 (MUST/SHOULD/MAY) solo en SPEC
+- EBNF en GRAMMAR usa `::=`, `|`, `[ ]`, `{ }`, `( )`, `" "`
+- Diagramas: bloques markdown compatibles Mermaid
 
-## What Not to Do
-- Don't add implementation code here
-- Don't create subdirectories under `docs/`
-- Don't commit generated artifacts
+## Qué NO Hacer
+- No añadir código de implementación aquí
+- No crear subdirectorios bajo `docs/`
+- No commitear artefactos generados
 
-## Related Repositories (not in this repo)
-- Compiler implementation: separate repo (TBD)
-- Standard library (FXSTD): separate repo (TBD)
-- Package registry: separate service
+## Repositorios Relacionados (no en este repo)
+- Implementación compilador: repo separado (TBD)
+- Biblioteca estándar (FXSTD): repo separado (TBD)
+- Registro paquetes: servicio separado

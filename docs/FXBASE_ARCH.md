@@ -1,27 +1,27 @@
-# FXBASE — Architecture Specification (ARCH)
+# FXBASE — Especificación de Arquitectura (ARCH)
 
-**Version:** 1.0.0-alpha  
-**Date:** 2026-08-08  
-**Source:** Derived from PRD v1.0.0 and GRAMMAR v1.0.0  
+**Versión:** 1.0.0-alpha  
+**Fecha:** 2026-08-08  
+**Fuente:** Derivado de PRD v1.0.0 y GRAMMAR v1.0.0  
 
 ---
 
-## 1. System Overview
+## 1. Visión General del Sistema
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                            FXBASE ECOSYSTEM                                 │
+│                           ECOSISTEMA FXBASE                                 │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
 │  │   fxbase     │  │  fxbase      │  │  fxpkg       │  │  LSP Server  │   │
-│  │   CLI        │  │  migrate     │  │  (pkg mgr)   │  │  (IDE)       │   │
+│  │   CLI        │  │  migrate     │  │  (gestor pkg)│  │  (IDE)       │   │
 │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘   │
 │         │                 │                 │                 │           │
 │         └─────────────────┼─────────────────┼─────────────────┘           │
 │                           ▼                 ▼                             │
 │                  ┌─────────────────────────────────────┐                 │
-│                  │        FXBASE COMPILER CORE         │                 │
+│                  │         NÚCLEO COMPILADOR FXBASE    │                 │
 │                  ├─────────────────────────────────────┤                 │
 │                  │  ┌─────────┐ ┌─────────┐ ┌───────┐  │                 │
 │                  │  │ Frontend│ │ Middle  │ │ Backend│  │                 │
@@ -39,9 +39,9 @@
 │         └─────────────────┼─────────────────┼─────────────────┘           │
 │                           ▼                 ▼                             │
 │                  ┌─────────────────────────────────────┐                 │
-│                  │         FXSTD (Std Library)         │                 │
+│                  │         FXSTD (Biblioteca Estándar) │                 │
 │                  │  core │ collections │ io │ db       │                 │
-│                  │  net  │ concurrency │ ui │ crypto   │                 │
+│                  │  net  │ concurrencia │ ui │ crypto  │                 │
 │                  │  json │ testing     │                  │                 │
 │                  └─────────────────────────────────────┘                 │
 │                                                                             │
@@ -50,76 +50,80 @@
 
 ---
 
-## 2. Compiler Pipeline Architecture
+## 2. Arquitectura del Pipeline del Compilador
 
-### 2.1 Frontend (Language-Agnostic)
+### 2.1 Frontend (Independiente del Lenguaje)
 
 ```
-Source Code (.fx / .prg)
+Código Fuente (.fx / .prg)
         │
         ▼
 ┌───────────────────┐
-│   Lexer/Scanner   │  ← Hand-written (performance) or logos/text_scanner
+│   Lexer/Scanner   │  ← Escrito a mano (rendimiento) o logos/text_scanner
 │   - UTF-8         │
-│   - Interpolation │
-│   - Keywords      │
+│   - Interpolación │
+│   - Palabras clave│
 └─────────┬─────────┘
           │ Tokens
           ▼
 ┌───────────────────┐
-│    Parser         │  ← Recursive Descent (LL(k)) with Pratt for expressions
-│   - Error recovery│
-│   - AST production│
+│    Parser         │  ← Descenso recursivo (LL(k)) con Pratt para expresiones
+│   - Recuperación  │
+│     de errores    │
+│   - Producción AST│
 └─────────┬─────────┘
-          │ Untyped AST
+          │ AST sin tipar
           ▼
 ┌───────────────────┐
-│  Name Resolver    │  ← Module/Import resolution, visibility, shadowing
-│  - Module graph   │
-│  - Symbol tables  │
+│  Resolvedor       │  ← Resolución de módulos/imports, visibilidad, shadowing
+│  de Nombres       │
+│  - Grafo módulos  │
+│  - Tablas símbolos│
 └─────────┬─────────┘
-          │ Resolved AST
+          │ AST resuelto
           ▼
 ┌───────────────────┐
-│  Type Checker     │  ← Hindley-Milner + extensions (gradual typing)
-│  - Inference      │
-│  - Unification    │
-│  - Diagnostics    │
+│  Comprobador      │  ← Hindley-Milner + extensiones (tipado gradual)
+│  de Tipos         │
+│  - Inferencia     │
+│  - Unificación    │
+│  - Diagnósticos   │
 └─────────┬─────────┘
-          │ Typed AST + Symbol Tables
+          │ AST tipado + Tablas de símbolos
           ▼
 ```
 
-### 2.2 Middle End (Optimization)
+### 2.2 Middle End (Optimización)
 
 ```
-Typed AST
+AST Tipado
     │
     ▼
 ┌───────────────────┐
-│   FX-IR Lowering  │  ← SSA-based IR (FX-IR)
-│   - Desugaring    │
-│   - Closure conv. │
+│   Lowering FX-IR  │  ← IR basado en SSA (FX-IR)
+│   - Desazucarado  │
+│   - Conversión    │
+│     closures      │
 │   - Pattern match │
 └─────────┬─────────┘
-          │ FX-IR (High-level)
+          │ FX-IR (alto nivel)
           ▼
 ┌───────────────────┐
-│  Optimizer        │  ← Pass pipeline
-│  - Const folding  │
+│  Optimizador      │  ← Pipeline de pasadas
+│  - Plegado ctes   │
 │  - Inlining       │
 │  - DCE            │
-│  - Loop opts      │
-│  - Escape analysis│
+│  - Opt. bucles    │
+│  - Análisis escape│
 └─────────┬─────────┘
-          │ Optimized FX-IR
+          │ FX-IR optimizado
           ▼
 ```
 
-### 2.3 Backends (Code Generation)
+### 2.3 Backends (Generación de Código)
 
 ```
-Optimized FX-IR
+FX-IR Optimizado
     │
     ├──────────────────┬──────────────────┬──────────────────┬──────────────────┐
     ▼                  ▼                  ▼                  ▼
@@ -133,87 +137,88 @@ Optimized FX-IR
                  llc/lli              .js glue            (.fxbc)
      │                │                  │                  │
      ▼                ▼                  ▼                  ▼
-  gcc/clang       Native bin         Browser/Node       FXVM
-  /MSVC           (opt -O3)          (wasm-opt)         Interpreter
+  gcc/clang       Binarios           Navegador/Node       FXVM
+  /MSVC           nativos            (wasm-opt)          Intérprete
+                 (opt -O3)
 ```
 
 ---
 
-## 3. Transpilator Architecture (Migration Pipeline)
+## 3. Arquitectura del Transpilador (Pipeline de Migración)
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│                    FXBASE MIGRATE PIPELINE                             │
+│                    PIPELINE FXBASE MIGRATE                             │
 ├────────────────────────────────────────────────────────────────────────┤
 │                                                                        │
-│  Legacy Sources (.prg, .ch, .hbp)                                      │
+│  Fuentes Legacy (.prg, .ch, .hbp)                                      │
 │          │                                                              │
 │          ▼                                                              │
 │  ┌─────────────────────┐                                                │
-│  │  xHarbour Lexer     │  ← Reused from xHarbour 1.2.x (GPL compat)    │
+│  │  Lexer xHarbour     │  ← Reutilizado de xHarbour 1.2.x (GPL compat) │
 │  └─────────┬───────────┘                                                │
 │            │ Tokens                                                      │
 │            ▼                                                              │
 │  ┌─────────────────────┐                                                │
-│  │  xHarbour Parser    │  → Normalized xHarbour AST                    │
+│  │  Parser xHarbour    │  → AST xHarbour normalizado                    │
 │  └─────────┬───────────┘                                                │
-│            │ xHB-AST                                                     │
+│            │ AST-xHB                                                     │
 │            ▼                                                              │
 │  ┌─────────────────────┐                                                │
-│  │  Semantic Analyzer  │  • Symbol resolution (PUBLIC/PRIVATE/LOCAL)   │
-│  │  (xHarbour)         │  • Heuristic type inference (Hungarian prefix)│
-│  └─────────┬───────────┘  • Dependency graph (#include, REQUEST)       │
-│            │            • Risk pattern detection                        │
+│  │  Analizador         │  • Resolución símbolos (PUBLIC/PRIVATE/LOCAL)  │
+│  │  Semántico xHarbour │  • Inferencia heurística tipos (prefijo húngaro)│
+│  └─────────┬───────────┘  • Grafo dependencias (#include, REQUEST)      │
+│            │            • Detección patrones de riesgo                  │
 │            ▼                                                              │
 │  ┌─────────────────────┐                                                │
-│  │  FXBASE Transformer │  • AST mapping: xHB-AST → FX-AST             │
-│  │                     │  • [FX-MIGRATE] annotation injection          │
-│  │                     │  • Module grouping (.prg → .fx modules)       │
-│  │                     │  • Import generation for REQUEST/#include     │
+│  │  Transformador      │  • Mapeo AST: xHB-AST → FX-AST                │
+│  │  FXBASE             │  • Inyección anotaciones [FX-MIGRATE]         │
+│  │                     │  • Agrupación módulos (.prg → .fx módulos)     │
+│  │                     │  • Generación imports para REQUEST/#include    │
 │  └─────────┬───────────┘                                                │
-│            │ FX-AST                                                      │
+│            │ AST-FX                                                      │
 │            ▼                                                              │
 │  ┌─────────────────────┐                                                │
-│  │  FX Source Emitter  │  • Pretty-print with annotations              │
+│  │  Emisor Fuente FX   │  • Pretty-print con anotaciones               │
 │  └─────────┬───────────┘                                                │
-│            │ .fx files                                                   │
+│            │ Archivos .fx                                                │
 │            ▼                                                              │
 │  ┌─────────────────────┐                                                │
-│  │  Report Generator   │  • Markdown/JSON/HTML migration report        │
-│  │                     │  • Risk matrix, effort estimation             │
+│  │  Generador Reportes │  • Reporte migración Markdown/JSON/HTML       │
+│  │                     │  • Matriz riesgos, estimación esfuerzo         │
 │  └─────────────────────┘                                                │
 │                                                                        │
 └────────────────────────────────────────────────────────────────────────┘
                     │
                     ▼
          ┌─────────────────┐
-         │ FX Compiler     │  (with --legacy flag)
+         │ Compilador FX   │  (con flag --legacy)
          │ --legacy        │
          └─────────────────┘
 ```
 
-### 3.1 Risk Detection Rules (Implemented in Semantic Analyzer)
+### 3.1 Reglas de Detección de Riesgos (Implementadas en Analizador Semántico)
 
-| Risk Code | Pattern | Severity |
-|-----------|---------|----------|
-| RIESGO-101 | `&macro` without type signature | HIGH |
-| RIESGO-202 | `PUBLIC`/`PRIVATE` variables | HIGH |
-| RIESGO-303 | Implicit typing in critical paths | MEDIUM |
-| RIESGO-404 | `SET EXACT OFF` / `SET SOFTSEEK` | MEDIUM |
+| Código Riesgo | Patrón | Severidad |
+|---------------|--------|-----------|
+| RIESGO-101 | `&macro` sin firma de tipos | ALTA |
+| RIESGO-202 | Variables `PUBLIC`/`PRIVATE` | ALTA |
+| RIESGO-303 | Tipado implícito en rutas críticas | MEDIA |
+| RIESGO-404 | `SET EXACT OFF` / `SET SOFTSEEK` | MEDIA |
 
 ---
 
-## 4. Runtime Architecture
+## 4. Arquitectura del Runtime
 
-### 4.1 Memory Management
+### 4.1 Gestión de Memoria
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    MEMORY SUBSYSTEM                          │
+│                    SUBSISTEMA MEMORIA                        │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  ┌─────────────────────────────────────────────────────┐    │
-│  │           GENERATIONAL GARBAGE COLLECTOR            │    │
+│  │           RECOLECTOR BASURA GENERACIONAL            │    │
 │  │  ┌─────────┐  ┌─────────┐  ┌─────────┐             │    │
 │  │  │ Nursery │→ │ Young   │→ │ Old     │             │    │
 │  │  │ (Eden)  │  │ Gen     │  │ Gen     │             │    │
@@ -221,8 +226,8 @@ Optimized FX-IR
 │  │        │           │           │                    │    │
 │  │        ▼           ▼           ▼                    │    │
 │  │  ┌─────────────────────────────────────────────┐    │    │
-│  │  │          WRITE BARRIER (Dijkstra)           │    │    │
-│  │  │          + REMEMBERED SETS                  │    │    │
+│  │  │          BARRERA ESCRITURA (Dijkstra)       │    │    │
+│  │  │          + CONJUNTOS RECORDADOS             │    │    │
 │  │  └─────────────────────────────────────────────┘    │    │
 │  └─────────────────────────────────────────────────────┘    │
 │                          │                                    │
@@ -231,7 +236,7 @@ Optimized FX-IR
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
 │  │ Stack       │  │ Heap        │  │ UNSAFE      │          │
 │  │ (LOCAL,     │  │ (OBJECT,    │  │ blocks      │          │
-│  │  params)    │  │  ARRAY,     │  │ (C interop) │          │
+│  │  params)    │  │  ARRAY,     │  │ (interop C) │          │
 │  │             │  │  HASH,      │  │             │          │
 │  │             │  │  CHANNEL)   │  │             │          │
 │  └─────────────┘  └─────────────┘  └─────────────┘          │
@@ -239,22 +244,22 @@ Optimized FX-IR
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**GC Configuration:**
+**Configuración GC:**
 - Nursery: 4MB (configurable)
 - Young gen: 16MB
-- Old gen: grows to heap limit
-- Write barrier: card marking (512-byte cards)
-- Collection triggers: nursery full, allocation rate, explicit `GC()`
+- Old gen: crece hasta límite heap
+- Barrera escritura: card marking (tarjetas 512 bytes)
+- Disparadores colección: nursery lleno, tasa asignación, `GC()` explícito
 
-### 4.2 Concurrency Runtime (CSP + Actors)
+### 4.2 Runtime de Concurrencia (CSP + Actores)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                  CONCURRENCY RUNTIME                         │
+│                  RUNTIME CONCURRENCIA                        │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  ┌─────────────────────────────────────────────────────┐    │
-│  │              TASK SCHEDULER (Work-stealing)         │    │
+│  │              PLANIFICADOR TAREAS (Work-stealing)    │    │
 │  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐   │    │
 │  │  │Worker 0 │ │Worker 1 │ │Worker 2 │ │Worker N │   │    │
 │  │  │ (P-thread)          ...        (P-thread)      │    │
@@ -263,44 +268,44 @@ Optimized FX-IR
 │  │       └───────────┼───────────┼───────────┘          │    │
 │  │                   ▼           ▼                      │    │
 │  │            ┌─────────────────────┐                   │    │
-│  │            │   GLOBAL QUEUE      │                   │    │
-│  │            │   (Lock-free MPSC)  │                   │    │
+│  │            │   COLA GLOBAL       │                   │    │
+│  │            │   (MPSC sin locks)  │                   │    │
 │  │            └─────────────────────┘                   │    │
 │  └─────────────────────────────────────────────────────┘    │
 │                          │                                    │
 │         ┌────────────────┼────────────────┐                  │
 │         ▼                ▼                ▼                  │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
-│  │  CHANNELS   │  │   SELECT    │  │   TASKS     │          │
-│  │  (MPSC,     │  │  (Park/     │  │  (Green     │          │
-│  │   buffered, │  │   unpark)   │  │   threads)  │          │
-│  │   unbuffered)            │  │  + futures  │          │
+│  │  CANALES    │  │   SELECT    │  │   TAREAS    │          │
+│  │  (MPSC,     │  │  (Park/     │  │  (Hilos     │          │
+│  │   buffer,   │  │   unpark)   │  │   verdes)   │          │
+│  │   sin buff) │  │             │  │  + futures  │          │
 │  └─────────────┘  └─────────────┘  └─────────────┘          │
 │                                                              │
-│  Guarantees:                                                │
-│  • No shared mutable state between tasks                    │
-│  • Channel ops are atomic + ordered                         │
-│  • Lexical captures copied (not shared)                     │
-│  • Stack grows on demand (min 8KB)                          │
+│  Garantías:                                                │
+│  • Sin estado mutable compartido entre tareas              │
+│  • Ops canales atómicas + ordenadas                        │
+│  • Capturas léxicas copiadas (no compartidas)              │
+│  • Stack crece bajo demanda (mín 8KB)                      │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 4.3 Database Abstraction (RDD 2.0)
+### 4.3 Abstracción Base de Datos (RDD 2.0)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      RDD 2.0 LAYER                           │
+│                      CAPA RDD 2.0                            │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
-│  FXBASE Code                                                 │
+│  Código FXBASE                                               │
 │       │                                                      │
 │       ▼                                                      │
 │  ┌─────────────────────────────────────────────────────┐    │
-│  │              RDD INTERFACE (Traits)                  │    │
+│  │              INTERFAZ RDD (Traits)                   │    │
 │  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐  │    │
-│  │  │ Connect  │ │ Query    │ │ Execute  │ │ Cursor │  │    │
-│  │  │ Begin/   │ │ (SELECT, │ │ (INSERT, │ │ (Navi- │  │    │
+│  │  │ Conectar │ │ Consultar│ │ Ejecutar │ │ Cursor │  │    │
+│  │  │ Begin/   │ │ (SELECT, │ │ (INSERT, │ │ (Nave- │  │    │
 │  │  │ Commit/  │ │  INSERT, │ │  UPDATE, │ │  gate, │  │    │
 │  │  │ Rollback)│ │  UPDATE) │ │  DELETE) │ │  Seek) │  │    │
 │  │  └──────────┘ └──────────┘ └──────────┘ └────────┘  │    │
@@ -313,170 +318,170 @@ Optimized FX-IR
 │  │(libpq)  │         │ (C API) │         │ (C API) │        │
 │  └─────────┘         └─────────┘         └─────────┘        │
 │                                                              │
-│  Translation Layer:                                          │
-│  • LOCATE/SEEK        →  Parameterized SELECT ... LIMIT 1    │
+│  Capa Traducción:                                           │
+│  • LOCATE/SEEK        →  SELECT parametrizado ... LIMIT 1    │
 │  • REPLACE ALL        →  UPDATE ... WHERE                   │
 │  • SUM/AVERAGE/COUNT  →  SELECT AGG(...)                    │
-│  • SET RELATION       →  JOIN or N+1 queries (configurable) │
-│  • Prepared statement cache (per connection)                │
+│  • SET RELATION       →  JOIN o consultas N+1 (configurable)│
+│  • Cache prepared statements (por conexión)                 │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 5. Standard Library (FXSTD) Architecture
+## 5. Arquitectura Biblioteca Estándar (FXSTD)
 
 ```
 fxstd/
 ├── core/
-│   ├── types.fx          # Result<T,E>, Optional<T>, Channel<T>, Variant
-│   ├── errors.fx         # FXException hierarchy, error codes
-│   ├── memory.fx         # GC hints, UNSAFE blocks, POINTER
-│   └── prelude.fx        # Auto-imported core types
+│   ├── types.fx          # Result, Optional, Channel, Variant
+│   ├── errors.fx         # FXException, FileNotFoundError, etc.
+│   ├── memory.fx         # Hints GC, bloques UNSAFE, POINTER
+│   └── prelude.fx        # Tipos core auto-importados
 │
 ├── collections/
 │   ├── array.fx          # ARRAY<T>: push, pop, map, filter, reduce, sort
 │   ├── hash.fx           # HASH<K,V>: get, set, remove, keys, values
-│   ├── set.fx            # SET<T>: union, intersection, difference
-│   ├── list.fx           # Linked list (persistent)
-│   └── iterator.fx       # ITERATOR<T> trait, for FOREACH
+│   ├── set.fx            # SET<T>: unión, intersección, diferencia
+│   ├── list.fx           # Lista enlazada (persistente)
+│   └── iterator.fx       # Trait ITERATOR<T>, para FOREACH
 │
 ├── io/
 │   ├── file.fx           # File, Path, OpenOptions, metadata
-│   ├── path.fx           # Path manipulation (cross-platform)
+│   ├── path.fx           # Manipulación paths (multiplataforma)
 │   ├── stream.fx         # Read, Write, Seek, BufReader, BufWriter
-│   └── console.fx        # STDIN/STDOUT/STDERR, color, progress
+│   └── console.fx        # STDIN/STDOUT/STDERR, color, progreso
 │
 ├── db/
 │   ├── connection.fx     # Connection, Pool, Transaction
-│   ├── rdd.fx            # RDD trait + default impl
-│   ├── rdd_pgsql.fx      # PostgreSQL driver (libpq)
-│   ├── rdd_sqlite.fx     # SQLite driver (bundled)
-│   ├── rdd_mysql.fx      # MySQL/MariaDB driver
-│   ├── rdd_dbf.fx        # Legacy DBF/CDX/NTX (--legacy only)
-│   └── migrate.fx        # Schema migrations
+│   ├── rdd.fx            # Trait RDD + impl default
+│   ├── rdd_pgsql.fx      # Driver PostgreSQL (libpq)
+│   ├── rdd_sqlite.fx     # Driver SQLite (incluido)
+│   ├── rdd_mysql.fx      # Driver MySQL/MariaDB
+│   ├── rdd_dbf.fx        # Legacy DBF/CDX/NTX (solo --legacy)
+│   └── migrate.fx        # Migraciones esquema
 │
 ├── net/
-│   ├── http.fx           # Client (async), Server, Router, Middleware
+│   ├── http.fx           # Cliente (async), Servidor, Router, Middleware
 │   ├── tcp.fx            # TcpListener, TcpStream, TLS
-│   ├── websocket.fx      # WS client/server
-│   └── dns.fx            # Async resolution
+│   ├── websocket.fx      # WS cliente/servidor
+│   └── dns.fx            # Resolución async
 │
-├── concurrency/
+├── concurrencia/
 │   ├── task.fx           # SPAWN, AWAIT, WAIT, Task<T>, JoinHandle
 │   ├── channel.fx        # CHANNEL<T>, send, recv, try_send, try_recv
-│   ├── select.fx         # SELECT macro, select! {}
-│   ├── sync.fx           # Mutex, RwLock, Condvar, Once, Barrier
+│   ├── select.fx         # Macro SELECT, select! {}
+│   ├── sync.fx           # Mutex, RwLock, Condvar, Once, Barrera
 │   └── time.fx           # Sleep, timeout, interval, Instant, Duration
 │
 ├── ui/
-│   ├── form.fx           # FORM, GET, READ 2.0 (declarative)
+│   ├── form.fx           # FORM, GET, READ 2.0 (declarativo)
 │   ├── dialog.fx         # MessageBox, FileDialog, ProgressDialog
 │   ├── widgets.fx        # Button, Label, Edit, ComboBox, Grid, Tree
 │   ├── layout.fx         # Flex, Grid, Stack, Anchor layouts
-│   ├── binding.fx        # Model-View binding, validation
+│   ├── binding.fx        # Binding Modelo-Vista, validación
 │   └── backends/
 │       ├── tui.fx        # Terminal UI (crossterm/ratatui)
-│       ├── desktop.fx    # Qt6 / GTK4 bindings
+│       ├── desktop.fx    # Bindings Qt6 / GTK4
 │       └── web.fx        # WASM + DOM (web-sys)
 │
 ├── crypto/
 │   ├── hash.fx           # SHA2, SHA3, BLAKE3, HMAC
 │   ├── cipher.fx         # AES-GCM, ChaCha20-Poly1305, X25519
 │   ├── kdf.fx            # Argon2, PBKDF2, HKDF
-│   └── random.fx         # CSPRNG, secure tokens
+│   └── random.fx         # CSPRNG, tokens seguros
 │
 ├── json/
-│   └── json.fx           # JSON parser, serializer, JSONPath, patch
+│   └── json.fx           # Parser JSON, serializador, JSONPath, patch
 │
 ├── testing/
 │   ├── assert.fx         # ASSERT, ASSERT_EQ, ASSERT_THROWS
-│   ├── runner.fx         # Test discovery, parallel execution, coverage
-│   ├── mock.fx           # Mocking framework
-│   └── property.fx       # Property-based testing (QuickCheck-style)
+│   ├── runner.fx         # Descubrimiento tests, ejecución paralela, cobertura
+│   ├── mock.fx           # Framework mocking
+│   └── property.fx       # Property-based testing (estilo QuickCheck)
 │
 └── text/
-    ├── regex.fx          # PCRE2-compatible regex
+    ├── regex.fx          # Regex compatible PCRE2
     ├── format.fx         # printf-style, string templates
     └── encoding.fx       # UTF-8/16/32, Latin1, Base64, Hex
 ```
 
 ---
 
-## 6. Tooling Architecture
+## 6. Arquitectura de Herramientas
 
 ### 6.1 CLI (`fxbase`)
 
 ```
 fxbase
-├── build          # Compile project (debug/release)
-├── run            # Build + execute
-├── test           # Run tests (--coverage, --bench)
-├── fmt            # Format source (opinionated, like gofmt)
-├── doc            # Generate docs from /// comments (HTML/MD)
-├── migrate        # Transpile xHarbour → FXBASE
-├── new            # Scaffold project (lib/bin)
-├── add            # Add dependency (fxpkg)
-├── update         # Update dependencies
-├── publish        # Publish package to registry
-├── repl           # Interactive REPL
-├── check          # Type-check only (no codegen)
-├── lint           # Lint + style checks
-└── doctor         # Environment diagnostics
+├── build          # Compilar proyecto (debug/release)
+├── run            # Build + ejecutar
+├── test           # Ejecutar tests (--coverage, --bench)
+├── fmt            # Formatear fuente (opinionado, como gofmt)
+├── doc            # Generar docs desde comentarios /// (HTML/MD)
+├── migrate        # Transpilar xHarbour → FXBASE
+├── new            # Scaffold proyecto (lib/bin)
+├── add            # Añadir dependencia (fxpkg)
+├── update         # Actualizar dependencias
+├── publish        # Publicar paquete en registro
+├── repl           # REPL interactivo
+├── check          # Solo type-check (sin codegen)
+├── lint           # Lint + checks estilo
+└── doctor         # Diagnósticos entorno
 ```
 
-### 6.2 Package Manager (`fxpkg`)
+### 6.2 Gestor Paquetes (`fxpkg`)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      fxpkg ARCHITECTURE                      │
+│                      ARQUITECTURA fxpkg                      │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
-│  fxpkg.toml (manifest)                                       │
+│  fxpkg.toml (manifiesto)                                     │
 │       │                                                      │
 │       ▼                                                      │
 │  ┌─────────────────────────────────────────────────────┐    │
-│  │              RESOLVER (PubGrub)                      │    │
-│  │  • SemVer resolution                                 │    │
-│  │  • Feature unification                               │    │
-│  │  • Conflict detection                                │    │
-│  │  • Lockfile generation (fxpkg.lock)                  │    │
+│  │              RESOLVEDOR (PubGrub)                    │    │
+│  │  • Resolución SemVer                                 │    │
+│  │  • Unificación features                              │    │
+│  │  • Detección conflictos                              │    │
+│  │  • Generación lockfile (fxpkg.lock)                  │    │
 │  └─────────────────────────────────────────────────────┘    │
 │       │                                                      │
 │       ▼                                                      │
 │  ┌─────────────────────────────────────────────────────┐    │
 │  │              FETCHER                                 │    │
-│  │  • Registry API (crates.io style)                   │    │
-│  │  • Git dependencies (rev/tag/branch)                │    │
-│  │  • Path dependencies                                 │    │
-│  │  • Content-addressable cache (~/.fxpkg/cache)       │    │
+│  │  • API registro (estilo crates.io)                  │    │
+│  │  • Dependencias git (rev/tag/rama)                  │    │
+│  │  • Dependencias path                                 │    │
+│  │  • Cache direccionable por contenido (~/.fxpkg/cache)│    │
 │  └─────────────────────────────────────────────────────┘    │
 │       │                                                      │
 │       ▼                                                      │
 │  ┌─────────────────────────────────────────────────────┐    │
-│  │              BUILD ORCHESTRATOR                      │    │
-│  │  • Topological build order                          │    │
-│  │  • Parallel compilation                             │    │
-│  │  • Incremental builds (fxbc cache)                  │    │
-│  │  • Cross-compilation support                        │    │
+│  │              ORQUESTADOR BUILD                       │    │
+│  │  • Orden build topológico                           │    │
+│  │  • Compilación paralela                             │    │
+│  │  • Builds incrementales (cache fxbc)                │    │
+│  │  • Soporte cross-compilation                        │    │
 │  └─────────────────────────────────────────────────────┘    │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 6.3 Language Server (LSP)
+### 6.3 Servidor de Lenguaje (LSP)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      LSP SERVER                              │
+│                      SERVIDOR LSP                            │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  Editor (VS Code, Vim, Emacs)                               │
 │       │ JSON-RPC 2.0                                        │
 │       ▼                                                      │
 │  ┌─────────────────────────────────────────────────────┐    │
-│  │              LSP HANDLERS                            │    │
+│  │              MANEJADORES LSP                         │    │
 │  │  • initialize / shutdown / exit                     │    │
 │  │  • textDocument/didOpen / didChange / didClose      │    │
 │  │  • textDocument/completion                          │    │
@@ -492,11 +497,11 @@ fxbase
 │       │                                                      │
 │       ▼                                                      │
 │  ┌─────────────────────────────────────────────────────┐    │
-│  │           INCREMENTAL COMPILER FRONTEND              │    │
-│  │  • Persistent AST + Symbol tables                   │    │
-│  │  • Incremental re-type-check on change              │    │
-│  │  • Salsa/Redex-style query engine                   │    │
-│  │  • Cancellation support                             │    │
+│  │           FRONTEND COMPILADOR INCREMENTAL            │    │
+│  │  • AST persistente + Tablas símbolos                │    │
+│  │  • Re-type-check incremental ante cambios           │    │
+│  │  • Motor consultas estilo Salsa/Redex               │    │
+│  │  • Soporte cancelación                              │    │
 │  └─────────────────────────────────────────────────────┘    │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
@@ -504,37 +509,37 @@ fxbase
 
 ---
 
-## 7. Cross-Cutting Concerns
+## 7. Aspectos Transversales
 
-### 7.1 Error Handling Strategy
+### 7.1 Estrategia Manejo Errores
 
-| Layer | Mechanism | Example |
-|-------|-----------|---------|
-| Lexer | Error tokens + recovery | Invalid char → `ERROR_TOKEN`, continue |
-| Parser | Panic mode + sync points | Missing `END` → sync at `FUNCTION`/`CLASS`/`END` |
-| Type Checker | Accumulated diagnostics | All type errors reported in single pass |
-| Codegen | Trap unreachable | `unreachable!()` in match arms |
-| Runtime | `RESULT<T,E>` + exceptions | Domain errors = Result; Panics = bugs |
-| FFI | `UNSAFE` blocks + contracts | C calls validated at boundary |
+| Capa | Mecanismo | Ejemplo |
+|------|-----------|---------|
+| Lexer | Tokens error + recuperación | Char inválido → `ERROR_TOKEN`, continuar |
+| Parser | Modo pánico + puntos sincronización | Falta `END` → sincronizar en `FUNCTION`/`CLASS`/`END` |
+| Type Checker | Diagnósticos acumulados | Todos errores tipo en una pasada |
+| Codegen | Trap unreachable | `unreachable!()` en brazos match |
+| Runtime | `RESULT<T,E>` + excepciones | Errores dominio = Result; Pánicos = bugs |
+| FFI | Bloques `UNSAFE` + contratos | Llamadas C validadas en frontera |
 
-### 7.2 Diagnostics Format
+### 7.2 Formato Diagnósticos
 
 ```json
 {
   "code": "E0308",
   "level": "error",
-  "message": "mismatched types",
+  "message": "tipos incompatibles",
   "spans": [
     {
       "file": "src/main.fx",
       "start": {"line": 42, "column": 15},
       "end": {"line": 42, "column": 25},
-      "label": "expected `INT`, found `STRING`"
+      "label": "se esperaba `INT`, se encontró `STRING`"
     }
   ],
   "notes": [
-    "help: add explicit conversion: `AS INT`",
-    "note: this error originates in the macro `$crate::format_args`"
+    "help: añadir conversión explícita: `AS INT`",
+    "note: este error origina en macro `$crate::format_args`"
   ],
   "suggestions": [
     {"action": "replace", "span": "...", "text": "AS INT"}
@@ -542,76 +547,79 @@ fxbase
 }
 ```
 
-### 7.3 Incremental Compilation
+### 7.3 Compilación Incremental
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                 INCREMENTAL BUILD GRAPH                      │
+│                 GRAFO BUILD INCREMENTAL                      │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
-│  Source Change (.fx)                                         │
+│  Cambio Fuente (.fx)                                         │
 │       │                                                      │
 │       ▼                                                      │
 │  ┌─────────────────────────────────────────────────────┐    │
-│  │              QUERY ENGINE (Salsa-style)              │    │
-│  │  Inputs:  File contents, config, deps                │    │
-│  │  Queries:                                            │    │
+│  │              MOTOR CONSULTAS (estilo Salsa)          │    │
+│  │  Entradas:  Contenido archivos, config, deps         │    │
+│  │  Consultas:                                          │    │
 │  │    parse(file) → AST                                 │    │
 │  │    type_check(ast) → TypedAST + Diagnostics         │    │
-│  │    codegen(typed_ast, backend) → Artifact           │    │
-│  │    link(artifacts) → Binary                          │    │
-│  │  Invalidation: hash-based, fine-grained             │    │
+│  │    codegen(typed_ast, backend) → Artefacto          │    │
+│  │    link(artefactos) → Binario                        │    │
+│  │  Invalidación: basada en hash, granularidad fina    │    │
 │  └─────────────────────────────────────────────────────┘    │
 │       │                                                      │
 │       ▼                                                      │
-│  Only affected queries re-executed                          │
+│  Solo consultas afectadas se re-ejecutan                    │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 7.4 Security Model
+### 7.4 Modelo de Seguridad
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      SECURITY LAYERS                         │
+│                      CAPAS SEGURIDAD                         │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
-│  1. LANGUAGE LEVEL                                           │
-│     • Memory safety (no raw pointers in safe code)          │
-│     • Null safety (strict mode)                             │
-│     • No implicit coercions                                 │
-│     • Macro sandbox (COMPILE<> only)                        │
-│     • SQL injection prevention (prepared statements)        │
+│  1. NIVEL LENGUAJE                                           │
+│     • Seguridad memoria (sin punteros crudos en código seguro)│
+│     • Seguridad nulos (modo estricto: `T?` para nullable)   │
+│     • Sin coerciones implícitas peligrosas                  │
+│     • Sandbox macros (solo `COMPILE<>`)                     │
+│     • Prevención inyección SQL (prepared statements)        │
+│     • Seguridad transpilador: código generado no introduce  │
+│       vulnerabilidades nuevas (ej: no convertir macros      │
+│       inseguras en `EVAL` sin sandbox)                      │
 │                                                              │
-│  2. RUNTIME LEVEL                                            │
-│     • Capability-based FFI (explicit UNSAFE blocks)         │
-│     • Channel ownership (linear types for endpoints)        │
-│     • Resource limits (stack, heap, file handles)           │
-│     • WASM sandbox (if targeting browser)                   │
+│  2. NIVEL RUNTIME                                            │
+│     • FFI basado en capacidades (bloques UNSAFE explícitos) │
+│     • Propiedad canales (tipos lineales para endpoints)     │
+│     • Límites recursos (stack, heap, file handles)          │
+│     • Sandbox WASM (si target navegador)                    │
 │                                                              │
-│  3. SUPPLY CHAIN                                             │
-│     • Signed packages (fxpkg verify)                        │
-│     • Lockfile integrity (SHA256)                           │
-│     • Reproducible builds                                   │
+│  3. CADENA SUMINISTRO                                        │
+│     • Paquetes firmados (fxpkg verify)                      │
+│     • Integridad lockfile (SHA256)                          │
+│     • Builds reproducibles                                   │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 8. Deployment Architectures
+## 8. Arquitecturas Despliegue
 
-### 8.1 Native Binary (Default)
+### 8.1 Binario Nativo (Default)
 
 ```
 fxbase build --release
         │
         ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  Single statically-linked binary (or dynamic with glibc)    │
-│  • No runtime dependency                                    │
-│  • < 50ms startup                                           │
-│  • Optimized via LLVM -O3 + LTO                             │
+│  Binario único estáticamente linkeado (o dinámico glibc)    │
+│  • Sin dependencia runtime                                  │
+│  • < 50ms arranque                                          │
+│  • Optimizado via LLVM -O3 + LTO                            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -624,8 +632,8 @@ fxbase build --target wasm32-unknown-unknown
 ┌─────────────────────────────────────────────────────────────┐
 │  .wasm + .js glue                                           │
 │  • fxstd/net/http → fetch API                               │
-│  • fxstd/ui/web → DOM bindings                              │
-│  • fxstd/concurrency → Web Workers + MessageChannel         │
+│  • fxstd/ui/web → bindings DOM                              │
+│  • fxstd/concurrencia → Web Workers + MessageChannel        │
 │  • fxstd/db → IndexedDB / WebSQL (SQLite WASM)              │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -633,87 +641,87 @@ fxbase build --target wasm32-unknown-unknown
 ### 8.3 Scripting / REPL (FXVM)
 
 ```
-fxbase run script.fx          # Interpreted (bytecode)
-fxbase repl                   # Interactive
+fxbase run script.fx          # Interpretado (bytecode)
+fxbase repl                   # Interactivo
         │
         ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  FXVM Stack-based VM                                        │
-│  • Hot-reload on file change                                │
-│  • JIT tier (future)                                        │
-│  • Same GC as native                                        │
+│  FXVM Máquina virtual stack-based                           │
+│  • Hot-reload ante cambio archivo                           │
+│  • JIT tier (futuro)                                        │
+│  • Mismo GC que nativo                                      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 9. Project Structure (Reference Layout)
+## 9. Estructura Proyecto (Layout Referencia)
 
 ```
-fxbase-project/
-├── fxpkg.toml              # Package manifest
-├── fxpkg.lock              # Locked dependencies
-├── .fxbase/                # Build cache, incremental data
+fxbase-proyecto/
+├── fxpkg.toml              # Manifiesto paquete
+├── fxpkg.lock              # Dependencias bloqueadas
+├── .fxbase/                # Cache build, datos incrementales
 ├── src/
-│   ├── main.fx             # Binary entry (fn main())
-│   ├── lib.fx              # Library root (MODULE name)
-│   ├── **/*.fx             # Source modules
-│   └── **/*.fx.h           # Generated C headers (for FFI)
+│   ├── main.fx             # Entry binario (fn main())
+│   ├── lib.fx              # Raíz librería (MODULE nombre)
+│   ├── **/*.fx             # Módulos fuente
+│   └── **/*.fx.h           # Headers C generados (para FFI)
 ├── tests/
-│   ├── integration/        # Integration tests
-│   ├── unit/               # Unit tests (co-located or here)
-│   └── fixtures/           # Test data
-├── examples/               # Example binaries
+│   ├── integration/        # Tests integración
+│   ├── unit/               # Tests unitarios (co-localizados o aquí)
+│   └── fixtures/           # Datos test
+├── examples/               # Binarios ejemplo
 ├── benches/                # Benchmarks
-├── scripts/                # Build/migration scripts
-├── docs/                   # Documentation source
-├── fxstd/                  # Local std overrides (rare)
-└── target/                 # Build artifacts (gitignored)
+├── scripts/                # Scripts build/migración
+├── docs/                   # Documentación fuente
+├── fxstd/                  # Overrides std locales (raro)
+└── target/                 # Artefactos build (gitignored)
     ├── debug/
     ├── release/
     ├── wasm/
-    └── fxbc/               # Bytecode cache
+    └── fxbc/               # Cache bytecode
 ```
 
 ---
 
-## 10. Integration Points
+## 10. Puntos Integración
 
-| System | Interface | Direction |
-|--------|-----------|-----------|
-| C Libraries | FFI (`UNSAFE` + `extern "C"`) | Bidirectional |
-| OS APIs | `fxstd::os` (platform-specific) | Outbound |
-| Databases | RDD 2.0 trait + drivers | Outbound |
-| Message Brokers | `fxstd::net` (Redis, RabbitMQ, Kafka) | Outbound |
-| Monitoring | `fxstd::telemetry` (OpenTelemetry) | Outbound |
-| IDEs | LSP (JSON-RPC 2.0) | Bidirectional |
-| CI/CD | `fxbase` CLI exit codes + JSON output | Outbound |
-| Package Registry | `fxpkg` HTTP API (crates.io compatible) | Bidirectional |
+| Sistema | Interfaz | Dirección |
+|---------|----------|-----------|
+| Librerías C | FFI (`UNSAFE` + `extern "C"`) | Bidireccional |
+| APIs SO | `fxstd::os` (específicas plataforma) | Salida |
+| Bases datos | RDD 2.0 trait + drivers | Salida |
+| Message Brokers | `fxstd::net` (Redis, RabbitMQ, Kafka) | Salida |
+| Monitorización | `fxstd::telemetry` (OpenTelemetry) | Salida |
+| IDEs | LSP (JSON-RPC 2.0) | Bidireccional |
+| CI/CD | `fxbase` CLI códigos salida + JSON | Salida |
+| Registro Paquetes | `fxpkg` API HTTP (compat crates.io) | Bidireccional |
 
 ---
 
-## 11. Future Extension Points
+## 11. Puntos Extensión Futuros
 
-1. **Plugin System** - Compiler plugins for custom attributes/lints
-2. **Multiple Frontends** - TypeScript→FXBASE, Python→FXBASE transpilers
-3. **Distributed Compilation** - Build farms via gRPC
-4. **Cloud IDE** - WASM-compiled compiler running in browser
-5. **AI-Assisted Migration** - LLM-powered risk resolution suggestions
-6. **Hot Reload** - Runtime code swap for long-running services
+1. **Sistema Plugins** - Plugins compilador para atributos/lints personalizados
+2. **Múltiples Frontends** - Transpiladores TypeScript→FXBASE, Python→FXBASE
+3. **Compilación Distribuida** - Build farms via gRPC
+4. **IDE Cloud** - Compilador compilado a WASM ejecutándose en navegador
+5. **Migración Asistida IA** - LLM para sugerencias resolución riesgos
+6. **Hot Reload** - Swap código runtime para servicios larga duración
 7. **GPU Compute** - `fxstd::gpu` (WGPU/CUDA) backend
 
 ---
 
-## 12. Version Compatibility Matrix
+## 12. Matriz Compatibilidad Versiones
 
-| FXBASE Version | Grammar Spec | FXSTD API | fxpkg Registry | LSP Protocol |
-|----------------|--------------|-----------|----------------|--------------|
-| 1.0.x          | 1.0          | 1.0       | v1             | 3.17         |
-| 1.1.x          | 1.0+         | 1.1 (compat) | v1           | 3.17+        |
-| 2.0.x          | 2.0          | 2.0       | v2             | 3.18+        |
+| Versión FXBASE | Spec Gramática | API FXSTD | Registro fxpkg | Protocolo LSP |
+|----------------|----------------|-----------|----------------|---------------|
+| 1.0.x          | 1.0            | 1.0       | v1             | 3.17          |
+| 1.1.x          | 1.0+           | 1.1 (compat) | v1           | 3.17+         |
+| 2.0.x          | 2.0            | 2.0       | v2             | 3.18+         |
 
-**Policy:** SemVer for language + stdlib. Grammar changes = major version.
+**Política:** SemVer para lenguaje + stdlib. Cambios gramática = versión mayor.
 
 ---
 
-*End of ARCH Specification*
+*Fin Especificación ARCH*

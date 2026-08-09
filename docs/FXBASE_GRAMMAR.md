@@ -1,98 +1,98 @@
-# FXBASE — Formal Grammar Specification (GRAMMAR.PRD)
+# FXBASE — Especificación Formal de Gramática (GRAMMAR)
 
-**Version:** 1.0.0-alpha  
-**Date:** 2026-08-08  
-**Status:** Derived from PRD v1.0.0  
-
----
-
-## 1. Grammar Notation
-
-This grammar uses **EBNF (Extended Backus-Naur Form)** with the following conventions:
-
-| Symbol | Meaning |
-|--------|---------|
-| `::=` | Definition |
-| `|` | Alternative |
-| `[ ... ]` | Optional (zero or one) |
-| `{ ... }` | Repetition (zero or more) |
-| `( ... )` | Grouping |
-| `"..."` | Terminal literal (case-sensitive) |
-| `'...'` | Terminal literal (case-insensitive) |
-| `IDENTIFIER` | Non-terminal (lexical token) |
-| `KEYWORD` | Reserved word token |
+**Versión:** 1.0.0-alpha  
+**Fecha:** 2026-08-08  
+**Estado:** Derivado de PRD v1.0.0  
 
 ---
 
-## 2. Lexical Structure
+## 1. Notación Gramatical
 
-### 2.1 Character Set
-- Source files encoded in **UTF-8**
-- Identifiers support Unicode letters (Lu, Ll, Lt, Lm, Lo, Nl) and underscores
-- First character: letter or underscore
-- Subsequent: letter, digit, underscore, or Unicode mark (Mn, Mc)
+Esta gramática usa **EBNF (Forma Extendida de Backus-Naur)** con las siguientes convenciones:
+
+| Símbolo | Significado |
+|---------|-------------|
+| `::=` | Definición |
+| `|` | Alternativa |
+| `[ ... ]` | Opcional (cero o uno) |
+| `{ ... }` | Repetición (cero o más) |
+| `( ... )` | Agrupación |
+| `"..."` | Terminal literal (sensible a mayúsculas) |
+| `'...'` | Terminal literal (insensible a mayúsculas) |
+| `IDENTIFICADOR` | No-terminal (token léxico) |
+| `PALABRA_CLAVE` | Palabra reservada token |
+
+---
+
+## 2. Estructura Léxica
+
+### 2.1 Conjunto Caracteres
+- Archivos fuente codificados en **UTF-8**
+- Identificadores soportan letras Unicode (Lu, Ll, Lt, Lm, Lo, Nl) y guiones bajos
+- Primer carácter: letra o guion bajo
+- Subsecuentes: letra, dígito, guion bajo, o marca Unicode (Mn, Mc)
 
 ### 2.2 Tokens
 
 ```
-token ::= KEYWORD
-        | IDENTIFIER
+token ::= PALABRA_CLAVE
+        | IDENTIFICADOR
         | LITERAL
-        | OPERATOR
-        | PUNCTUATOR
-        | ANNOTATION
-        | COMMENT
+        | OPERADOR
+        | PUNTUADOR
+        | ANOTACION
+        | COMENTARIO
 ```
 
-### 2.3 Keywords (Reserved Words)
+### 2.3 Palabras Clave (Reservadas)
 
 ```
-KEYWORD ::= 'AND' | 'AS' | 'ASYNC' | 'AWAIT' | 'BREAK' | 'BYREF' | 'BYVAL'
-          | 'CASE' | 'CATCH' | 'CLASS' | 'CONSTRUCTOR' | 'CONTINUE' | 'DECIMAL'
-          | 'DEFAULT' | 'DO' | 'ELSE' | 'ELSEIF' | 'END' | 'ENDCASE' | 'ENDDO'
-          | 'ENDFOR' | 'ENDIF' | 'ENDMATCH' | 'EXIT' | 'EXPORT' | 'FALSE'
-          | 'FINALLY' | 'FOR' | 'FOREACH' | 'FROM' | 'FUNCTION' | 'GLOBAL'
-          | 'HIDDEN' | 'IF' | 'IMPORT' | 'IN' | 'INHERIT' | 'INT' | 'IS'
-          | 'LOCAL' | 'LOGICAL' | 'MATCH' | 'METHOD' | 'MODULE' | 'NEXT'
-          | 'NIL' | 'NOT' | 'OBJECT' | 'OPTIONAL' | 'OR' | 'OVERRIDE'
-          | 'PRIVATE' | 'PROPERTY' | 'PROTECTED' | 'PUBLIC' | 'RAISE'
-          | 'RETURN' | 'SELECT' | 'SELF' | 'SPAWN' | 'STATIC' | 'STEP'
-          | 'STRING' | 'STRUCT' | 'SUPER' | 'THEN' | 'THIS' | 'TO' | 'TRUE'
-          | 'TRY' | 'TYPEOF' | 'UNTIL' | 'USE' | 'VALID' | 'VAR' | 'WAIT'
-          | 'WHERE' | 'WHILE' | 'WITH'
+PALABRA_CLAVE ::= 'AND' | 'AS' | 'ASYNC' | 'AWAIT' | 'BREAK' | 'BYREF' | 'BYVAL'
+                | 'CASE' | 'CATCH' | 'CLASS' | 'CONSTRUCTOR' | 'CONTINUE' | 'DECIMAL'
+                | 'DEFAULT' | 'DO' | 'ELSE' | 'ELSEIF' | 'END' | 'ENDCASE' | 'ENDDO'
+                | 'ENDFOR' | 'ENDIF' | 'ENDMATCH' | 'EXIT' | 'EXPORT' | 'FALSE'
+                | 'FINALLY' | 'FOR' | 'FOREACH' | 'FROM' | 'FUNCTION' | 'GLOBAL'
+                | 'HIDDEN' | 'IF' | 'IMPORT' | 'IN' | 'INHERIT' | 'INT' | 'IS'
+                | 'LOCAL' | 'LOGICAL' | 'MATCH' | 'METHOD' | 'MODULE' | 'NEXT'
+                | 'NIL' | 'NOT' | 'OBJECT' | 'OPTIONAL' | 'OR' | 'OVERRIDE'
+                | 'PRIVATE' | 'PROPERTY' | 'PROTECTED' | 'PUBLIC' | 'RAISE'
+                | 'RETURN' | 'SELECT' | 'SELF' | 'SPAWN' | 'STATIC' | 'STEP'
+                | 'STRING' | 'STRUCT' | 'SUPER' | 'THEN' | 'THIS' | 'TO' | 'TRUE'
+                | 'TRY' | 'TYPEOF' | 'UNTIL' | 'USE' | 'VALID' | 'VAR' | 'WAIT'
+                | 'WHERE' | 'WHILE' | 'WITH'
 ```
 
-**Note:** Keywords are case-insensitive. Convention: UPPER_CASE in grammar, PascalCase in code.
+**Nota:** Las palabras clave son insensibles a mayúsculas. Convención: MAYÚSCULAS en gramática, PascalCase en código.
 
-### 2.4 Identifiers
-
-```
-IDENTIFIER ::= (LETTER | '_') { LETTER | DIGIT | '_' }
-LETTER     ::= Unicode letter categories (Lu, Ll, Lt, Lm, Lo, Nl)
-DIGIT      ::= '0'..'9'
-```
-
-**Special naming conventions (enforced by linter, not grammar):**
-- `n*` prefix → INT/DECIMAL/FLOAT
-- `c*` prefix → STRING
-- `d*` prefix → DATE/DATETIME
-- `l*` prefix → LOGICAL
-- `a*` prefix → ARRAY
-- `o*` prefix → OBJECT
-- `b*` prefix → CODEBLOCK
-
-### 2.5 Literals
+### 2.4 Identificadores
 
 ```
-LITERAL ::= INTEGER_LITERAL
-          | FLOAT_LITERAL
+IDENTIFICADOR ::= (LETRA | '_') { LETRA | DIGITO | '_' }
+LETRA         ::= categorías Unicode letter (Lu, Ll, Lt, Lm, Lo, Nl)
+DIGITO        ::= '0'..'9'
+```
+
+**Convenciones命名 (impuestas por linter, no gramática):**
+- prefijo `n*` → INT/DECIMAL/FLOAT
+- prefijo `c*` → STRING
+- prefijo `d*` → DATE/DATETIME
+- prefijo `l*` → LOGICAL
+- prefijo `a*` → ARRAY
+- prefijo `o*` → OBJECT
+- prefijo `b*` → CODEBLOCK
+
+### 2.5 Literales
+
+```
+LITERAL ::= ENTERO_LITERAL
+          | FLOTANTE_LITERAL
           | DECIMAL_LITERAL
-          | STRING_LITERAL
-          | TEMPLATE_STRING
-          | VERBATIM_STRING
-          | DATE_LITERAL
-          | DATETIME_LITERAL
-          | LOGICAL_LITERAL
+          | CADENA_LITERAL
+          | PLANTILLA_CADENA
+          | CADENA_VERBATIM
+          | FECHA_LITERAL
+          | FECHAHORA_LITERAL
+          | LOGICO_LITERAL
           | ARRAY_LITERAL
           | HASH_LITERAL
           | CODEBLOCK_LITERAL
@@ -100,696 +100,696 @@ LITERAL ::= INTEGER_LITERAL
           | NIL_LITERAL
 ```
 
-#### Numeric Literals
+#### Literales Numéricos
 ```
-INTEGER_LITERAL ::= DECIMAL_DIGITS
-                  | '0x' HEX_DIGITS
-                  | '0b' BINARY_DIGITS
+ENTERO_LITERAL  ::= DIGITOS_DECIMALES
+                  | '0x' DIGITOS_HEX
+                  | '0b' DIGITOS_BINARIOS
 
-FLOAT_LITERAL   ::= DECIMAL_DIGITS '.' DECIMAL_DIGITS [EXPONENT]
-                  | DECIMAL_DIGITS EXPONENT
+FLOTANTE_LITERAL::= DIGITOS_DECIMALES '.' DIGITOS_DECIMALES [EXPONENTE]
+                  | DIGITOS_DECIMALES EXPONENTE
 
-DECIMAL_LITERAL ::= (DECIMAL_DIGITS '.' DECIMAL_DIGITS
-                  | DECIMAL_DIGITS) 'D'
+DECIMAL_LITERAL ::= (DIGITOS_DECIMALES '.' DIGITOS_DECIMALES
+                  | DIGITOS_DECIMALES) 'D'
 
-EXPONENT        ::= ('e' | 'E') ['+' | '-'] DECIMAL_DIGITS
-DECIMAL_DIGITS  ::= DIGIT {DIGIT}
-HEX_DIGITS      ::= HEX_DIGIT {HEX_DIGIT}
-BINARY_DIGITS   ::= '0' | '1' {'0' | '1'}
-HEX_DIGIT       ::= DIGIT | 'A'..'F' | 'a'..'f'
-```
-
-#### String Literals
-```
-STRING_LITERAL      ::= '"' { STRING_CHAR | ESCAPE_SEQUENCE } '"'
-TEMPLATE_STRING     ::= '`' { TEMPLATE_CHAR | ESCAPE_SEQUENCE | INTERPOLATION } '`'
-VERBATIM_STRING     ::= '@"' { VERBATIM_CHAR | '""' } '"'
-
-INTERPOLATION       ::= '${' EXPRESSION [ ':' FORMAT_SPEC ] '}'
-
-FORMAT_SPEC         ::= 'N' DIGITS        // Number with thousands separator
-                      | 'D' DIGITS        // Decimal with zero padding
-                      | 'X' DIGITS        // Hexadecimal
-                      | 'ISO'             // ISO 8601 for dates
-                      | CUSTOM_FORMAT
-
-ESCAPE_SEQUENCE     ::= '\' ('n' | 't' | 'r' | '"' | '\'' | '\\' | '0' | 'u' HEX_DIGITS_4)
-
-STRING_CHAR         ::= any Unicode char except '"', '\', newline
-TEMPLATE_CHAR       ::= any Unicode char except '`', '\', '$'
-VERBATIM_CHAR       ::= any Unicode char except '"'
+EXPONENTE       ::= ('e' | 'E') ['+' | '-'] DIGITOS_DECIMALES
+DIGITOS_DECIMALES ::= DIGITO {DIGITO}
+DIGITOS_HEX     ::= DIGITO_HEX {DIGITO_HEX}
+DIGITOS_BINARIOS::= '0' | '1' {'0' | '1'}
+DIGITO_HEX      ::= DIGITO | 'A'..'F' | 'a'..'f'
 ```
 
-#### Date/Time Literals
+#### Literales Cadenas
 ```
-DATE_LITERAL    ::= 'DATE' '(' INTEGER ',' INTEGER ',' INTEGER ')'
-DATETIME_LITERAL::= 'DATETIME' '(' STRING_LITERAL ')'  // ISO 8601
+CADENA_LITERAL    ::= '"' { CHAR_CADENA | SECUENCIA_ESCAPE } '"'
+PLANTILLA_CADENA  ::= '`' { CHAR_PLANTILLA | SECUENCIA_ESCAPE | INTERPOLACION } '`'
+CADENA_VERBATIM   ::= '@"' { CHAR_VERBATIM | '""' } '"'
+
+INTERPOLACION     ::= '${' EXPRESION [ ':' ESPECIFICADOR_FMT ] '}'
+
+ESPECIFICADOR_FMT ::= 'N' DIGITOS        // Número con separador miles
+                    | 'D' DIGITOS        // Decimal con relleno ceros
+                    | 'X' DIGITOS        // Hexadecimal
+                    | 'ISO'              // ISO 8601 para fechas
+                    | FORMATO_PERSONALIZADO
+
+SECUENCIA_ESCAPE  ::= '\' ('n' | 't' | 'r' | '"' | '\'' | '\\' | '0' | 'u' DIGITOS_HEX_4)
+
+CHAR_CADENA       ::= cualquier char Unicode excepto '"', '\', salto línea
+CHAR_PLANTILLA    ::= cualquier char Unicode excepto '`', '\', '$'
+CHAR_VERBATIM     ::= cualquier char Unicode excepto '"'
 ```
 
-#### Logical Literals
+#### Literales Fecha/Hora
 ```
-LOGICAL_LITERAL ::= 'TRUE' | 'FALSE'
-NIL_LITERAL     ::= 'NIL'
-```
-
-#### Collection Literals
-```
-ARRAY_LITERAL   ::= '{' [ EXPRESSION { ',' EXPRESSION } [ ',' ] ] '}'
-                  | 'ARRAY' '<' TYPE '>' '{' [ EXPRESSION { ',' EXPRESSION } ] '}'
-
-HASH_LITERAL    ::= '{|' [ HASH_ENTRY { ',' HASH_ENTRY } [ ',' ] ] '|}'
-                  | 'HASH' '<' TYPE ',' TYPE '>' '{|' [ HASH_ENTRY { ',' HASH_ENTRY } ] '|}'
-
-HASH_ENTRY      ::= EXPRESSION '=>' EXPRESSION
+FECHA_LITERAL     ::= 'DATE' '(' ENTERO ',' ENTERO ',' ENTERO ')'
+FECHAHORA_LITERAL ::= 'DATETIME' '(' CADENA_LITERAL ')'  // ISO 8601
 ```
 
-#### CodeBlock Literals
+#### Literales Lógicos
 ```
-CODEBLOCK_LITERAL ::= '{|' [ PARAMETER_LIST ] '|' STATEMENT_BLOCK '}'
-                    | '{|' [ TYPED_PARAMETER_LIST ] '|' STATEMENT_BLOCK '}' 'AS' 'CODEBLOCK' '<' TYPE_LIST '>'
-
-PARAMETER_LIST     ::= IDENTIFIER { ',' IDENTIFIER }
-TYPED_PARAMETER_LIST ::= TYPED_PARAMETER { ',' TYPED_PARAMETER }
-TYPED_PARAMETER    ::= IDENTIFIER 'AS' TYPE
-TYPE_LIST          ::= TYPE { ',' TYPE }
+LOGICO_LITERAL ::= 'TRUE' | 'FALSE'
+NIL_LITERAL    ::= 'NIL'
 ```
 
-#### JSON Literals
+#### Literales Colecciones
 ```
-JSON_LITERAL    ::= JSON_OBJECT | JSON_ARRAY
-JSON_OBJECT     ::= '{' [ STRING_LITERAL ':' JSON_VALUE { ',' STRING_LITERAL ':' JSON_VALUE } ] '}'
-JSON_ARRAY      ::= '[' [ JSON_VALUE { ',' JSON_VALUE } ] ']'
-JSON_VALUE      ::= STRING_LITERAL | NUMBER_LITERAL | JSON_OBJECT | JSON_ARRAY | 'TRUE' | 'FALSE' | 'NULL'
+ARRAY_LITERAL ::= '{' [ EXPRESION { ',' EXPRESION } [ ',' ] ] '}'
+                | 'ARRAY' '<' TIPO '>' '{' [ EXPRESION { ',' EXPRESION } ] '}'
+
+HASH_LITERAL  ::= '{|' [ ENTRADA_HASH { ',' ENTRADA_HASH } [ ',' ] ] '|}'
+                | 'HASH' '<' TIPO ',' TIPO '>' '{|' [ ENTRADA_HASH { ',' ENTRADA_HASH } ] '|}'
+
+ENTRADA_HASH  ::= EXPRESION '=>' EXPRESION
 ```
 
-### 2.6 Operators and Punctuators
+#### Literales CodeBlock
+```
+CODEBLOCK_LITERAL ::= '{|' [ LISTA_PARAMETROS ] '|' BLOQUE_SENTENCIAS '}'
+                    | '{|' [ LISTA_PARAMETROS_TIPADOS ] '|' BLOQUE_SENTENCIAS '}' 'AS' 'CODEBLOCK' '<' LISTA_TIPOS '>'
+
+LISTA_PARAMETROS       ::= IDENTIFICADOR { ',' IDENTIFICADOR }
+LISTA_PARAMETROS_TIPADOS ::= PARAMETRO_TIPADO { ',' PARAMETRO_TIPADO }
+PARAMETRO_TIPADO       ::= IDENTIFICADOR 'AS' TIPO
+LISTA_TIPOS            ::= TIPO { ',' TIPO }
+```
+
+#### Literales JSON
+```
+JSON_LITERAL  ::= OBJETO_JSON | ARRAY_JSON
+OBJETO_JSON   ::= '{' [ CADENA_LITERAL ':' VALOR_JSON { ',' CADENA_LITERAL ':' VALOR_JSON } ] '}'
+ARRAY_JSON    ::= '[' [ VALOR_JSON { ',' VALOR_JSON } ] ']'
+VALOR_JSON    ::= CADENA_LITERAL | NUMERO_LITERAL | OBJETO_JSON | ARRAY_JSON | 'TRUE' | 'FALSE' | 'NULL'
+```
+
+### 2.6 Operadores y Puntuadores
 
 ```
-OPERATOR ::= '::' | '->' | '++' | '--' | '+' | '-' | '*' | '/' | '%'
+OPERADOR ::= '::' | '->' | '++' | '--' | '+' | '-' | '*' | '/' | '%'
            | '<<' | '>>' | '<' | '<=' | '>' | '>=' | '==' | '!=' | '===' | '!=='
            | '&' | '^' | '|' | '&&' | '||' | '?' | ':' | ':='
            | '+=' | '-=' | '*=' | '/=' | '|=' | '&=' | '^=' | '<<=' | '>>='
-           | '<-' | '->'  // Channel send/receive
+           | '<-' | '->'  // Envío/recepción canal
 
-PUNCTUATOR ::= '(' | ')' | '[' | ']' | '{' | '}' | ',' | ';' | ':'
-             | '.' | '...' | '@' | '#' | '|' | '=>'
+PUNTUADOR ::= '(' | ')' | '[' | ']' | '{' | '}' | ',' | ';' | ':'
+            | '.' | '...' | '@' | '#' | '|' | '=>'
 ```
 
-### 2.7 Annotations (Attributes)
+### 2.7 Anotaciones (Atributos)
 
 ```
-ANNOTATION ::= '[' ANNOTATION_NAME [ '(' [ ANNOTATION_ARGS ] ')' ] ']'
-ANNOTATION_NAME ::= IDENTIFIER { '::' IDENTIFIER }
-ANNOTATION_ARGS  ::= ANNOTATION_ARG { ',' ANNOTATION_ARG }
-ANNOTATION_ARG   ::= IDENTIFIER ':=' EXPRESSION
-                   | EXPRESSION
+ANOTACION ::= '[' NOMBRE_ANOTACION [ '(' [ ARGS_ANOTACION ] ')' ] ']'
+NOMBRE_ANOTACION ::= IDENTIFICADOR { '::' IDENTIFICADOR }
+ARGS_ANOTACION   ::= ARG_ANOTACION { ',' ARG_ANOTACION }
+ARG_ANOTACION    ::= IDENTIFICADOR ':=' EXPRESION
+                   | EXPRESION
 ```
 
-### 2.8 Comments
+### 2.8 Comentarios
 
 ```
-COMMENT ::= '//' { any char except newline } newline
-          | '/*' { any char except '*/' } '*/'
-          | '///' { any char except newline } newline  // Documentation comment
+COMENTARIO ::= '//' { cualquier char excepto salto línea } salto línea
+             | '/*' { cualquier char excepto '*/' } '*/'
+             | '///' { cualquier char excepto salto línea } salto línea  // Comentario documentación
 ```
 
 ---
 
-## 3. Syntax Grammar
+## 3. Gramática Sintáctica
 
-### 3.1 Compilation Unit
-
-```
-compilation_unit ::= [ MODULE_DECLARATION ] { IMPORT_DECLARATION } { TOP_LEVEL_DECLARATION }
-```
-
-### 3.2 Module Declaration
+### 3.1 Unidad Compilación
 
 ```
-MODULE_DECLARATION ::= 'MODULE' MODULE_NAME [ ANNOTATION ] newline
-MODULE_NAME        ::= IDENTIFIER { '.' IDENTIFIER }
+unidad_compilacion ::= [ DECLARACION_MODULO ] { DECLARACION_IMPORT } { DECLARACION_NIVEL_SUPERIOR }
 ```
 
-### 3.3 Import Declarations
+### 3.2 Declaración Módulo
 
 ```
-IMPORT_DECLARATION ::= 'IMPORT' IMPORT_SPEC 'FROM' STRING_LITERAL [ ANNOTATION ] newline
-
-IMPORT_SPEC ::= '*'
-              | '* AS' IDENTIFIER
-              | IDENTIFIER { ',' IDENTIFIER }
-              | '{' IDENTIFIER { ',' IDENTIFIER } '}'
+DECLARACION_MODULO ::= 'MODULE' NOMBRE_MODULO [ ANOTACION ] salto línea
+NOMBRE_MODULO      ::= IDENTIFICADOR { '.' IDENTIFICADOR }
 ```
 
-### 3.4 Top-Level Declarations
+### 3.3 Declaraciones Import
 
 ```
-TOP_LEVEL_DECLARATION ::= FUNCTION_DECLARATION
-                        | CLASS_DECLARATION
-                        | STRUCT_DECLARATION
-                        | ATTRIBUTE_DECLARATION
-                        | MODULE_VARIABLE_DECLARATION
-                        | EXPORT_DECLARATION
-                        | TEST_SUITE_DECLARATION
-                        | FORM_DECLARATION
+DECLARACION_IMPORT ::= 'IMPORT' ESPEC_IMPORT 'FROM' CADENA_LITERAL [ ANOTACION ] salto línea
+
+ESPEC_IMPORT ::= '*'
+               | '* AS' IDENTIFICADOR
+               | IDENTIFICADOR { ',' IDENTIFICADOR }
+               | '{' IDENTIFICADOR { ',' IDENTIFICADOR } '}'
 ```
 
-### 3.5 Export Declaration
+### 3.4 Declaraciones Nivel Superior
 
 ```
-EXPORT_DECLARATION ::= 'EXPORT' TOP_LEVEL_DECLARATION
-                     | 'EXPORT' 'MODULE' 'VARIABLE' VARIABLE_DECLARATION
+DECLARACION_NIVEL_SUPERIOR ::= DECLARACION_FUNCION
+                             | DECLARACION_CLASE
+                             | DECLARACION_STRUCT
+                             | DECLARACION_ATRIBUTO
+                             | DECLARACION_VAR_MODULO
+                             | DECLARACION_EXPORT
+                             | DECLARACION_SUITE_TEST
+                             | DECLARACION_FORMULARIO
 ```
 
-### 3.6 Function Declaration
+### 3.5 Declaración Export
 
 ```
-FUNCTION_DECLARATION ::= [ 'ASYNC' ] 'FUNCTION' IDENTIFIER
-                         [ TYPE_PARAMETERS ]
-                         '(' [ PARAMETER_LIST ] ')'
-                         [ 'AS' RETURN_TYPE ]
-                         [ ANNOTATION ] newline
-                         STATEMENT_BLOCK
-                         'END' [ ANNOTATION ] newline
+DECLARACION_EXPORT ::= 'EXPORT' DECLARACION_NIVEL_SUPERIOR
+                     | 'EXPORT' 'MODULE' 'VARIABLE' DECLARACION_VARIABLE
+```
 
-TYPE_PARAMETERS ::= '<' TYPE_PARAMETER { ',' TYPE_PARAMETER } '>'
-TYPE_PARAMETER  ::= IDENTIFIER [ ':' CONSTRAINT ]
-CONSTRAINT      ::= TYPE { '|' TYPE }
+### 3.6 Declaración Función
 
-PARAMETER_LIST  ::= PARAMETER { ',' PARAMETER }
-PARAMETER       ::= [ 'BYREF' | 'BYVAL' ] IDENTIFIER [ 'AS' TYPE ] [ ':=' DEFAULT_EXPR ]
-                  | '...' IDENTIFIER [ 'AS' TYPE ]  // Variadic
+```
+DECLARACION_FUNCION ::= [ 'ASYNC' ] 'FUNCTION' IDENTIFICADOR
+                        [ PARAMETROS_TIPO ]
+                        '(' [ LISTA_PARAMETROS ] ')'
+                        [ 'AS' TIPO_RETORNO ]
+                        [ ANOTACION ] salto línea
+                        BLOQUE_SENTENCIAS
+                        'END' [ ANOTACION ] salto línea
 
-RETURN_TYPE     ::= TYPE
-                  | 'RESULT' '<' TYPE ',' TYPE '>'
+PARAMETROS_TIPO ::= '<' PARAMETRO_TIPO { ',' PARAMETRO_TIPO } '>'
+PARAMETRO_TIPO  ::= IDENTIFICADOR [ ':' RESTRICCION ]
+RESTRICCION     ::= TIPO { '|' TIPO }
+
+LISTA_PARAMETROS ::= PARAMETRO { ',' PARAMETRO }
+PARAMETRO        ::= [ 'BYREF' | 'BYVAL' ] IDENTIFICADOR [ 'AS' TIPO ] [ ':=' EXP_DEFECTO ]
+                   | '...' IDENTIFICADOR [ 'AS' TIPO ]  // Variádico
+
+TIPO_RETORNO    ::= TIPO
+                  | 'RESULT' '<' TIPO ',' TIPO '>'
                   | 'NIL'
 
-DEFAULT_EXPR    ::= EXPRESSION
+EXP_DEFECTO     ::= EXPRESION
 ```
 
-### 3.7 Class Declaration
+### 3.7 Declaración Clase
 
 ```
-CLASS_DECLARATION ::= 'CLASS' IDENTIFIER [ TYPE_PARAMETERS ]
-                      [ 'INHERIT' TYPE_REFERENCE ]
-                      [ ANNOTATION ] newline
-                      { CLASS_MEMBER }
-                      'END' [ ANNOTATION ] newline
+DECLARACION_CLASE ::= 'CLASS' IDENTIFICADOR [ PARAMETROS_TIPO ]
+                      [ 'INHERIT' REFERENCIA_TIPO ]
+                      [ ANOTACION ] salto línea
+                      { MIEMBRO_CLASE }
+                      'END' [ ANOTACION ] salto línea
 
-CLASS_MEMBER ::= PROPERTY_DECLARATION
-               | METHOD_DECLARATION
-               | CONSTRUCTOR_DECLARATION
-               | ACCESSOR_DECLARATION
-               | STATIC_DECLARATION
-               | HIDDEN_DECLARATION
+MIEMBRO_CLASE ::= DECLARACION_PROPIEDAD
+                | DECLARACION_METODO
+                | DECLARACION_CONSTRUCTOR
+                | DECLARACION_ACCESOR
+                | DECLARACION_STATIC
+                | DECLARACION_HIDDEN
 
-PROPERTY_DECLARATION ::= [ 'PROPERTY' ] IDENTIFIER [ 'AS' TYPE ] [ ':=' EXPRESSION ]
-                       [ ANNOTATION ] newline
+DECLARACION_PROPIEDAD ::= [ 'PROPERTY' ] IDENTIFICADOR [ 'AS' TIPO ] [ ':=' EXPRESION ]
+                        [ ANOTACION ] salto línea
 
-METHOD_DECLARATION ::= [ 'OVERRIDE' ] 'METHOD' IDENTIFIER
-                       [ TYPE_PARAMETERS ]
-                       '(' [ PARAMETER_LIST ] ')'
-                       [ 'AS' RETURN_TYPE ]
-                       [ ANNOTATION ] newline
-                       STATEMENT_BLOCK
-                       'END' [ ANNOTATION ] newline
+DECLARACION_METODO ::= [ 'OVERRIDE' ] 'METHOD' IDENTIFICADOR
+                       [ PARAMETROS_TIPO ]
+                       '(' [ LISTA_PARAMETROS ] ')'
+                       [ 'AS' TIPO_RETORNO ]
+                       [ ANOTACION ] salto línea
+                       BLOQUE_SENTENCIAS
+                       'END' [ ANOTACION ] salto línea
 
-CONSTRUCTOR_DECLARATION ::= 'CONSTRUCTOR' '(' [ PARAMETER_LIST ] ')'
-                            [ ANNOTATION ] newline
-                            STATEMENT_BLOCK
-                            'END' [ ANNOTATION ] newline
+DECLARACION_CONSTRUCTOR ::= 'CONSTRUCTOR' '(' [ LISTA_PARAMETROS ] ')'
+                            [ ANOTACION ] salto línea
+                            BLOQUE_SENTENCIAS
+                            'END' [ ANOTACION ] salto línea
 
-ACCESSOR_DECLARATION ::= 'ACCESS' IDENTIFIER 'AS' TYPE
-                         [ ANNOTATION ] newline
-                         STATEMENT_BLOCK
-                         'END' [ ANNOTATION ] newline
+DECLARACION_ACCESOR ::= 'ACCESS' IDENTIFICADOR 'AS' TIPO
+                        [ ANOTACION ] salto línea
+                        BLOQUE_SENTENCIAS
+                        'END' [ ANOTACION ] salto línea
 
-STATIC_DECLARATION ::= 'STATIC' ( FUNCTION_DECLARATION | VARIABLE_DECLARATION )
-HIDDEN_DECLARATION ::= 'HIDDEN' ( FUNCTION_DECLARATION | VARIABLE_DECLARATION )
+DECLARACION_STATIC ::= 'STATIC' ( DECLARACION_FUNCION | DECLARACION_VARIABLE )
+DECLARACION_HIDDEN ::= 'HIDDEN' ( DECLARACION_FUNCION | DECLARACION_VARIABLE )
 ```
 
-### 3.8 Struct Declaration
+### 3.8 Declaración Struct
 
 ```
-STRUCT_DECLARATION ::= 'STRUCT' IDENTIFIER [ TYPE_PARAMETERS ]
-                       [ ANNOTATION ] newline
-                       { STRUCT_FIELD }
-                       'END' [ ANNOTATION ] newline
+DECLARACION_STRUCT ::= 'STRUCT' IDENTIFICADOR [ PARAMETROS_TIPO ]
+                       [ ANOTACION ] salto línea
+                       { CAMPO_STRUCT }
+                       'END' [ ANOTACION ] salto línea
 
-STRUCT_FIELD ::= IDENTIFIER 'AS' TYPE [ ANNOTATION ] newline
+CAMPO_STRUCT ::= IDENTIFICADOR 'AS' TIPO [ ANOTACION ] salto línea
 ```
 
-### 3.9 Attribute Declaration
+### 3.9 Declaración Atributo
 
 ```
-ATTRIBUTE_DECLARATION ::= 'ATTRIBUTE' IDENTIFIER '(' [ PARAMETER_LIST ] ')'
-                          [ ANNOTATION ] newline
-                          STATEMENT_BLOCK
-                          'END' [ ANNOTATION ] newline
+DECLARACION_ATRIBUTO ::= 'ATTRIBUTE' IDENTIFICADOR '(' [ LISTA_PARAMETROS ] ')'
+                         [ ANOTACION ] salto línea
+                         BLOQUE_SENTENCIAS
+                         'END' [ ANOTACION ] salto línea
 ```
 
-### 3.10 Module Variable Declaration
+### 3.10 Declaración Variable Módulo
 
 ```
-MODULE_VARIABLE_DECLARATION ::= [ 'HIDDEN' | 'EXPORT' ] 'VAR' VARIABLE_DECLARATION
-VARIABLE_DECLARATION        ::= IDENTIFIER [ 'AS' TYPE ] [ ':=' EXPRESSION ] [ ANNOTATION ] newline
+DECLARACION_VAR_MODULO ::= [ 'HIDDEN' | 'EXPORT' ] 'VAR' DECLARACION_VARIABLE
+DECLARACION_VARIABLE   ::= IDENTIFICADOR [ 'AS' TIPO ] [ ':=' EXPRESION ] [ ANOTACION ] salto línea
 ```
 
-### 3.11 Type References
+### 3.11 Referencias Tipo
 
 ```
-TYPE_REFERENCE ::= SIMPLE_TYPE
-                 | GENERIC_TYPE
-                 | FUNCTION_TYPE
-                 | CHANNEL_TYPE
-                 | CODEBLOCK_TYPE
-                 | OPTIONAL_TYPE
-                 | RESULT_TYPE
-                 | UNION_TYPE
-                 | INTERSECTION_TYPE
+REFERENCIA_TIPO ::= TIPO_SIMPLE
+                  | TIPO_GENERICO
+                  | TIPO_FUNCION
+                  | TIPO_CANAL
+                  | TIPO_CODEBLOCK
+                  | TIPO_OPCIONAL
+                  | TIPO_RESULTADO
+                  | TIPO_UNION
+                  | TIPO_INTERSECCION
 
-SIMPLE_TYPE    ::= 'NIL' | 'LOGICAL' | 'INT' | 'DECIMAL' | 'FLOAT'
-                 | 'STRING' | 'DATE' | 'DATETIME' | 'POINTER'
-                 | 'JSON' | 'OBJECT' | 'VARIANT' | IDENTIFIER
+TIPO_SIMPLE     ::= 'NIL' | 'LOGICAL' | 'INT' | 'DECIMAL' | 'FLOAT'
+                  | 'STRING' | 'DATE' | 'DATETIME' | 'POINTER'
+                  | 'JSON' | 'OBJECT' | 'VARIANT' | IDENTIFICADOR
 
-GENERIC_TYPE   ::= IDENTIFIER '<' TYPE_LIST '>'
+TIPO_GENERICO   ::= IDENTIFICADOR '<' LISTA_TIPOS '>'
 
-FUNCTION_TYPE  ::= 'FUNCTION' '(' [ TYPE_LIST ] ')' [ 'AS' TYPE ]
+TIPO_FUNCION    ::= 'FUNCTION' '(' [ LISTA_TIPOS ] ')' [ 'AS' TIPO ]
 
-CHANNEL_TYPE   ::= 'CHANNEL' '<' TYPE '>'
+TIPO_CANAL      ::= 'CHANNEL' '<' TIPO '>'
 
-CODEBLOCK_TYPE ::= 'CODEBLOCK' '<' [ TYPE_LIST ] '>'
+TIPO_CODEBLOCK  ::= 'CODEBLOCK' '<' [ LISTA_TIPOS ] '>'
 
-OPTIONAL_TYPE  ::= TYPE '?'
+TIPO_OPCIONAL   ::= TIPO '?'
 
-RESULT_TYPE    ::= 'RESULT' '<' TYPE ',' TYPE '>'
+TIPO_RESULTADO  ::= 'RESULT' '<' TIPO ',' TIPO '>'
 
-UNION_TYPE     ::= TYPE '|' TYPE { '|' TYPE }
+TIPO_UNION      ::= TIPO '|' TIPO { '|' TIPO }
 
-INTERSECTION_TYPE ::= TYPE '&' TYPE { '&' TYPE }
+TIPO_INTERSECCION ::= TIPO '&' TIPO { '&' TIPO }
 ```
 
-### 3.12 Statements
+### 3.12 Sentencias
 
 ```
-STATEMENT_BLOCK ::= { STATEMENT }
+BLOQUE_SENTENCIAS ::= { SENTENCIA }
 
-STATEMENT ::= VARIABLE_DECLARATION_STMT
-            | ASSIGNMENT_STMT
-            | EXPRESSION_STMT
-            | IF_STMT
-            | MATCH_STMT
-            | FOR_STMT
-            | FOREACH_STMT
-            | WHILE_STMT
-            | DO_WHILE_STMT
-            | DO_UNTIL_STMT
-            | TRY_STMT
-            | RETURN_STMT
-            | BREAK_STMT
-            | CONTINUE_STMT
-            | EXIT_STMT
-            | SPAWN_STMT
-            | AWAIT_STMT
-            | WAIT_STMT
-            | SELECT_STMT
-            | CHANNEL_SEND_STMT
-            | CHANNEL_RECV_STMT
-            | USE_STMT
-            | SET_STMT
-            | FORM_STMT
-            | BLOCK_STMT
+SENTENCIA ::= SENTENCIA_DECL_VAR
+            | SENTENCIA_ASIGNACION
+            | SENTENCIA_EXPRESION
+            | SENTENCIA_IF
+            | SENTENCIA_MATCH
+            | SENTENCIA_FOR
+            | SENTENCIA_FOREACH
+            | SENTENCIA_WHILE
+            | SENTENCIA_DO_WHILE
+            | SENTENCIA_DO_UNTIL
+            | SENTENCIA_TRY
+            | SENTENCIA_RETURN
+            | SENTENCIA_BREAK
+            | SENTENCIA_CONTINUE
+            | SENTENCIA_EXIT
+            | SENTENCIA_SPAWN
+            | SENTENCIA_AWAIT
+            | SENTENCIA_WAIT
+            | SENTENCIA_SELECT
+            | SENTENCIA_ENVIO_CANAL
+            | SENTENCIA_RECEPCION_CANAL
+            | SENTENCIA_USE
+            | SENTENCIA_SET
+            | SENTENCIA_FORM
+            | SENTENCIA_BLOQUE
 
-BLOCK_STMT ::= '{' STATEMENT_BLOCK '}'
+SENTENCIA_BLOQUE ::= '{' BLOQUE_SENTENCIAS '}'
 ```
 
-#### Variable Declaration Statement
+#### Sentencia Declaración Variable
 ```
-VARIABLE_DECLARATION_STMT ::= [ 'LOCAL' | 'STATIC' | 'MODULE' ] VARIABLE_DECLARATION
+SENTENCIA_DECL_VAR ::= [ 'LOCAL' | 'STATIC' | 'MODULE' ] DECLARACION_VARIABLE
 ```
 
-#### Assignment Statement
+#### Sentencia Asignación
 ```
-ASSIGNMENT_STMT ::= LHS ':=' EXPRESSION
-                  | LHS OP_ASSIGN EXPRESSION
+SENTENCIA_ASIGNACION ::= LHS ':=' EXPRESION
+                       | LHS OP_ASIG EXPRESION
 
-LHS ::= IDENTIFIER
-      | LHS '.' IDENTIFIER
-      | LHS '->' IDENTIFIER
-      | LHS '[' EXPRESSION ']'
+LHS ::= IDENTIFICADOR
+      | LHS '.' IDENTIFICADOR
+      | LHS '->' IDENTIFICADOR
+      | LHS '[' EXPRESION ']'
       | '(' LHS ')'
 
-OP_ASSIGN ::= '+=' | '-=' | '*=' | '/=' | '|=' | '&=' | '^=' | '<<=' | '>>='
+OP_ASIG ::= '+=' | '-=' | '*=' | '/=' | '|=' | '&=' | '^=' | '<<=' | '>>='
 ```
 
-#### Expression Statement
+#### Sentencia Expresión
 ```
-EXPRESSION_STMT ::= EXPRESSION
-```
-
-#### If Statement
-```
-IF_STMT ::= 'IF' EXPRESSION newline
-            STATEMENT_BLOCK
-            { 'ELSEIF' EXPRESSION newline STATEMENT_BLOCK }
-            [ 'ELSE' newline STATEMENT_BLOCK ]
-            'ENDIF'
+SENTENCIA_EXPRESION ::= EXPRESION
 ```
 
-#### Match Statement (Pattern Matching)
+#### Sentencia If
 ```
-MATCH_STMT ::= 'MATCH' EXPRESSION newline
-               { MATCH_CASE }
-               'END'
-
-MATCH_CASE ::= 'CASE' PATTERN [ 'IF' EXPRESSION ] newline
-               STATEMENT_BLOCK
-
-PATTERN ::= '_'
-          | LITERAL
-          | IDENTIFIER
-          | CONSTRUCTOR_PATTERN
-          | TUPLE_PATTERN
-          | OR_PATTERN
-
-CONSTRUCTOR_PATTERN ::= IDENTIFIER '(' [ PATTERN { ',' PATTERN } ] ')'
-TUPLE_PATTERN       ::= '(' [ PATTERN { ',' PATTERN } ] ')'
-OR_PATTERN          ::= PATTERN '|' PATTERN { '|' PATTERN }
+SENTENCIA_IF ::= 'IF' EXPRESION salto línea
+                 BLOQUE_SENTENCIAS
+                 { 'ELSEIF' EXPRESION salto línea BLOQUE_SENTENCIAS }
+                 [ 'ELSE' salto línea BLOQUE_SENTENCIAS ]
+                 'ENDIF'
 ```
 
-#### For Statement
+#### Sentencia Match (Pattern Matching)
 ```
-FOR_STMT ::= 'FOR' IDENTIFIER ':=' EXPRESSION 'TO' EXPRESSION [ 'STEP' EXPRESSION ] newline
-             STATEMENT_BLOCK
-             'NEXT'
+SENTENCIA_MATCH ::= 'MATCH' EXPRESION salto línea
+                    { CASO_MATCH }
+                    'END'
+
+CASO_MATCH ::= 'CASE' PATRON [ 'IF' EXPRESION ] salto línea
+               BLOQUE_SENTENCIAS
+
+PATRON ::= '_'
+         | LITERAL
+         | IDENTIFICADOR
+         | PATRON_CONSTRUCTOR
+         | PATRON_TUPLA
+         | PATRON_OR
+
+PATRON_CONSTRUCTOR ::= IDENTIFICADOR '(' [ PATRON { ',' PATRON } ] ')'
+PATRON_TUPLA       ::= '(' [ PATRON { ',' PATRON } ] ')'
+PATRON_OR          ::= PATRON '|' PATRON { '|' PATRON }
 ```
 
-#### Foreach Statement
+#### Sentencia For
 ```
-FOREACH_STMT ::= 'FOREACH' IDENTIFIER 'IN' EXPRESSION newline
-                 STATEMENT_BLOCK
-                 'NEXT'
-```
-
-#### While Statement
-```
-WHILE_STMT ::= 'DO' 'WHILE' EXPRESSION newline
-               STATEMENT_BLOCK
-               'ENDDO'
+SENTENCIA_FOR ::= 'FOR' IDENTIFICADOR ':=' EXPRESION 'TO' EXPRESION [ 'STEP' EXPRESION ] salto línea
+                  BLOQUE_SENTENCIAS
+                  'NEXT'
 ```
 
-#### Do-Until Statement
+#### Sentencia Foreach
 ```
-DO_UNTIL_STMT ::= 'DO' 'UNTIL' EXPRESSION newline
-                  STATEMENT_BLOCK
-                  'ENDDO'
-```
-
-#### Try Statement
-```
-TRY_STMT ::= 'TRY' newline
-             STATEMENT_BLOCK
-             { CATCH_CLAUSE }
-             [ 'FINALLY' newline STATEMENT_BLOCK ]
-             'END'
-
-CATCH_CLAUSE ::= 'CATCH' [ IDENTIFIER [ 'AS' TYPE_REFERENCE ] ] newline
-                 STATEMENT_BLOCK
+SENTENCIA_FOREACH ::= 'FOREACH' IDENTIFICADOR 'IN' EXPRESION salto línea
+                      BLOQUE_SENTENCIAS
+                      'NEXT'
 ```
 
-#### Return Statement
+#### Sentencia While
 ```
-RETURN_STMT ::= 'RETURN' [ EXPRESSION ]
+SENTENCIA_WHILE ::= 'DO' 'WHILE' EXPRESION salto línea
+                    BLOQUE_SENTENCIAS
+                    'ENDDO'
+```
+
+#### Sentencia Do-Until
+```
+SENTENCIA_DO_UNTIL ::= 'DO' 'UNTIL' EXPRESION salto línea
+                       BLOQUE_SENTENCIAS
+                       'ENDDO'
+```
+
+#### Sentencia Try
+```
+SENTENCIA_TRY ::= 'TRY' salto línea
+                  BLOQUE_SENTENCIAS
+                  { CLAUSULA_CATCH }
+                  [ 'FINALLY' salto línea BLOQUE_SENTENCIAS ]
+                  'END'
+
+CLAUSULA_CATCH ::= 'CATCH' [ IDENTIFICADOR [ 'AS' REFERENCIA_TIPO ] ] salto línea
+                   BLOQUE_SENTENCIAS
+```
+
+#### Sentencia Return
+```
+SENTENCIA_RETURN ::= 'RETURN' [ EXPRESION ]
 ```
 
 #### Break / Continue / Exit
 ```
-BREAK_STMT    ::= 'BREAK'
-CONTINUE_STMT ::= 'CONTINUE'
-EXIT_STMT     ::= 'EXIT' [ EXPRESSION ]
+SENTENCIA_BREAK    ::= 'BREAK'
+SENTENCIA_CONTINUE ::= 'CONTINUE'
+SENTENCIA_EXIT     ::= 'EXIT' [ EXPRESION ]
 ```
 
-#### Concurrency Statements
+#### Sentencias Concurrencia
 ```
-SPAWN_STMT  ::= 'SPAWN' EXPRESSION
-AWAIT_STMT  ::= 'AWAIT' EXPRESSION
-WAIT_STMT   ::= 'WAIT' 'ALL' [ EXPRESSION ]
+SENTENCIA_SPAWN ::= 'SPAWN' EXPRESION
+SENTENCIA_AWAIT ::= 'AWAIT' EXPRESION
+SENTENCIA_WAIT  ::= 'WAIT' 'ALL' [ EXPRESION ]
 
-SELECT_STMT ::= 'SELECT' newline
-                { SELECT_CASE }
-                'END'
+SENTENCIA_SELECT ::= 'SELECT' salto línea
+                     { CASO_SELECT }
+                     'END'
 
-SELECT_CASE ::= 'CASE' CHANNEL_RECV_PATTERN newline STATEMENT_BLOCK
-              | 'CASE' CHANNEL_SEND_PATTERN newline STATEMENT_BLOCK
-              | 'CASE' 'DEFAULT' newline STATEMENT_BLOCK
+CASO_SELECT ::= 'CASE' PATRON_RECEPCION_CANAL salto línea BLOQUE_SENTENCIAS
+              | 'CASE' PATRON_ENVIO_CANAL salto línea BLOQUE_SENTENCIAS
+              | 'CASE' 'DEFAULT' salto línea BLOQUE_SENTENCIAS
 
-CHANNEL_RECV_PATTERN ::= IDENTIFIER ':=' '<-' EXPRESSION
-                       | '<-' EXPRESSION
+PATRON_RECEPCION_CANAL ::= IDENTIFICADOR ':=' '<-' EXPRESION
+                         | '<-' EXPRESION
 
-CHANNEL_SEND_PATTERN ::= EXPRESSION '<-' EXPRESSION
+PATRON_ENVIO_CANAL     ::= EXPRESION '<-' EXPRESION
 
-CHANNEL_SEND_STMT ::= EXPRESSION '<-' EXPRESSION
-CHANNEL_RECV_STMT ::= IDENTIFIER ':=' '<-' EXPRESSION
-                    | '<-' EXPRESSION  // Discard
+SENTENCIA_ENVIO_CANAL  ::= EXPRESION '<-' EXPRESION
+SENTENCIA_RECEPCION_CANAL ::= IDENTIFICADOR ':=' '<-' EXPRESION
+                            | '<-' EXPRESION  // Descartar
 ```
 
-#### Database Statements
+#### Sentencias Base Datos
 ```
-USE_STMT ::= 'USE' STRING_LITERAL [ 'VIA' STRING_LITERAL ] [ 'ALIAS' IDENTIFIER ]
+SENTENCIA_USE ::= 'USE' CADENA_LITERAL [ 'VIA' CADENA_LITERAL ] [ 'ALIAS' IDENTIFICADOR ]
 
-SET_STMT ::= 'SET' SET_OPTION
+SENTENCIA_SET ::= 'SET' OPCION_SET
 
-SET_OPTION ::= 'INDEX' 'TO' STRING_LITERAL
-             | 'RELATION' 'TO' EXPRESSION 'INTO' IDENTIFIER
+OPCION_SET ::= 'INDEX' 'TO' CADENA_LITERAL
+             | 'RELATION' 'TO' EXPRESION 'INTO' IDENTIFICADOR
              | 'EXACT' ( 'ON' | 'OFF' )
              | 'SOFTSEEK' ( 'ON' | 'OFF' )
              | 'DELETED' ( 'ON' | 'OFF' )
-             | 'FILTER' 'TO' EXPRESSION
-             | 'ORDER' 'TO' STRING_LITERAL
+             | 'FILTER' 'TO' EXPRESION
+             | 'ORDER' 'TO' CADENA_LITERAL
 ```
 
-#### Form/UI Statements
+#### Sentencias Formulario/UI
 ```
-FORM_STMT ::= 'FORM' IDENTIFIER [ 'AS' IDENTIFIER ] [ 'TITLE' STRING_LITERAL ]
-              [ 'WIDTH' EXPRESSION ] [ 'HEIGHT' EXPRESSION ] newline
-              { FORM_ELEMENT }
-              'ENDFORM'
+SENTENCIA_FORM ::= 'FORM' IDENTIFICADOR [ 'AS' IDENTIFICADOR ] [ 'TITLE' CADENA_LITERAL ]
+                   [ 'WIDTH' EXPRESION ] [ 'HEIGHT' EXPRESION ] salto línea
+                   { ELEMENTO_FORM }
+                   'ENDFORM'
 
-FORM_ELEMENT ::= POSITION_SAY
-               | POSITION_GET
-               | POSITION_CHECKBOX
-               | POSITION_COMBOBOX
-               | POSITION_BUTTON
-               | READ_STMT
+ELEMENTO_FORM ::= POSICION_SAY
+                | POSICION_GET
+                | POSICION_CHECKBOX
+                | POSICION_COMBOBOX
+                | POSICION_BUTTON
+                | SENTENCIA_READ
 
-POSITION_SAY ::= '@' EXPRESSION ',' EXPRESSION 'SAY' EXPRESSION
+POSICION_SAY ::= '@' EXPRESION ',' EXPRESION 'SAY' EXPRESION
 
-POSITION_GET ::= '@' EXPRESSION ',' EXPRESSION 'GET' LHS
-                 [ 'VALID' EXPRESSION ]
-                 [ 'MESSAGE' STRING_LITERAL ]
-                 [ 'PICTURE' STRING_LITERAL ]
-                 [ 'WHEN' EXPRESSION ]
+POSICION_GET ::= '@' EXPRESION ',' EXPRESION 'GET' LHS
+                 [ 'VALID' EXPRESION ]
+                 [ 'MESSAGE' CADENA_LITERAL ]
+                 [ 'PICTURE' CADENA_LITERAL ]
+                 [ 'WHEN' EXPRESION ]
 
-POSITION_CHECKBOX ::= '@' EXPRESSION ',' EXPRESSION 'CHECKBOX' LHS [ 'CAPTION' STRING_LITERAL ]
+POSICION_CHECKBOX ::= '@' EXPRESION ',' EXPRESION 'CHECKBOX' LHS [ 'CAPTION' CADENA_LITERAL ]
 
-POSITION_COMBOBOX ::= '@' EXPRESSION ',' EXPRESSION 'COMBOBOX' LHS 'ITEMS' ARRAY_LITERAL
+POSICION_COMBOBOX ::= '@' EXPRESION ',' EXPRESION 'COMBOBOX' LHS 'ITEMS' ARRAY_LITERAL
 
-POSITION_BUTTON ::= '@' EXPRESSION ',' EXPRESSION 'BUTTON' STRING_LITERAL 'ACTION' EXPRESSION
+POSICION_BUTTON ::= '@' EXPRESION ',' EXPRESION 'BUTTON' CADENA_LITERAL 'ACTION' EXPRESION
 
-READ_STMT ::= 'READ' [ 'MODEL' EXPRESSION ]
-```
-
-### 3.13 Expressions
-
-```
-EXPRESSION ::= ASSIGNMENT_EXPR
-
-ASSIGNMENT_EXPR ::= LOGICAL_OR_EXPR [ ':=' ASSIGNMENT_EXPR ]
-                  | LHS OP_ASSIGN ASSIGNMENT_EXPR
-
-LOGICAL_OR_EXPR  ::= LOGICAL_AND_EXPR { '||' LOGICAL_AND_EXPR }
-LOGICAL_AND_EXPR ::= BITWISE_OR_EXPR { '&&' BITWISE_OR_EXPR }
-BITWISE_OR_EXPR  ::= BITWISE_XOR_EXPR { '|' BITWISE_XOR_EXPR }
-BITWISE_XOR_EXPR ::= BITWISE_AND_EXPR { '^' BITWISE_AND_EXPR }
-BITWISE_AND_EXPR ::= EQUALITY_EXPR { '&' EQUALITY_EXPR }
-EQUALITY_EXPR    ::= RELATIONAL_EXPR { ( '==' | '!=' | '===' | '!==' ) RELATIONAL_EXPR }
-RELATIONAL_EXPR  ::= SHIFT_EXPR { ( '<' | '<=' | '>' | '>=' ) SHIFT_EXPR }
-SHIFT_EXPR       ::= ADDITIVE_EXPR { ( '<<' | '>>' ) ADDITIVE_EXPR }
-ADDITIVE_EXPR    ::= MULTIPLICATIVE_EXPR { ( '+' | '-' ) MULTIPLICATIVE_EXPR }
-MULTIPLICATIVE_EXPR ::= UNARY_EXPR { ( '*' | '/' | '%' ) UNARY_EXPR }
-UNARY_EXPR       ::= ( '+' | '-' | '!' | '~' | '++' | '--' ) UNARY_EXPR
-                   | POSTFIX_EXPR
-POSTFIX_EXPR     ::= PRIMARY_EXPR { POSTFIX_OP }
-POSTFIX_OP       ::= '++' | '--'
-                   | '(' [ ARGUMENT_LIST ] ')'
-                   | '[' EXPRESSION ']'
-                   | '.' IDENTIFIER
-                   | '->' IDENTIFIER
-                   | '::' IDENTIFIER
-                   | '?'  // Optional chaining
-
-PRIMARY_EXPR     ::= LITERAL
-                   | IDENTIFIER
-                   | '(' EXPRESSION ')'
-                   | 'SELF'
-                   | 'SUPER'
-                   | 'THIS'
-                   | OBJECT_CREATION
-                   | ARRAY_CREATION
-                   | HASH_CREATION
-                   | CODEBLOCK_LITERAL
-                   | MACRO_EXPR
-                   | COMPILE_EXPR
-                   | TYPEOF_EXPR
-                   | INTERPOLATED_STRING
-
-OBJECT_CREATION  ::= TYPE_REFERENCE '(' [ ARGUMENT_LIST ] ')'
-ARRAY_CREATION   ::= 'ARRAY' '<' TYPE '>' '(' EXPRESSION [ ',' EXPRESSION ] ')'
-                   | '{' [ EXPRESSION { ',' EXPRESSION } ] '}'
-HASH_CREATION    ::= 'HASH' '<' TYPE ',' TYPE '>' '(' ')'
-                   | '{|' [ HASH_ENTRY { ',' HASH_ENTRY } ] '|}'
-
-MACRO_EXPR       ::= '&' IDENTIFIER
-                   | '&' '(' EXPRESSION ')'
-
-COMPILE_EXPR     ::= 'COMPILE' '<' TYPE '>' '(' STRING_LITERAL [ ',' HASH_LITERAL ] ')'
-
-TYPEOF_EXPR      ::= 'TYPEOF' '(' EXPRESSION ')'
-
-INTERPOLATED_STRING ::= TEMPLATE_STRING
-
-ARGUMENT_LIST    ::= ARGUMENT { ',' ARGUMENT }
-ARGUMENT         ::= [ IDENTIFIER ':=' ] EXPRESSION
+SENTENCIA_READ ::= 'READ' [ 'MODEL' EXPRESION ]
 ```
 
----
-
-## 4. Precedence Summary (Highest to Lowest)
-
-| Level | Operators | Associativity |
-|-------|-----------|---------------|
-| 1 | `::` `()` `[]` `->` `.` `?` | Left |
-| 2 | `++` `--` (postfix) | Left |
-| 3 | `++` `--` `+` `-` `!` `~` (prefix) | Right |
-| 4 | `*` `/` `%` | Left |
-| 5 | `+` `-` | Left |
-| 6 | `<<` `>>` | Left |
-| 7 | `<` `<=` `>` `>=` | Left |
-| 8 | `==` `!=` `===` `!==` | Left |
-| 9 | `&` | Left |
-| 10 | `^` | Left |
-| 11 | `\|` | Left |
-| 12 | `&&` | Left |
-| 13 | `\|\|` | Left |
-| 14 | `?:` (ternary) | Right |
-| 15 | `:=` `+=` `-=` `*=` `/=` etc. | Right |
-| 16 | `,` (sequence) | Left |
-| 17 | `<-` (channel send) | Right |
-| 18 | `<-` (channel receive) | Right |
-
----
-
-## 5. Strict Mode Grammar Extensions
-
-When `#STRICT` directive is present at file top:
+### 3.13 Expresiones
 
 ```
-STRICT_MODE_REQUIREMENTS ::= 
-  // All variables must have explicit type or inferrable initializer
-  // NIL not assignable to non-optional types
-  // No implicit PUBLIC/PRIVATE
-  // Macros require COMPILE<> with type signature
-  // All function parameters typed
-  // All return types explicit
-  // No dynamic CodeBlock without type annotation
+EXPRESION ::= EXP_ASIGNACION
+
+EXP_ASIGNACION ::= EXP_OR_LOGICO [ ':=' EXP_ASIGNACION ]
+                 | LHS OP_ASIG EXP_ASIGNACION
+
+EXP_OR_LOGICO  ::= EXP_AND_LOGICO { '||' EXP_AND_LOGICO }
+EXP_AND_LOGICO ::= EXP_OR_BITWISE { '&&' EXP_OR_BITWISE }
+EXP_OR_BITWISE ::= EXP_XOR_BITWISE { '|' EXP_XOR_BITWISE }
+EXP_XOR_BITWISE::= EXP_AND_BITWISE { '^' EXP_AND_BITWISE }
+EXP_AND_BITWISE::= EXP_IGUALDAD { '&' EXP_IGUALDAD }
+EXP_IGUALDAD   ::= EXP_RELACIONAL { ( '==' | '!=' | '===' | '!==' ) EXP_RELACIONAL }
+EXP_RELACIONAL ::= EXP_DESPLAZAMIENTO { ( '<' | '<=' | '>' | '>=' ) EXP_DESPLAZAMIENTO }
+EXP_DESPLAZAMIENTO ::= EXP_ADITIVA { ( '<<' | '>>' ) EXP_ADITIVA }
+EXP_ADITIVA    ::= EXP_MULTIPLICATIVA { ( '+' | '-' ) EXP_MULTIPLICATIVA }
+EXP_MULTIPLICATIVA ::= EXP_UNARIA { ( '*' | '/' | '%' ) EXP_UNARIA }
+EXP_UNARIA     ::= ( '+' | '-' | '!' | '~' | '++' | '--' ) EXP_UNARIA
+                 | EXP_POSTFIJO
+EXP_POSTFIJO   ::= EXP_PRIMARIA { OP_POSTFIJO }
+OP_POSTFIJO    ::= '++' | '--'
+                 | '(' [ LISTA_ARGUMENTOS ] ')'
+                 | '[' EXPRESION ']'
+                 | '.' IDENTIFICADOR
+                 | '->' IDENTIFICADOR
+                 | '::' IDENTIFICADOR
+                 | '?'  // Encadenamiento opcional
+
+EXP_PRIMARIA   ::= LITERAL
+                 | IDENTIFICADOR
+                 | '(' EXPRESION ')'
+                 | 'SELF'
+                 | 'SUPER'
+                 | 'THIS'
+                 | CREACION_OBJETO
+                 | CREACION_ARRAY
+                 | CREACION_HASH
+                 | CODEBLOCK_LITERAL
+                 | EXP_MACRO
+                 | EXP_COMPILE
+                 | EXP_TYPEOF
+                 | CADENA_INTERPOLADA
+
+CREACION_OBJETO ::= REFERENCIA_TIPO '(' [ LISTA_ARGUMENTOS ] ')'
+CREACION_ARRAY  ::= 'ARRAY' '<' TIPO '>' '(' EXPRESION [ ',' EXPRESION ] ')'
+                  | '{' [ EXPRESION { ',' EXPRESION } ] '}'
+CREACION_HASH   ::= 'HASH' '<' TIPO ',' TIPO '>' '(' ')'
+                  | '{|' [ ENTRADA_HASH { ',' ENTRADA_HASH } ] '|}'
+
+EXP_MACRO      ::= '&' IDENTIFICADOR
+                 | '&' '(' EXPRESION ')'
+
+EXP_COMPILE    ::= 'COMPILE' '<' TIPO '>' '(' CADENA_LITERAL [ ',' HASH_LITERAL ] ')'
+
+EXP_TYPEOF     ::= 'TYPEOF' '(' EXPRESION ')'
+
+CADENA_INTERPOLADA ::= PLANTILLA_CADENA
+
+LISTA_ARGUMENTOS ::= ARGUMENTO { ',' ARGUMENTO }
+ARGUMENTO        ::= [ IDENTIFICADOR ':=' ] EXPRESION
 ```
 
 ---
 
-## 6. Legacy Mode Grammar Extensions
+## 4. Resumen Precedencia (Mayor a Menor)
 
-When `--legacy` flag is active:
+| Nivel | Operadores | Asociatividad |
+|-------|------------|---------------|
+| 1 | `::` `()` `[]` `->` `.` `?` | Izquierda |
+| 2 | `++` `--` (postfijo) | Izquierda |
+| 3 | `++` `--` `+` `-` `!` `~` (prefijo) | Derecha |
+| 4 | `*` `/` `%` | Izquierda |
+| 5 | `+` `-` | Izquierda |
+| 6 | `<<` `>>` | Izquierda |
+| 7 | `<` `<=` `>` `>=` | Izquierda |
+| 8 | `==` `!=` `===` `!==` | Izquierda |
+| 9 | `&` | Izquierda |
+| 10 | `^` | Izquierda |
+| 11 | `|` | Izquierda |
+| 12 | `&&` | Izquierda |
+| 13 | `||` | Izquierda |
+| 14 | `?:` (ternario) | Derecha |
+| 15 | `:=` `+=` `-=` `*=` `/=` etc. | Derecha |
+| 16 | `,` (secuencia) | Izquierda |
+| 17 | `<-` (envío canal) | Derecha |
+| 18 | `<-` (recepción canal) | Derecha |
+
+---
+
+## 5. Extensiones Gramaticales Modo Estricto
+
+Cuando la directiva `#STRICT` está presente al inicio del archivo:
 
 ```
-LEGACY_EXTENSIONS ::= 
-  // PUBLIC / PRIVATE variable declarations
-  // Untyped variables default to VARIANT
+REQUISITOS_MODO_ESTRICTO ::= 
+  // Todas las variables deben tener tipo explícito o inicializador inferible
+  // NIL no asignable a tipos no-opcionales
+  // Sin PUBLIC/PRIVATE implícitos
+  // Macros requieren COMPILE<> con firma tipos
+  // Todos parámetros función tipados
+  // Todos tipos retorno explícitos
+  // Sin CodeBlock dinámico sin anotación tipo
+```
+
+---
+
+## 6. Extensiones Gramaticales Modo Legacy
+
+Cuando flag `--legacy` está activo:
+
+```
+EXTENSIONES_LEGACY ::= 
+  // Declaraciones variables PUBLIC/PRIVATE
+  // Variables sin tipo default VARIANT
   // SET EXACT OFF / SET SOFTSEEK ON
-  // &macro without COMPILE<>
-  // Implicit module for global state
+  // &macro sin COMPILE<>
+  // Módulo implícito para estado global
   // DBF/CDX/NTX via USE ... VIA "DBF"
   // BEGIN SEQUENCE ... RECOVER ... END
-  // REQUEST function_name
-  // #include "file.ch"
+  // REQUEST nombre_funcion
+  // #include "archivo.ch"
 ```
 
 ---
 
-## 7. Grammar Validation Rules
+## 7. Reglas Validación Gramatical
 
-### 7.1 Semantic Constraints (Post-Parsing)
+### 7.1 Restricciones Semánticas (Post-Parsing)
 
-1. **No import cycles** in module dependency graph
-2. **All EXPORT symbols** must be defined in module
-3. **No duplicate declarations** in same scope
-4. **Constructor must call SUPER** if base class has required parameters
-5. **OVERRIDE methods** must match base signature
-6. **Generic type arguments** must satisfy constraints
-6. **Channel operations** only on CHANNEL types
-7. **AWAIT only** on TASK/ASYNC FUNCTION results
-8. **SPAWN only** on FUNCTION/CODEBLOCK
-9. **MATCH exhaustiveness** for sealed types
-10. **Variable initialization** before use (strict mode)
+1. **Sin ciclos import** en grafo dependencias módulos
+2. **Todos símbolos EXPORT** deben estar definidos en módulo
+3. **Sin declaraciones duplicadas** en mismo ámbito
+4. **Constructor debe llamar SUPER** si clase base tiene parámetros requeridos
+5. **Métodos OVERRIDE** deben coincidir firma base
+6. **Argumentos tipo genérico** deben satisfacer restricciones
+6. **Operaciones canales** solo en tipos CHANNEL
+7. **AWAIT solo** en resultados TAREA/FUNCIÓN_ASYNC
+8. **SPAWN solo** en FUNCIÓN/CODEBLOCK
+9. **Exhaustividad MATCH** para tipos sellados
+10. **Inicialización variables** antes de uso (modo estricto)
 
-### 7.2 Migration Annotations
+### 7.2 Anotaciones Migración
 
-The grammar supports special comment-based annotations inserted by transpiler:
+La gramática soporta anotaciones especiales basadas en comentarios insertadas por transpilador:
 
 ```
-MIGRATION_ANNOTATION ::= '//' '[FX-MIGRATE' ':' RISK_CODE ']' TEXT
-                       | '//' '[FX-MIGRATE' ']' TEXT
-RISK_CODE ::= 'RIESGO-' DIGITS
+ANOTACION_MIGRACION ::= '//' '[FX-MIGRATE' ':' CODIGO_RIESGO ']' TEXTO
+                      | '//' '[FX-MIGRATE' ']' TEXTO
+CODIGO_RIESGO ::= 'RIESGO-' DIGITOS
 ```
 
 ---
 
-## 8. Tokenizer State Machine (Key Transitions)
+## 8. Máquina Estados Tokenizer (Transiciones Clave)
 
 ```
-INITIAL_STATE:
-  - Letter/Underscore → IDENTIFIER/KEYWORD
-  - Digit → NUMBER
-  - '"' → STRING_LITERAL
-  - '`' → TEMPLATE_STRING
-  - '@"' → VERBATIM_STRING
-  - '{' → ARRAY_LITERAL or BLOCK_STMT (context-dependent)
+ESTADO_INICIAL:
+  - Letra/GuionBajo → IDENTIFICADOR/PALABRA_CLAVE
+  - Dígito → NUMERO
+  - '"' → CADENA_LITERAL
+  - '`' → PLANTILLA_CADENA
+  - '@"' → CADENA_VERBATIM
+  - '{' → ARRAY_LITERAL o SENTENCIA_BLOQUE (depende contexto)
   - '{|' → HASH_LITERAL
   - '{|' '|' ... '|}' → CODEBLOCK_LITERAL
-  - '[' → ANNOTATION or ARRAY_ACCESS (context-dependent)
-  - '/' → COMMENT or DIV_OP
-  - '#' → DIRECTIVE (#STRICT, #IF, etc.)
-  - Operator chars → OPERATOR (longest match)
-  - Whitespace → skip
-  - Newline → NEWLINE token (significant for statement termination)
+  - '[' → ANOTACION o ACCESO_ARRAY (depende contexto)
+  - '/' → COMENTARIO u OP_DIV
+  - '#' → DIRECTIVA (#STRICT, #IF, etc.)
+  - Chars operador → OPERADOR (match más largo)
+  - Espacio blanco → saltar
+  - Salto línea → token NUEVA_LINEA (significativo para terminación sentencias)
 ```
 
 ---
 
-## 9. Error Recovery Strategies
+## 9. Estrategias Recuperación Errores
 
-1. **Panic mode** on unexpected token: skip to statement boundary (`;`, `NEWLINE`, `END`, `NEXT`, `ENDIF`, `ENDDO`, `ENDFOR`)
-2. **Insert missing tokens** for common omissions (`:=`, `THEN`, `DO`, `END`)
-3. **Type error recovery**: substitute `VARIANT` and continue
-4. **Import error**: treat as `ANY` module, report diagnostic
-
----
-
-## 10. Version History
-
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0.0-alpha | 2026-08-08 | Initial grammar derived from PRD v1.0.0 |
+1. **Modo pánico** en token inesperado: saltar a límite sentencia (`;`, `NUEVA_LINEA`, `END`, `NEXT`, `ENDIF`, `ENDDO`, `ENDFOR`)
+2. **Insertar tokens faltantes** para omisiones comunes (`:=`, `THEN`, `DO`, `END`)
+3. **Recuperación error tipo**: sustituir `VARIANT` y continuar
+4. **Error import**: tratar como módulo `ANY`, reportar diagnóstico
 
 ---
 
-*End of GRAMMAR.PRD*
+## 10. Historial Versiones
+
+| Versión | Fecha | Cambios |
+|---------|-------|---------|
+| 1.0.0-alpha | 2026-08-08 | Gramática inicial derivada de PRD v1.0.0 |
+
+---
+
+*Fin GRAMMAR*

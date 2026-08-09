@@ -1,39 +1,39 @@
-# FXBASE Language Specification
+# Especificación Lenguaje FXBASE
 
-> **Version:** 1.0.0-alpha  
-> **Status:** Draft for technical review  
-> **Date:** 2026-08-08
+> **Versión:** 1.0.0-alpha  
+> **Estado:** Borrador para revisión técnica  
+> **Fecha:** 2026-08-08
 
-This repository contains the **complete formal specification** for the FXBASE programming language — a modern, compiled language inspired by xBase/Clipper/xHarbour productivity, redesigned with Rust/Go/TypeScript safety and concurrency.
-
----
-
-## Documents (Read in Order)
-
-| # | Document | Purpose |
-|---|----------|---------|
-| 1 | [PRD](docs/FXBASE_PRD_v1.0.0.md) | Product Requirements — features, scope, roadmap |
-| 2 | [GRAMMAR](docs/FXBASE_GRAMMAR.md) | Formal EBNF syntax specification |
-| 3 | [ARCH](docs/FXBASE_ARCH.md) | System architecture: compiler, runtime, tooling |
-| 4 | [SPEC](docs/FXBASE_SPEC.md) | Technical spec: semantics, APIs, CLI, conformance |
-
-**Start with the [PRD](docs/FXBASE_PRD_v1.0.0.md)** — it's the source of truth.
+Este repositorio contiene la **especificación formal completa** del lenguaje de programación FXBASE — un lenguaje moderno, compilado, inspirado en la productividad de xBase/Clipper/xHarbour, rediseñado con la seguridad y concurrencia de Rust/Go/TypeScript.
 
 ---
 
-## Language Highlights
+## Documentos (Leer en Orden)
 
-- **Gradual typing** — dynamic by default, opt-in strict mode (`#STRICT`)
-- **CSP concurrency** — lightweight tasks, typed channels, `SELECT` multiplexing
-- **Memory safe** — generational GC, no raw pointers in safe code
-- **xBase migration** — built-in transpilator (`fxbase migrate`) with risk-annotated output
+| # | Documento | Propósito |
+|---|-----------|-----------|
+| 1 | [PRD](docs/FXBASE_PRD_v1.0.0.md) | Requisitos de Producto — features, alcance, roadmap |
+| 2 | [GRAMMAR](docs/FXBASE_GRAMMAR.md) | Especificación formal sintaxis EBNF |
+| 3 | [ARCH](docs/FXBASE_ARCH.md) | Arquitectura sistema: compilador, runtime, tooling |
+| 4 | [SPEC](docs/FXBASE_SPEC.md) | Especificación técnica: semántica, APIs, CLI, conformidad |
+
+**Empezar por el [PRD](docs/FXBASE_PRD_v1.0.0.md)** — es la fuente de verdad.
+
+---
+
+## Resumen del Lenguaje
+
+- **Tipado gradual** — dinámico por defecto, modo estricto opt-in (`#STRICT`)
+- **Concurrencia CSP** — tareas ligeras, canales tipados, `SELECT` multiplexación
+- **Memory safe** — GC generacional, sin punteros crudos en código seguro
+- **Migración xBase** — transpilador integrado (`fxbase migrate`) con salida anotada por riesgos
 - **Multi-backend** — C, LLVM, WASM, bytecode VM
-- **RDD 2.0** — SQL databases via xBase-style commands (`USE`, `SEEK`, `LOCATE`, `REPLACE`)
-- **Modern tooling** — `fxbase` CLI, `fxpkg` package manager, LSP, formatter, REPL
+- **RDD 2.0** — Bases de datos SQL vía comandos estilo xBase (`USE`, `SEEK`, `LOCATE`, `REPLACE`)
+- **Tooling moderno** — `fxbase` CLI, `fxpkg` gestor paquetes, LSP, formateador, REPL
 
 ---
 
-## Quick Example
+## Ejemplo Rápido
 
 ```fxbase
 #STRICT
@@ -44,8 +44,8 @@ IMPORT Database FROM "fxstd/db"
 IMPORT { Result } FROM "fxstd/core"
 
 EXPORT FUNCTION CalcularIVA(nMonto: DECIMAL) -> Result<DECIMAL, STRING> {
-    IF nMonto < 0 { RETURN Err("Monto no puede ser negativo") }
-    RETURN Ok(nMonto * 0.16)
+    SI nMonto < 0 { RETORNA Err("Monto no puede ser negativo") }
+    RETORNA Ok(nMonto * 0.16)
 }
 
 CLASS Factura {
@@ -59,33 +59,33 @@ CLASS Factura {
         SELF.total = 0
     }
 
-    METHOD AgregarItem(item: Item) {
+    METODO AgregarItem(item: Item) {
         SELF.items.push(item)
         SELF.total += item.precio * item.cantidad
     }
 
     ACCESS ConIVA: DECIMAL {
-        RETURN SELF.total * 1.16
+        RETORNA SELF.total * 1.16
     }
 }
 
-// Concurrency
+// Concurrencia
 ASYNC FUNCTION ProcesarLote(lotes: ARRAY<Lote>) {
     LOCAL ch := Channel<Lote>(100)
     
-    // Producer
+    // Productor
     SPAWN {
-        FOREACH l IN lotes { ch <- l }
+        FOREACH l EN lotes { ch <- l }
         CLOSE(ch)
     }
     
-    // Consumers
-    FOR i := 1 TO 4 {
+    // Consumidores
+    PARA i := 1 HASTA 4 {
         SPAWN {
-            WHILE TRUE {
+            MIENTRAS VERDADERO {
                 MATCH <-ch {
-                    CASE NONE => BREAK
-                    CASE l: Lote => Guardar(l)
+                    CASO NONE => BREAK
+                    CASO l: Lote => Guardar(l)
                 }
             }
         }
@@ -97,25 +97,25 @@ ASYNC FUNCTION ProcesarLote(lotes: ARRAY<Lote>) {
 
 ---
 
-## Repository Conventions
+## Convenciones Repositorio
 
-- All four spec documents share version `1.0.0-alpha` (increment together)
-- Dates: ISO 8601 (`YYYY-MM-DD`)
-- EBNF in GRAMMAR uses `::=`, `|`, `[ ]`, `{ }`, `( )`, `" "`
-- Diagrams: Mermaid-compatible markdown fenced blocks
-
----
-
-## Related Projects (Not in This Repo)
-
-| Project | Status |
-|---------|--------|
-| Compiler implementation | Planned (separate repo) |
-| Standard library (FXSTD) | Planned (separate repo) |
-| Package registry | Planned (separate service) |
+- Los cuatro documentos de especificación comparten versión `1.0.0-alpha` (incrementar juntos)
+- Fechas: ISO 8601 (`YYYY-MM-DD`)
+- EBNF en GRAMMAR usa `::=`, `|`, `[ ]`, `{ }`, `( )`, `" "`
+- Diagramas: bloques markdown compatibles Mermaid
 
 ---
 
-## License
+## Proyectos Relacionados (No en Este Repo)
 
-MIT — see [LICENSE](LICENSE) (to be added)
+| Proyecto | Estado |
+|----------|--------|
+| Implementación compilador | Planeado (repo separado) |
+| Biblioteca estándar (FXSTD) | Planeado (repo separado) |
+| Registro paquetes | Planeado (servicio separado) |
+
+---
+
+## Licencia
+
+MIT — ver [LICENSE](LICENSE) (por añadir)
